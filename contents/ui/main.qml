@@ -327,7 +327,10 @@ PlasmoidItem {
     property real dockRevealProgress: dockRequestedVisible ? 1.0 : 0.0
     readonly property bool dockWindowVisible: dockAvailable
         && (dockRequestedVisible || dockRevealProgress > 0.001)
-    readonly property bool overlayVisible: overlayOpen && dockWindowVisible
+    // Nombre d'icônes dont l'application est en cours de démarrage (rebond).
+    property int startupBounceCount: 0
+    readonly property bool overlayVisible:
+        (overlayOpen || startupBounceCount > 0) && dockWindowVisible
     property Item representationItem: null
     property bool baseHovered: false
     property bool overlayHovered: false
@@ -2742,14 +2745,36 @@ PlasmoidItem {
             scheduleGeometryPublish();
         }
         onChildCountChanged: scheduleGeometryPublish()
+
+        // Rebond de démarrage : la fenêtre de base est exactement aussi haute
+        // que le fond du dock, elle coupe donc le haut du saut. Tant qu'une
+        // application démarre, on affiche la fenêtre agrandie (plus haute) à
+        // la place, comme quand le pointeur survole le dock.
+        property bool startupBounceCounted: false
+        readonly property bool startupBounceWanted: !inOverlay
+            && launchAnimation === 1 && isStarting
+        onStartupBounceWantedChanged: syncStartupBounceCount()
+        function syncStartupBounceCount() {
+            if (startupBounceWanted === startupBounceCounted) {
+                return;
+            }
+            startupBounceCounted = startupBounceWanted;
+            root.startupBounceCount += startupBounceWanted ? 1 : -1;
+        }
+
         Component.onCompleted: {
             scheduleGeometryPublish();
             root.scheduleTaskLayoutRefresh();
+            syncStartupBounceCount();
         }
         Component.onDestruction: {
             if (previewCountedAsOpen) {
                 previewCountedAsOpen = false;
                 root.previewClosed();
+            }
+            if (startupBounceCounted) {
+                startupBounceCounted = false;
+                root.startupBounceCount -= 1;
             }
         }
 
@@ -4500,6 +4525,26 @@ PlasmoidItem {
                 border.color: Kirigami.Theme.highlightColor
             }
 
+            // Position (sur l'axe transversal) de la zone qui contient les
+            // icônes agrandies, calculée à partir du fond du dock. Au repos
+            // (échelle 1), les icônes se retrouvent ainsi exactement à la même
+            // place que dans la fenêtre de base.
+            function iconAreaCrossStart() {
+                var areaLength = root.maximumIconSize + root.indicatorSpace;
+                var surfaceStart = root.isVertical
+                    ? overlayBackgroundSurface.x : overlayBackgroundSurface.y;
+                var surfaceLength = root.baseSurfaceCrossLength;
+                var atStart = (!root.isVertical
+                        && root.dockLocation === PlasmaCore.Types.TopEdge)
+                    || (root.isVertical
+                        && root.dockLocation === PlasmaCore.Types.LeftEdge);
+                if (atStart) {
+                    return surfaceStart + root.crossMargin;
+                }
+                return surfaceStart + surfaceLength - root.crossMargin
+                    - areaLength;
+            }
+
             function surfaceCrossStart(surfaceCrossLength) {
                 var crossLength = root.isVertical ? width : height;
                 if (!root.isVertical) {
@@ -4564,10 +4609,11 @@ PlasmoidItem {
             Item {
                 z: 1
 
-                x: root.isVertical
-                    ? root.windowPadding + root.crossMargin : 0
-                y: root.isVertical
-                    ? 0 : root.windowPadding + root.crossMargin
+                // La zone des icônes est ancrée sur le fond du dock (et non sur
+                // le bord de la fenêtre) : sinon, le windowPadding décale toutes
+                // les icônes par rapport au fond dès que le calque s'affiche.
+                x: root.isVertical ? overlayContent.iconAreaCrossStart() : 0
+                y: root.isVertical ? 0 : overlayContent.iconAreaCrossStart()
                 width: root.isVertical
                     ? root.maximumIconSize + root.indicatorSpace
                     : overlayContent.width
