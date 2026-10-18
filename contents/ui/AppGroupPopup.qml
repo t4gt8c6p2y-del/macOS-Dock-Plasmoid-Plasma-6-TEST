@@ -24,6 +24,7 @@ Window {
     property real borderOpacity: 0.22
     property real shadowOpacity: 0.42
     property bool showHighlight: true
+    property real highlightStrength: 1.0
     property bool blurEnabled: true
     property int openDuration: 260
     property real openOvershoot: 1.35
@@ -453,6 +454,7 @@ Window {
             borderOpacity: root.borderOpacity
             shadowOpacity: root.shadowOpacity
             showHighlight: root.showHighlight
+            highlightStrength: root.highlightStrength
         }
 
         HoverHandler {

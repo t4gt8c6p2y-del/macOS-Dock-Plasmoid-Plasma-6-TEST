@@ -71,12 +71,32 @@ PlasmoidItem {
         Plasmoid.configuration.borderOpacity, 0.22, 0, 0.5)
     readonly property real shadowOpacity: boundedNumber(
         Plasmoid.configuration.shadowOpacity, 0.42, 0, 0.7)
-    readonly property bool showHighlight:
-        Plasmoid.configuration.showHighlight === undefined
-            ? true : Boolean(Plasmoid.configuration.showHighlight)
-    readonly property bool enableBlur:
-        Plasmoid.configuration.enableBlur === undefined
-            ? true : Boolean(Plasmoid.configuration.enableBlur)
+    // Reflet vitré et flou : un curseur (0..1 / 0..2) remplace les anciennes
+    // cases. Tant que le curseur n'a jamais été réglé (valeur < 0), on reprend
+    // l'ancienne case pour que le rendu existant ne change pas.
+    readonly property real highlightStrength: {
+        var stored = Number(Plasmoid.configuration.highlightStrength);
+        if (Number.isFinite(stored) && stored >= 0) {
+            return Math.min(2.0, stored);
+        }
+        return Plasmoid.configuration.showHighlight === undefined
+            || Boolean(Plasmoid.configuration.showHighlight) ? 1.0 : 0.0;
+    }
+    readonly property bool showHighlight: highlightStrength > 0.001
+    readonly property real blurStrength: {
+        var stored = Number(Plasmoid.configuration.blurStrength);
+        if (Number.isFinite(stored) && stored >= 0) {
+            return Math.min(1.0, stored);
+        }
+        return Plasmoid.configuration.enableBlur === undefined
+            || Boolean(Plasmoid.configuration.enableBlur) ? 1.0 : 0.0;
+    }
+    readonly property bool enableBlur: blurStrength > 0.001
+    // Chaque bureau virtuel a son propre dock : les fenêtres des autres
+    // bureaux n'y apparaissent pas (ni voyant « ouvert », ni redirection).
+    readonly property bool perDesktopDock:
+        Plasmoid.configuration.perDesktopDock === undefined
+            ? true : Boolean(Plasmoid.configuration.perDesktopDock)
     readonly property bool hideOnMaximized:
         Plasmoid.configuration.hideOnMaximized === undefined
             ? true : Boolean(Plasmoid.configuration.hideOnMaximized)
@@ -2366,7 +2386,8 @@ PlasmoidItem {
         separateLaunchers: true
         launchInPlace: true
         hideActivatedLaunchers: true
-        filterByVirtualDesktop: false
+        filterByVirtualDesktop: root.perDesktopDock
+        virtualDesktop: virtualDesktopInfo.currentDesktop
         filterByScreen: false
         filterByActivity: false
 
@@ -3755,6 +3776,7 @@ PlasmoidItem {
         borderOpacity: root.borderOpacity
         shadowOpacity: root.shadowOpacity
         showHighlight: root.showHighlight
+        highlightStrength: root.highlightStrength
         blurEnabled: root.enableBlur
         hoverScale: root.folderHoverScale
         viewMode: root.folderViewMode
@@ -3815,6 +3837,7 @@ PlasmoidItem {
         borderOpacity: root.borderOpacity
         shadowOpacity: root.shadowOpacity
         showHighlight: root.showHighlight
+        highlightStrength: root.highlightStrength
         blurEnabled: root.enableBlur
         openDuration: root.appGroupPopupDuration
         openOvershoot: root.appGroupPopupOvershoot
@@ -3946,6 +3969,7 @@ PlasmoidItem {
                 borderOpacity: root.borderOpacity
                 shadowOpacity: root.shadowOpacity
                 showHighlight: root.showHighlight
+                highlightStrength: root.highlightStrength
                 showShadow: false
             }
 
@@ -4498,6 +4522,7 @@ PlasmoidItem {
                 borderOpacity: root.borderOpacity
                 shadowOpacity: root.shadowOpacity
                 showHighlight: root.showHighlight
+                highlightStrength: root.highlightStrength
                 showShadow: false
                 // Le « cadre » (frame) est le rectangle qui contient le fond
                 // et les icônes ; le fond dessiné est rétréci de surfaceInset

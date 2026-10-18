@@ -23,6 +23,7 @@ Window {
     property real borderOpacity: 0.22
     property real shadowOpacity: 0.42
     property bool showHighlight: true
+    property real highlightStrength: 1.0
     property bool blurEnabled: true
     property real hoverScale: 1.06
     readonly property int listViewMode: 0
@@ -260,6 +261,7 @@ Window {
         borderOpacity: root.borderOpacity
         shadowOpacity: root.shadowOpacity
         showHighlight: root.showHighlight
+        highlightStrength: root.highlightStrength
     }
 
     HoverHandler {

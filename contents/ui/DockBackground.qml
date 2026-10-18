@@ -18,6 +18,8 @@ Kirigami.ShadowedRectangle {
     // taille du fond, l'ombre n'y a de toute façon pas la place de s'afficher.
     property bool showShadow: true
     property bool showHighlight: true
+    // Intensité du reflet vitré : 1 = rendu d'origine, 0 = aucun reflet.
+    property real highlightStrength: 1.0
 
     readonly property color themeBackground: qtPalette.window
     readonly property color themeText: qtPalette.windowText
@@ -27,6 +29,10 @@ Kirigami.ShadowedRectangle {
         + 0.7152 * effectiveColor.g + 0.0722 * effectiveColor.b
     readonly property color borderReference: useThemeColor
         ? themeText : (effectiveLuminance > 0.55 ? "black" : "white")
+
+    function highlightAlpha(base) {
+        return Math.min(1, Math.max(0, base * highlightStrength));
+    }
 
     SystemPalette {
         id: qtPalette
@@ -57,23 +63,24 @@ Kirigami.ShadowedRectangle {
         radius: Math.max(0, background.radius - 1)
         color: "transparent"
         visible: background.showHighlight
+            && background.highlightStrength > 0.001
 
         gradient: Gradient {
             orientation: Gradient.Vertical
 
             GradientStop {
                 position: 0
-                color: Qt.rgba(1, 1, 1, 0.14)
+                color: Qt.rgba(1, 1, 1, background.highlightAlpha(0.14))
             }
 
             GradientStop {
                 position: 0.55
-                color: Qt.rgba(1, 1, 1, 0.025)
+                color: Qt.rgba(1, 1, 1, background.highlightAlpha(0.025))
             }
 
             GradientStop {
                 position: 1
-                color: Qt.rgba(0, 0, 0, 0.08)
+                color: Qt.rgba(0, 0, 0, background.highlightAlpha(0.08))
             }
         }
     }

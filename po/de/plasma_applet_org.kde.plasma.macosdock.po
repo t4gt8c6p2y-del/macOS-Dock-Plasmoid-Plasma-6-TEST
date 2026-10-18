@@ -628,3 +628,83 @@ msgstr "In neuem Tab öffnen"
 #: contents/ui/main.qml:3368
 msgid "Open in New Window"
 msgstr "In neuem Fenster öffnen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Animation"
+msgstr "Animation"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Miscellaneous"
+msgstr "Sonstiges"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur:"
+msgstr "Weichzeichnung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur)."
+msgstr "Die Weichzeichnung erzeugt KWin: 0 % schaltet sie aus, jeder andere Wert schaltet sie ein. Ihr Radius ist eine Systemeinstellung (Systemeinstellungen → Desktop-Effekte → Weichzeichnen)."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass highlight:"
+msgstr "Glasreflex:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Virtual desktops:"
+msgstr "Virtuelle Arbeitsflächen:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Each desktop has its own Dock (only show windows of the current desktop)"
+msgstr "Jede Arbeitsfläche hat ein eigenes Dock (nur Fenster der aktuellen Arbeitsfläche anzeigen)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style"
+msgstr "Stil"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style:"
+msgstr "Stil:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Copy style"
+msgstr "Stil kopieren"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Copy all settings of every tab and the icons kept in the Dock"
+msgstr "Alle Einstellungen aller Reiter und die im Dock gehaltenen Symbole kopieren"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Paste style"
+msgstr "Stil einfügen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Apply a style copied earlier, including the Dock icons"
+msgstr "Einen zuvor kopierten Stil samt Dock-Symbolen anwenden"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Reset settings"
+msgstr "Einstellungen zurücksetzen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Restore the default settings of every tab (Dock icons are kept)"
+msgstr "Die Standardeinstellungen aller Reiter wiederherstellen (Dock-Symbole bleiben erhalten)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style copied: all settings and the Dock icons are in the clipboard."
+msgstr "Stil kopiert: Alle Einstellungen und die Dock-Symbole befinden sich in der Zwischenablage."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The clipboard does not contain a Dock style. Use “Copy style” first."
+msgstr "Die Zwischenablage enthält keinen Dock-Stil. Verwenden Sie zuerst „Stil kopieren“."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style pasted. Click “Apply” to save it."
+msgstr "Stil eingefügt. Klicken Sie auf „Anwenden“, um ihn zu speichern."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Settings reset. Dock icons were kept. Click “Apply” to save."
+msgstr "Einstellungen zurückgesetzt. Die Dock-Symbole wurden beibehalten. Klicken Sie auf „Anwenden“, um zu speichern."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "All settings of every tab will return to their default values. The icons kept in the Dock are not affected."
+msgstr "Alle Einstellungen aller Reiter werden auf ihre Standardwerte zurückgesetzt. Die im Dock gehaltenen Symbole bleiben unverändert."

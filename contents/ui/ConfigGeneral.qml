@@ -24,9 +24,14 @@ KCM.SimpleKCM {
     property alias cfg_customBackgroundColor: backgroundColorButton.color
     property alias cfg_cornerRadius: cornerRadiusSlider.value
     property alias cfg_borderOpacity: borderOpacitySlider.value
-    property alias cfg_shadowOpacity: shadowOpacitySlider.value
-    property alias cfg_showHighlight: showHighlightCheckBox.checked
-    property alias cfg_enableBlur: enableBlurCheckBox.checked
+    // Le curseur d'ombre a été retiré de l'interface : la clé reste connue de
+    // Plasma (popups) mais n'a plus de contrôle associé.
+    property real cfg_shadowOpacity: 0.42
+    property bool cfg_showHighlight: true
+    property real cfg_highlightStrength: -1
+    property bool cfg_enableBlur: true
+    property real cfg_blurStrength: -1
+    property bool cfg_perDesktopDock: true
     property alias cfg_hideOnMaximized: hideOnMaximizedCheckBox.checked
     property alias cfg_launchAnimation: launchAnimationCombo.currentIndex
     property alias cfg_magnificationSpring: magnificationSpringSlider.value
@@ -92,6 +97,9 @@ KCM.SimpleKCM {
     property real cfg_shadowOpacityDefault: 0.42
     property bool cfg_showHighlightDefault: true
     property bool cfg_enableBlurDefault: true
+    property real cfg_blurStrengthDefault: -1
+    property real cfg_highlightStrengthDefault: -1
+    property bool cfg_perDesktopDockDefault: true
     property bool cfg_hideOnMaximizedDefault: true
     property int cfg_launchAnimationDefault: 1
     property real cfg_magnificationSpringDefault: 50.0
@@ -129,615 +137,905 @@ KCM.SimpleKCM {
     property bool cfg_expanding: false
     property int cfg_length: 0
 
-    Kirigami.FormLayout {
+    // ------------------------------------------------------------------
+    // Copier / coller le style, réinitialiser
+    // ------------------------------------------------------------------
+    // Réglages numériques : clé -> [minimum, maximum]. Sert aussi à valider
+    // un style collé (une valeur hors plage est ramenée dans la plage).
+    readonly property var styleNumberRanges: ({
+        "dockPosition": [0, 2], "maxScale": [1, 2], "zoomRadius": [30, 200],
+        "iconSize": [24, 96], "dockMargin": [4, 40],
+        "dockCrossMargin": [0, 20], "screenEdgeMargin": [0, 32],
+        "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
+        "borderOpacity": [0, 0.5], "shadowOpacity": [0, 0.7],
+        "blurStrength": [0, 1], "highlightStrength": [0, 2],
+        "launchAnimation": [0, 1], "magnificationSpring": [20, 60],
+        "magnificationDamping": [0.2, 1], "clickBounceHeight": [0, 16],
+        "launchBounceHeight": [0, 24], "dockRevealDuration": [60, 400],
+        "dockHideDuration": [60, 400], "appGroupPopupDuration": [60, 400],
+        "appGroupPopupOvershoot": [0, 3], "folderHoverScale": [1, 1.2],
+        "folderViewMode": [0, 2], "appGroupViewMode": [0, 1],
+        "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
+        "desktopSwitcherLabelMode": [0, 1]
+    })
+    readonly property var styleBooleanKeys: [
+        "useThemeBackground", "hideOnMaximized", "showFolderView",
+        "autoOpenFolderWithOpenDocument", "autoOpenAppGroupWithRunningApp",
+        "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
+        "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
+        "showKdeConnectRecentShares", "perDesktopDock"
+    ]
+    // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
+    // avec le style, mais jamais touché par la réinitialisation.
+    readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls"]
+
+    function effectiveStyleValue(key) {
+        if (key === "blurStrength") {
+            return cfg_blurStrength >= 0
+                ? cfg_blurStrength : (cfg_enableBlur ? 1 : 0);
+        }
+        if (key === "highlightStrength") {
+            return cfg_highlightStrength >= 0
+                ? cfg_highlightStrength : (cfg_showHighlight ? 1 : 0);
+        }
+        return configPage["cfg_" + key];
+    }
+
+    function collectStyle() {
+        var settings = {};
+        for (var key in styleNumberRanges) {
+            settings[key] = Number(effectiveStyleValue(key));
+        }
+        for (var b = 0; b < styleBooleanKeys.length; ++b) {
+            settings[styleBooleanKeys[b]] =
+                Boolean(configPage["cfg_" + styleBooleanKeys[b]]);
+        }
+        settings["customBackgroundColor"] = String(cfg_customBackgroundColor);
+        var contents = {
+            "folderUrl": String(cfg_folderUrl)
+        };
+        for (var l = 0; l < contentListKeys.length; ++l) {
+            var list = configPage["cfg_" + contentListKeys[l]];
+            contents[contentListKeys[l]] = list ? Array.from(list) : [];
+        }
+        return {
+            "format": "macos-dock-style",
+            "version": 1,
+            "settings": settings,
+            "contents": contents
+        };
+    }
+
+    function showStyleMessage(kind, text) {
+        styleMessage.type = kind;
+        styleMessage.text = text;
+        styleMessage.visible = true;
+    }
+
+    function copyStyle() {
+        clipboardHelper.text = JSON.stringify(collectStyle());
+        clipboardHelper.selectAll();
+        clipboardHelper.copy();
+        clipboardHelper.deselect();
+        showStyleMessage(Kirigami.MessageType.Positive,
+            i18n("Style copied: all settings and the Dock icons are in the clipboard."));
+    }
+
+    function applyStyle(style) {
+        var settings = style.settings || {};
+        var contents = style.contents || {};
+
+        for (var key in styleNumberRanges) {
+            if (settings[key] === undefined) {
+                continue;
+            }
+            var number = Number(settings[key]);
+            if (!Number.isFinite(number)) {
+                continue;
+            }
+            var range = styleNumberRanges[key];
+            number = Math.min(range[1], Math.max(range[0], number));
+            configPage["cfg_" + key] = number;
+        }
+        for (var b = 0; b < styleBooleanKeys.length; ++b) {
+            var boolKey = styleBooleanKeys[b];
+            if (settings[boolKey] !== undefined) {
+                configPage["cfg_" + boolKey] = Boolean(settings[boolKey]);
+            }
+        }
+        if (typeof settings["customBackgroundColor"] === "string"
+                && /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(
+                    settings["customBackgroundColor"])) {
+            cfg_customBackgroundColor = settings["customBackgroundColor"];
+        }
+        // Les anciennes cases restent cohérentes avec les curseurs.
+        cfg_enableBlur = effectiveStyleValue("blurStrength") > 0.001;
+        cfg_showHighlight = effectiveStyleValue("highlightStrength") > 0.001;
+
+        if (typeof contents["folderUrl"] === "string") {
+            cfg_folderUrl = contents["folderUrl"];
+        }
+        for (var l = 0; l < contentListKeys.length; ++l) {
+            var listKey = contentListKeys[l];
+            if (Array.isArray(contents[listKey])) {
+                configPage["cfg_" + listKey] = contents[listKey].map(String);
+            }
+        }
+    }
+
+    function pasteStyle() {
+        clipboardHelper.text = "";
+        clipboardHelper.paste();
+        var style = null;
+        try {
+            style = JSON.parse(clipboardHelper.text);
+        } catch (error) {
+            style = null;
+        }
+        clipboardHelper.text = "";
+        if (!style || style.format !== "macos-dock-style"
+                || typeof style.settings !== "object") {
+            showStyleMessage(Kirigami.MessageType.Error,
+                i18n("The clipboard does not contain a Dock style. Use “Copy style” first."));
+            return;
+        }
+        applyStyle(style);
+        showStyleMessage(Kirigami.MessageType.Positive,
+            i18n("Style pasted. Click “Apply” to save it."));
+    }
+
+    function resetSettings() {
+        var keys = Object.keys(styleNumberRanges).concat(
+            styleBooleanKeys, ["customBackgroundColor"]);
+        for (var i = 0; i < keys.length; ++i) {
+            var key = keys[i];
+            var fallback = configPage["cfg_" + key + "Default"];
+            if (fallback !== undefined) {
+                configPage["cfg_" + key] = fallback;
+            }
+        }
+        // Les curseurs ont -1 (« jamais réglé ») comme valeur par défaut
+        // technique : on les remet explicitement à leur valeur d'origine.
+        cfg_blurStrength = 1.0;
+        cfg_highlightStrength = 1.0;
+        cfg_enableBlur = true;
+        cfg_showHighlight = true;
+        showStyleMessage(Kirigami.MessageType.Information,
+            i18n("Settings reset. Dock icons were kept. Click “Apply” to save."));
+    }
+
+    // Presse-papiers : un TextEdit invisible est le moyen le plus simple
+    // d'accéder au presse-papiers du système depuis QML.
+    TextEdit {
+        id: clipboardHelper
+
+        visible: false
+        width: 0
+        height: 0
+    }
+
+    Kirigami.PromptDialog {
+        id: resetDialog
+
+        title: i18n("Reset settings")
+        subtitle: i18n("All settings of every tab will return to their default values. The icons kept in the Dock are not affected.")
+        standardButtons: Kirigami.Dialog.Ok | Kirigami.Dialog.Cancel
+        onAccepted: configPage.resetSettings()
+    }
+
+
+    ColumnLayout {
         anchors.left: parent.left
         anchors.right: parent.right
+        spacing: Kirigami.Units.largeSpacing
 
-        Item {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("Appearance")
-        }
+        QQC2.TabBar {
+            id: tabBar
 
-        QQC2.ComboBox {
-            id: dockPositionCombo
-
-            Kirigami.FormData.label: i18n("Dock position:")
-            model: [i18n("Bottom"), i18n("Left"), i18n("Right")]
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Icon size:")
-
-            QQC2.Slider {
-                id: iconSizeSlider
-                Layout.fillWidth: true
-                from: 24
-                to: 96
-                stepSize: 2
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(iconSizeSlider.value) + i18n(" px")
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Left/right margin:")
-
-            QQC2.Slider {
-                id: dockMarginSlider
-                Layout.fillWidth: true
-                from: 4
-                to: 40
-                stepSize: 1
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(dockMarginSlider.value) + i18n(" px")
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Top/bottom margin:")
-
-            QQC2.Slider {
-                id: dockCrossMarginSlider
-                Layout.fillWidth: true
-                from: 0
-                to: 20
-                stepSize: 1
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(dockCrossMarginSlider.value) + i18n(" px")
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Distance from screen edge:")
-
-            QQC2.Slider {
-                id: screenEdgeMarginSlider
-                Layout.fillWidth: true
-                from: 0
-                to: 32
-                stepSize: 1
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(screenEdgeMarginSlider.value) + i18n(" px")
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Background opacity:")
-
-            QQC2.Slider {
-                id: backgroundOpacitySlider
-                Layout.fillWidth: true
-                from: 0.15
-                to: 1.0
-                stepSize: 0.05
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(backgroundOpacitySlider.value * 100) + "%"
-            }
-        }
-
-        QQC2.CheckBox {
-            id: useThemeBackgroundCheckBox
-
-            Kirigami.FormData.label: i18n("Background:")
-            text: i18n("Use color from the Plasma theme")
-        }
-
-        KQuickControls.ColorButton {
-            id: backgroundColorButton
-
-            Kirigami.FormData.label: i18n("Custom background color:")
-            enabled: !useThemeBackgroundCheckBox.checked
-            showAlphaChannel: false
-            dialogTitle: i18n("Choose Dock Background Color")
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Corner radius:")
-
-            QQC2.Slider {
-                id: cornerRadiusSlider
-                Layout.fillWidth: true
-                from: 0
-                to: 48
-                stepSize: 1
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(cornerRadiusSlider.value) + i18n(" px")
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Border strength:")
-
-            QQC2.Slider {
-                id: borderOpacitySlider
-                Layout.fillWidth: true
-                from: 0
-                to: 0.5
-                stepSize: 0.02
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(borderOpacitySlider.value * 100) + "%"
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Shadow strength:")
-
-            QQC2.Slider {
-                id: shadowOpacitySlider
-                Layout.fillWidth: true
-                from: 0
-                to: 0.7
-                stepSize: 0.02
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(shadowOpacitySlider.value * 100) + "%"
-            }
-        }
-
-        ColumnLayout {
-            Kirigami.FormData.label: i18n("Effects:")
-
-            QQC2.CheckBox {
-                id: enableBlurCheckBox
-                text: i18n("Blur the background")
-            }
-
-            QQC2.CheckBox {
-                id: showHighlightCheckBox
-                text: i18n("Show glass highlight")
-            }
-        }
-
-        Item {
-            Kirigami.FormData.label: i18n("Preview:")
             Layout.fillWidth: true
-            implicitHeight: 64
 
-            DockBackground {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(parent.width, 280)
-                height: 52
-                surfaceOpacity: backgroundOpacitySlider.value
-                useThemeColor: useThemeBackgroundCheckBox.checked
-                customColor: backgroundColorButton.color
-                requestedRadius: cornerRadiusSlider.value
-                borderOpacity: borderOpacitySlider.value
-                shadowOpacity: shadowOpacitySlider.value
-                showShadow: false
-                showHighlight: showHighlightCheckBox.checked
+            QQC2.TabButton {
+                text: i18n("Appearance")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Animation")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Dock items")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Miscellaneous")
             }
         }
 
-        QQC2.CheckBox {
-            id: hideOnMaximizedCheckBox
+        StackLayout {
+            id: tabStack
 
-            Kirigami.FormData.label: i18n("Window behavior:")
-            text: i18n("Automatically hide when a window is maximized")
-        }
-
-        QQC2.CheckBox {
-            id: showProgressIndicatorsCheckBox
-
-            Kirigami.FormData.label: i18n("Integrations:")
-            text: i18n("Show download and job progress indicators")
-        }
-
-        QQC2.CheckBox {
-            id: showKdeConnectRecentSharesCheckBox
-
-            text: i18n("Show KDE Connect recent shares")
-        }
-
-        Item {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("Magnification and animation")
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Maximum magnification:")
-
-            QQC2.Slider {
-                id: maxScaleSlider
-                Layout.fillWidth: true
-                from: 1.0
-                to: 2.0
-                stepSize: 0.05
-                live: true
-            }
-
-            QQC2.Label {
-                text: maxScaleSlider.value.toFixed(2) + "×"
-            }
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Magnification radius:")
-
-            QQC2.Slider {
-                id: zoomRadiusSlider
-                Layout.fillWidth: true
-                from: 30
-                to: 200
-                stepSize: 5
-                live: true
-            }
-
-            QQC2.Label {
-                text: Math.round(zoomRadiusSlider.value) + i18n(" px")
-            }
-        }
-
-        QQC2.ComboBox {
-            id: launchAnimationCombo
-
-            Kirigami.FormData.label: i18n("Launch animation:")
             Layout.fillWidth: true
-            model: [i18n("None"), i18n("Bounce")]
-        }
+            // Chaque onglet a sa propre hauteur : on ne réserve pas celle du
+            // plus haut.
+            Layout.preferredHeight: tabStack.children[tabStack.currentIndex]
+                ? tabStack.children[tabStack.currentIndex].implicitHeight : 0
+            currentIndex: tabBar.currentIndex
 
-        QQC2.Label {
-            Kirigami.FormData.label: i18n("Magnification dynamics:")
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: i18n("Response controls speed; damping controls how firmly the magnification settles without oscillating.")
-            opacity: 0.78
-        }
+            Kirigami.FormLayout {
+                QQC2.ComboBox {
+                    id: dockPositionCombo
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Magnification response:")
+                    Kirigami.FormData.label: i18n("Dock position:")
+                    model: [i18n("Bottom"), i18n("Left"), i18n("Right")]
+                }
 
-            QQC2.Slider {
-                id: magnificationSpringSlider
-                Layout.fillWidth: true
-                from: 20.0
-                to: 60.0
-                stepSize: 1.0
-                live: true
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Icon size:")
+
+                    QQC2.Slider {
+                        id: iconSizeSlider
+                        Layout.fillWidth: true
+                        from: 24
+                        to: 96
+                        stepSize: 2
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(iconSizeSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Left/right margin:")
+
+                    QQC2.Slider {
+                        id: dockMarginSlider
+                        Layout.fillWidth: true
+                        from: 4
+                        to: 40
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(dockMarginSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Top/bottom margin:")
+
+                    QQC2.Slider {
+                        id: dockCrossMarginSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 20
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(dockCrossMarginSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Distance from screen edge:")
+
+                    QQC2.Slider {
+                        id: screenEdgeMarginSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 32
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(screenEdgeMarginSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Background opacity:")
+
+                    QQC2.Slider {
+                        id: backgroundOpacitySlider
+                        Layout.fillWidth: true
+                        from: 0.15
+                        to: 1.0
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(backgroundOpacitySlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.CheckBox {
+                    id: useThemeBackgroundCheckBox
+
+                    Kirigami.FormData.label: i18n("Background:")
+                    text: i18n("Use color from the Plasma theme")
+                }
+
+                KQuickControls.ColorButton {
+                    id: backgroundColorButton
+
+                    Kirigami.FormData.label: i18n("Custom background color:")
+                    enabled: !useThemeBackgroundCheckBox.checked
+                    showAlphaChannel: false
+                    dialogTitle: i18n("Choose Dock Background Color")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Corner radius:")
+
+                    QQC2.Slider {
+                        id: cornerRadiusSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 48
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(cornerRadiusSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Border strength:")
+
+                    QQC2.Slider {
+                        id: borderOpacitySlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 0.5
+                        stepSize: 0.02
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(borderOpacitySlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Blur:")
+
+                    QQC2.Slider {
+                        id: blurStrengthSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                        value: configPage.cfg_blurStrength >= 0
+                            ? configPage.cfg_blurStrength
+                            : (configPage.cfg_enableBlur ? 1 : 0)
+                        onMoved: {
+                            configPage.cfg_blurStrength = value;
+                            configPage.cfg_enableBlur = value > 0.001;
+                        }
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(blurStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur).")
+                    opacity: 0.78
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Glass highlight:")
+
+                    QQC2.Slider {
+                        id: highlightStrengthSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                        value: configPage.cfg_highlightStrength >= 0
+                            ? configPage.cfg_highlightStrength
+                            : (configPage.cfg_showHighlight ? 1 : 0)
+                        onMoved: {
+                            configPage.cfg_highlightStrength = value;
+                            configPage.cfg_showHighlight = value > 0.001;
+                        }
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(highlightStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                Item {
+                    Kirigami.FormData.label: i18n("Preview:")
+                    Layout.fillWidth: true
+                    implicitHeight: 64
+
+                    DockBackground {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(parent.width, 280)
+                        height: 52
+                        surfaceOpacity: backgroundOpacitySlider.value
+                        useThemeColor: useThemeBackgroundCheckBox.checked
+                        customColor: backgroundColorButton.color
+                        requestedRadius: cornerRadiusSlider.value
+                        borderOpacity: borderOpacitySlider.value
+                        showShadow: false
+                        highlightStrength: highlightStrengthSlider.value
+                    }
+                }
             }
 
-            QQC2.Label {
-                text: magnificationSpringSlider.value.toFixed(1)
-            }
-        }
+            Kirigami.FormLayout {
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Maximum magnification:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Magnification damping:")
+                    QQC2.Slider {
+                        id: maxScaleSlider
+                        Layout.fillWidth: true
+                        from: 1.0
+                        to: 2.0
+                        stepSize: 0.05
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: magnificationDampingSlider
-                Layout.fillWidth: true
-                from: 0.2
-                to: 1.0
-                stepSize: 0.05
-                live: true
-            }
+                    QQC2.Label {
+                        text: maxScaleSlider.value.toFixed(2) + "×"
+                    }
+                }
 
-            QQC2.Label {
-                text: magnificationDampingSlider.value.toFixed(2)
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Magnification radius:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Click bounce height:")
+                    QQC2.Slider {
+                        id: zoomRadiusSlider
+                        Layout.fillWidth: true
+                        from: 30
+                        to: 200
+                        stepSize: 5
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: clickBounceHeightSlider
-                Layout.fillWidth: true
-                from: 0
-                to: 16
-                stepSize: 1
-                live: true
-            }
+                    QQC2.Label {
+                        text: Math.round(zoomRadiusSlider.value) + i18n(" px")
+                    }
+                }
 
-            QQC2.Label {
-                text: Math.round(clickBounceHeightSlider.value) + i18n(" px")
-            }
-        }
+                QQC2.ComboBox {
+                    id: launchAnimationCombo
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Launch bounce height:")
+                    Kirigami.FormData.label: i18n("Launch animation:")
+                    Layout.fillWidth: true
+                    model: [i18n("None"), i18n("Bounce")]
+                }
 
-            QQC2.Slider {
-                id: launchBounceHeightSlider
-                Layout.fillWidth: true
-                from: 0
-                to: 24
-                stepSize: 1
-                live: true
-            }
+                QQC2.Label {
+                    Kirigami.FormData.label: i18n("Magnification dynamics:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Response controls speed; damping controls how firmly the magnification settles without oscillating.")
+                    opacity: 0.78
+                }
 
-            QQC2.Label {
-                text: Math.round(launchBounceHeightSlider.value) + i18n(" px")
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Magnification response:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Show Dock duration:")
+                    QQC2.Slider {
+                        id: magnificationSpringSlider
+                        Layout.fillWidth: true
+                        from: 20.0
+                        to: 60.0
+                        stepSize: 1.0
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: dockRevealDurationSlider
-                Layout.fillWidth: true
-                from: 60
-                to: 400
-                stepSize: 10
-                live: true
-            }
+                    QQC2.Label {
+                        text: magnificationSpringSlider.value.toFixed(1)
+                    }
+                }
 
-            QQC2.Label {
-                text: Math.round(dockRevealDurationSlider.value) + i18n(" ms")
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Magnification damping:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Hide Dock duration:")
+                    QQC2.Slider {
+                        id: magnificationDampingSlider
+                        Layout.fillWidth: true
+                        from: 0.2
+                        to: 1.0
+                        stepSize: 0.05
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: dockHideDurationSlider
-                Layout.fillWidth: true
-                from: 60
-                to: 400
-                stepSize: 10
-                live: true
-            }
+                    QQC2.Label {
+                        text: magnificationDampingSlider.value.toFixed(2)
+                    }
+                }
 
-            QQC2.Label {
-                text: Math.round(dockHideDurationSlider.value) + i18n(" ms")
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Click bounce height:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Group popup duration:")
+                    QQC2.Slider {
+                        id: clickBounceHeightSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 16
+                        stepSize: 1
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: appGroupPopupDurationSlider
-                Layout.fillWidth: true
-                from: 60
-                to: 400
-                stepSize: 10
-                live: true
-            }
+                    QQC2.Label {
+                        text: Math.round(clickBounceHeightSlider.value) + i18n(" px")
+                    }
+                }
 
-            QQC2.Label {
-                text: Math.round(appGroupPopupDurationSlider.value)
-                    + i18n(" ms")
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Launch bounce height:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Group popup bounce:")
+                    QQC2.Slider {
+                        id: launchBounceHeightSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 24
+                        stepSize: 1
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: appGroupPopupOvershootSlider
-                Layout.fillWidth: true
-                from: 0.0
-                to: 3.0
-                stepSize: 0.05
-                live: true
-            }
+                    QQC2.Label {
+                        text: Math.round(launchBounceHeightSlider.value) + i18n(" px")
+                    }
+                }
 
-            QQC2.Label {
-                text: appGroupPopupOvershootSlider.value.toFixed(2)
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Show Dock duration:")
 
-        RowLayout {
-            Kirigami.FormData.label: i18n("Folder hover zoom:")
+                    QQC2.Slider {
+                        id: dockRevealDurationSlider
+                        Layout.fillWidth: true
+                        from: 60
+                        to: 400
+                        stepSize: 10
+                        live: true
+                    }
 
-            QQC2.Slider {
-                id: folderHoverScaleSlider
-                Layout.fillWidth: true
-                from: 1.0
-                to: 1.2
-                stepSize: 0.01
-                live: true
-            }
+                    QQC2.Label {
+                        text: Math.round(dockRevealDurationSlider.value) + i18n(" ms")
+                    }
+                }
 
-            QQC2.Label {
-                text: Math.round((folderHoverScaleSlider.value - 1) * 100)
-                    + "%"
-            }
-        }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Hide Dock duration:")
 
-        Item {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("Dock items")
-        }
+                    QQC2.Slider {
+                        id: dockHideDurationSlider
+                        Layout.fillWidth: true
+                        from: 60
+                        to: 400
+                        stepSize: 10
+                        live: true
+                    }
 
-        ColumnLayout {
-            Kirigami.FormData.label: i18n("Utilities:")
+                    QQC2.Label {
+                        text: Math.round(dockHideDurationSlider.value) + i18n(" ms")
+                    }
+                }
 
-            QQC2.CheckBox {
-                id: showFolderViewCheckBox
-                text: i18n("Show folder view")
-            }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Group popup duration:")
 
-            QQC2.CheckBox {
-                id: autoOpenFolderWithOpenDocumentCheckBox
-                text: i18n("Open folder on hover when a document from it is open")
-                leftPadding: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
-                enabled: showFolderViewCheckBox.checked
-                visible: showFolderViewCheckBox.checked
-            }
+                    QQC2.Slider {
+                        id: appGroupPopupDurationSlider
+                        Layout.fillWidth: true
+                        from: 60
+                        to: 400
+                        stepSize: 10
+                        live: true
+                    }
 
-            QQC2.CheckBox {
-                id: autoOpenAppGroupWithRunningAppCheckBox
-                text: i18n("Open app group on hover when one of its apps is running")
-            }
+                    QQC2.Label {
+                        text: Math.round(appGroupPopupDurationSlider.value)
+                            + i18n(" ms")
+                    }
+                }
 
-            QQC2.CheckBox {
-                id: showTrashCheckBox
-                text: i18n("Show Trash")
-            }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Group popup bounce:")
 
-            QQC2.CheckBox {
-                id: showRemovableVolumesCheckBox
-                text: i18n("Show removable drives")
-            }
+                    QQC2.Slider {
+                        id: appGroupPopupOvershootSlider
+                        Layout.fillWidth: true
+                        from: 0.0
+                        to: 3.0
+                        stepSize: 0.05
+                        live: true
+                    }
 
-            QQC2.CheckBox {
-                id: openRemovableVolumesInNewTabCheckBox
-                text: i18n("Open removable drives in a new tab")
-                leftPadding: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
-                enabled: showRemovableVolumesCheckBox.checked
-                visible: showRemovableVolumesCheckBox.checked
-            }
+                    QQC2.Label {
+                        text: appGroupPopupOvershootSlider.value.toFixed(2)
+                    }
+                }
 
-            QQC2.CheckBox {
-                id: showDesktopSwitcherCheckBox
-                text: i18n("Show desktop switcher")
-            }
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Folder hover zoom:")
 
-            QQC2.CheckBox {
-                id: showPowerButtonCheckBox
-                text: i18n("Show power button")
-            }
-        }
+                    QQC2.Slider {
+                        id: folderHoverScaleSlider
+                        Layout.fillWidth: true
+                        from: 1.0
+                        to: 1.2
+                        stepSize: 0.01
+                        live: true
+                    }
 
-        Item {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("View layouts")
-        }
-
-        QQC2.ComboBox {
-            id: appGroupViewModeCombo
-
-            Kirigami.FormData.label: i18n("App group layout:")
-            Layout.fillWidth: true
-            model: [i18n("List View"), i18n("Grid View")]
-        }
-
-        QQC2.ComboBox {
-            id: folderViewModeCombo
-
-            Kirigami.FormData.label: i18n("Folder view mode:")
-            Layout.fillWidth: true
-            enabled: showFolderViewCheckBox.checked
-            model: [i18n("List View"), i18n("Grid View"), i18n("Fan / Stack View")]
-        }
-
-        QQC2.ComboBox {
-            id: powerButtonPositionCombo
-
-            Kirigami.FormData.label: i18n("Power button position:")
-            Layout.fillWidth: true
-            enabled: showPowerButtonCheckBox.checked
-            model: [i18n("Left"), i18n("Right")]
-        }
-
-        QQC2.ComboBox {
-            id: desktopSwitcherPositionCombo
-
-            Kirigami.FormData.label: i18n("Desktop switcher position:")
-            Layout.fillWidth: true
-            enabled: showDesktopSwitcherCheckBox.checked
-            model: [i18n("Left"), i18n("Right")]
-        }
-
-        QQC2.ComboBox {
-            id: desktopSwitcherLabelModeCombo
-
-            Kirigami.FormData.label: i18n("Desktop labels:")
-            Layout.fillWidth: true
-            enabled: showDesktopSwitcherCheckBox.checked
-            model: [i18n("Numbers"), i18n("Desktop names")]
-        }
-
-        QQC2.Label {
-            Kirigami.FormData.label: i18n("Desktop names:")
-            Layout.fillWidth: true
-            visible: showDesktopSwitcherCheckBox.checked
-                && desktopSwitcherLabelModeCombo.currentIndex === 1
-            wrapMode: Text.WordWrap
-            text: i18n("The names configured in Plasma, including custom names, are shown.")
-            opacity: 0.78
-        }
-
-        RowLayout {
-            Kirigami.FormData.label: i18n("Default folder:")
-            Layout.fillWidth: true
-            enabled: showFolderViewCheckBox.checked
-
-            QQC2.TextField {
-                id: folderUrlField
-
-                Layout.fillWidth: true
-                placeholderText: StandardPaths.writableLocation(
-                    StandardPaths.DownloadLocation).toString()
-                selectByMouse: true
+                    QQC2.Label {
+                        text: Math.round((folderHoverScaleSlider.value - 1) * 100)
+                            + "%"
+                    }
+                }
             }
 
-            QQC2.Button {
-                icon.name: "document-open-folder"
-                text: i18n("Choose…")
-                onClicked: folderDialog.open()
+            Kirigami.FormLayout {
+                ColumnLayout {
+                    Kirigami.FormData.label: i18n("Utilities:")
 
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.text: i18n("Choose folder")
+                    QQC2.CheckBox {
+                        id: showFolderViewCheckBox
+                        text: i18n("Show folder view")
+                    }
+
+                    QQC2.CheckBox {
+                        id: autoOpenFolderWithOpenDocumentCheckBox
+                        text: i18n("Open folder on hover when a document from it is open")
+                        leftPadding: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
+                        enabled: showFolderViewCheckBox.checked
+                        visible: showFolderViewCheckBox.checked
+                    }
+
+                    QQC2.CheckBox {
+                        id: autoOpenAppGroupWithRunningAppCheckBox
+                        text: i18n("Open app group on hover when one of its apps is running")
+                    }
+
+                    QQC2.CheckBox {
+                        id: showTrashCheckBox
+                        text: i18n("Show Trash")
+                    }
+
+                    QQC2.CheckBox {
+                        id: showRemovableVolumesCheckBox
+                        text: i18n("Show removable drives")
+                    }
+
+                    QQC2.CheckBox {
+                        id: openRemovableVolumesInNewTabCheckBox
+                        text: i18n("Open removable drives in a new tab")
+                        leftPadding: Kirigami.Units.largeSpacing + Kirigami.Units.smallSpacing
+                        enabled: showRemovableVolumesCheckBox.checked
+                        visible: showRemovableVolumesCheckBox.checked
+                    }
+
+                    QQC2.CheckBox {
+                        id: showDesktopSwitcherCheckBox
+                        text: i18n("Show desktop switcher")
+                    }
+
+                    QQC2.CheckBox {
+                        id: showPowerButtonCheckBox
+                        text: i18n("Show power button")
+                    }
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("View layouts")
+                }
+
+                QQC2.ComboBox {
+                    id: appGroupViewModeCombo
+
+                    Kirigami.FormData.label: i18n("App group layout:")
+                    Layout.fillWidth: true
+                    model: [i18n("List View"), i18n("Grid View")]
+                }
+
+                QQC2.ComboBox {
+                    id: folderViewModeCombo
+
+                    Kirigami.FormData.label: i18n("Folder view mode:")
+                    Layout.fillWidth: true
+                    enabled: showFolderViewCheckBox.checked
+                    model: [i18n("List View"), i18n("Grid View"), i18n("Fan / Stack View")]
+                }
+
+                QQC2.ComboBox {
+                    id: powerButtonPositionCombo
+
+                    Kirigami.FormData.label: i18n("Power button position:")
+                    Layout.fillWidth: true
+                    enabled: showPowerButtonCheckBox.checked
+                    model: [i18n("Left"), i18n("Right")]
+                }
+
+                QQC2.ComboBox {
+                    id: desktopSwitcherPositionCombo
+
+                    Kirigami.FormData.label: i18n("Desktop switcher position:")
+                    Layout.fillWidth: true
+                    enabled: showDesktopSwitcherCheckBox.checked
+                    model: [i18n("Left"), i18n("Right")]
+                }
+
+                QQC2.ComboBox {
+                    id: desktopSwitcherLabelModeCombo
+
+                    Kirigami.FormData.label: i18n("Desktop labels:")
+                    Layout.fillWidth: true
+                    enabled: showDesktopSwitcherCheckBox.checked
+                    model: [i18n("Numbers"), i18n("Desktop names")]
+                }
+
+                QQC2.Label {
+                    Kirigami.FormData.label: i18n("Desktop names:")
+                    Layout.fillWidth: true
+                    visible: showDesktopSwitcherCheckBox.checked
+                        && desktopSwitcherLabelModeCombo.currentIndex === 1
+                    wrapMode: Text.WordWrap
+                    text: i18n("The names configured in Plasma, including custom names, are shown.")
+                    opacity: 0.78
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Default folder:")
+                    Layout.fillWidth: true
+                    enabled: showFolderViewCheckBox.checked
+
+                    QQC2.TextField {
+                        id: folderUrlField
+
+                        Layout.fillWidth: true
+                        placeholderText: StandardPaths.writableLocation(
+                            StandardPaths.DownloadLocation).toString()
+                        selectByMouse: true
+                    }
+
+                    QQC2.Button {
+                        icon.name: "document-open-folder"
+                        text: i18n("Choose…")
+                        onClicked: folderDialog.open()
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Choose folder")
+                    }
+                }
+
+                QQC2.Label {
+                    Kirigami.FormData.label: i18n("Folder view:")
+                    Layout.fillWidth: true
+                    visible: showFolderViewCheckBox.checked
+                    wrapMode: Text.WordWrap
+                    text: i18n("If no folder is selected, the Downloads folder is used. Drag folders from the file manager onto the Dock to add more stacks.")
+                    opacity: 0.78
+                }
+
+                FolderDialog {
+                    id: folderDialog
+
+                    title: i18n("Choose Folder for the Dock")
+                    currentFolder: folderUrlField.text.length > 0
+                        ? folderUrlField.text
+                        : StandardPaths.writableLocation(StandardPaths.DownloadLocation)
+                    onAccepted: folderUrlField.text = selectedFolder.toString()
+                }
+
+                QQC2.CheckBox {
+                    id: perDesktopDockCheckBox
+
+                    Kirigami.FormData.label: i18n("Virtual desktops:")
+                    text: i18n("Each desktop has its own Dock (only show windows of the current desktop)")
+                    checked: configPage.cfg_perDesktopDock
+                    onToggled: configPage.cfg_perDesktopDock = checked
+                }
             }
-        }
 
-        QQC2.Label {
-            Kirigami.FormData.label: i18n("Folder view:")
-            Layout.fillWidth: true
-            visible: showFolderViewCheckBox.checked
-            wrapMode: Text.WordWrap
-            text: i18n("If no folder is selected, the Downloads folder is used. Drag folders from the file manager onto the Dock to add more stacks.")
-            opacity: 0.78
-        }
+            Kirigami.FormLayout {
+                QQC2.CheckBox {
+                    id: hideOnMaximizedCheckBox
 
-        FolderDialog {
-            id: folderDialog
+                    Kirigami.FormData.label: i18n("Window behavior:")
+                    text: i18n("Automatically hide when a window is maximized")
+                }
 
-            title: i18n("Choose Folder for the Dock")
-            currentFolder: folderUrlField.text.length > 0
-                ? folderUrlField.text
-                : StandardPaths.writableLocation(StandardPaths.DownloadLocation)
-            onAccepted: folderUrlField.text = selectedFolder.toString()
-        }
+                QQC2.CheckBox {
+                    id: showProgressIndicatorsCheckBox
 
-        Item {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("Applications")
-        }
+                    Kirigami.FormData.label: i18n("Integrations:")
+                    text: i18n("Show download and job progress indicators")
+                }
 
-        QQC2.Label {
-            Kirigami.FormData.label: i18n("Dock content:")
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: i18n("Running applications appear automatically. Right-click an icon to keep it in the Dock, unpin it, or move it. The widget does not include fixed launchers.")
-            opacity: 0.78
-        }
+                QQC2.CheckBox {
+                    id: showKdeConnectRecentSharesCheckBox
 
-        QQC2.Label {
-            Kirigami.FormData.label: i18n("Standalone placement:")
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: i18n("Place this widget directly on the Plasma desktop, not inside a panel. The invisible desktop widget only stores settings; the Dock itself uses a separate transparent window anchored to the selected screen edge and centered along it. BetterBlur can blur that window directly.")
-            opacity: 0.78
+                    text: i18n("Show KDE Connect recent shares")
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Applications")
+                }
+
+                QQC2.Label {
+                    Kirigami.FormData.label: i18n("Dock content:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Running applications appear automatically. Right-click an icon to keep it in the Dock, unpin it, or move it. The widget does not include fixed launchers.")
+                    opacity: 0.78
+                }
+
+                QQC2.Label {
+                    Kirigami.FormData.label: i18n("Standalone placement:")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Place this widget directly on the Plasma desktop, not inside a panel. The invisible desktop widget only stores settings; the Dock itself uses a separate transparent window anchored to the selected screen edge and centered along it. BetterBlur can blur that window directly.")
+                    opacity: 0.78
+                }
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Style")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Style:")
+                    Layout.fillWidth: true
+
+                    QQC2.Button {
+                        icon.name: "edit-copy"
+                        text: i18n("Copy style")
+                        onClicked: configPage.copyStyle()
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Copy all settings of every tab and the icons kept in the Dock")
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-paste"
+                        text: i18n("Paste style")
+                        onClicked: configPage.pasteStyle()
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Apply a style copied earlier, including the Dock icons")
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-reset"
+                        text: i18n("Reset settings")
+                        onClicked: resetDialog.open()
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Restore the default settings of every tab (Dock icons are kept)")
+                    }
+                }
+
+                Kirigami.InlineMessage {
+                    id: styleMessage
+
+                    Layout.fillWidth: true
+                    visible: false
+                    showCloseButton: true
+                }
+            }
         }
     }
 }

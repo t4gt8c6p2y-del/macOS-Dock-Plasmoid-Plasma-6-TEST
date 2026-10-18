@@ -630,3 +630,83 @@ msgstr "Ouvrir dans un nouvel onglet"
 #: contents/ui/main.qml:3368
 msgid "Open in New Window"
 msgstr "Ouvrir dans une nouvelle fenêtre"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Animation"
+msgstr "Animation"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Miscellaneous"
+msgstr "Divers"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur:"
+msgstr "Flou :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur)."
+msgstr "Le flou est réalisé par KWin : 0 % le désactive, toute autre valeur l’active. Son rayon est un réglage du système (Configuration du système → Effets de bureau → Flou)."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass highlight:"
+msgstr "Reflet vitré :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Virtual desktops:"
+msgstr "Bureaux virtuels :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Each desktop has its own Dock (only show windows of the current desktop)"
+msgstr "Chaque bureau a son propre Dock (n’afficher que les fenêtres du bureau actuel)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style"
+msgstr "Style"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style:"
+msgstr "Style :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Copy style"
+msgstr "Copier le style"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Copy all settings of every tab and the icons kept in the Dock"
+msgstr "Copier tous les réglages de tous les onglets et les icônes conservées dans le Dock"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Paste style"
+msgstr "Coller le style"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Apply a style copied earlier, including the Dock icons"
+msgstr "Appliquer un style copié précédemment, y compris les icônes du Dock"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Reset settings"
+msgstr "Réinitialiser les paramètres"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Restore the default settings of every tab (Dock icons are kept)"
+msgstr "Rétablir les réglages par défaut de tous les onglets (les icônes du Dock sont conservées)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style copied: all settings and the Dock icons are in the clipboard."
+msgstr "Style copié : tous les réglages et les icônes du Dock sont dans le presse-papiers."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The clipboard does not contain a Dock style. Use “Copy style” first."
+msgstr "Le presse-papiers ne contient pas de style de Dock. Utilisez d’abord « Copier le style »."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Style pasted. Click “Apply” to save it."
+msgstr "Style collé. Cliquez sur « Appliquer » pour l’enregistrer."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Settings reset. Dock icons were kept. Click “Apply” to save."
+msgstr "Paramètres réinitialisés. Les icônes du Dock ont été conservées. Cliquez sur « Appliquer » pour enregistrer."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "All settings of every tab will return to their default values. The icons kept in the Dock are not affected."
+msgstr "Tous les réglages de tous les onglets reviendront à leurs valeurs par défaut. Les icônes conservées dans le Dock ne sont pas modifiées."
