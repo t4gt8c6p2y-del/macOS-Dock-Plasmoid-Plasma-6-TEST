@@ -164,6 +164,7 @@ void BlurRegion::apply()
 
     if (!m_enabled || m_region.isEmpty()) {
         disableFor(m_window);
+        requestCommit();
         return;
     }
 
@@ -181,6 +182,7 @@ void BlurRegion::apply()
 
     if (blurRect.isEmpty()) {
         disableFor(m_window);
+        requestCommit();
         return;
     }
 
@@ -189,6 +191,23 @@ void BlurRegion::apply()
 
     KWindowEffects::enableBlurBehind(m_window, true,
                                      roundedRegion(blurRect, effectiveRadius));
+    requestCommit();
+}
+
+// Sous Wayland, la demande de flou (activation, désactivation ou nouvelle
+// zone) n'est prise en compte par le compositeur qu'au prochain commit de la
+// surface. Sans nouvelle image, un changement de réglage restait en attente
+// jusqu'à ce que la souris survole le Dock. On force donc une image.
+void BlurRegion::requestCommit()
+{
+    if (!m_window) {
+        return;
+    }
+    const QMetaObject *meta = m_window->metaObject();
+    if (meta->indexOfMethod("update()") >= 0) {
+        QMetaObject::invokeMethod(m_window, "update", Qt::QueuedConnection);
+    }
+    m_window->requestUpdate();
 }
 
 bool BlurRegion::eventFilter(QObject *watched, QEvent *event)

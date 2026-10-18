@@ -45,6 +45,7 @@ protected:
 private:
     void scheduleApply();
     void disableFor(QWindow *window);
+    void requestCommit();
 
     QPointer<QWindow> m_window;
     QRectF m_region;

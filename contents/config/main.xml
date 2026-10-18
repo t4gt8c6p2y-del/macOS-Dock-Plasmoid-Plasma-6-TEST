@@ -61,6 +61,16 @@
     <entry name="highlightStrength" type="Double">
       <default>-1</default>
     </entry>
+    <!--
+      Part éclairée de la bordure (0..1). -1 = pas encore réglé : on déduit la
+      valeur de l'ancien réglage borderOpacity.
+    -->
+    <entry name="borderStrength" type="Double">
+      <default>-1</default>
+    </entry>
+    <entry name="wallpaperBlur" type="Double">
+      <default>0</default>
+    </entry>
     <entry name="perDesktopDock" type="Bool">
       <default>true</default>
     </entry>

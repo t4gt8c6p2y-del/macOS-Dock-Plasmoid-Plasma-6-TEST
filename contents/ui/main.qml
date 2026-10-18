@@ -69,6 +69,15 @@ PlasmoidItem {
         Plasmoid.configuration.cornerRadius, 12, 0, 48)
     readonly property real borderOpacity: boundedNumber(
         Plasmoid.configuration.borderOpacity, 0.22, 0, 0.5)
+    readonly property real borderStrength: {
+        var stored = Number(Plasmoid.configuration.borderStrength);
+        if (Number.isFinite(stored) && stored >= 0) {
+            return Math.min(1.0, stored);
+        }
+        return Math.min(1.0, borderOpacity / 0.5);
+    }
+    readonly property real wallpaperBlur: boundedNumber(
+        Plasmoid.configuration.wallpaperBlur, 0, 0, 1)
     readonly property real shadowOpacity: boundedNumber(
         Plasmoid.configuration.shadowOpacity, 0.42, 0, 0.7)
     // Reflet vitré et flou : un curseur (0..1 / 0..2) remplace les anciennes
@@ -380,6 +389,33 @@ PlasmoidItem {
     property string pendingLauncherToggle: ""
     property real lastPointerMain: isVertical
         ? overlayWindowHeight / 2 : overlayWindowWidth / 2
+    // Position du pointeur dans la fenêtre agrandie : l'éclairage de la
+    // bordure la suit.
+    property real pointerX: overlayWindowWidth / 2
+    property real pointerY: overlayWindowHeight / 2
+
+    // Coin supérieur gauche (en pixels écran) d'une fenêtre du Dock. Sert à
+    // retrouver quelle partie du fond d'écran se trouve derrière le Dock.
+    function dockWindowOrigin(win) {
+        var screen = win ? win.screen : null;
+        if (!screen) {
+            return Qt.point(0, 0);
+        }
+        var left;
+        var top;
+        if (isVertical) {
+            left = dockLocation === PlasmaCore.Types.LeftEdge
+                ? panelEdgeMargin
+                : screen.width - panelEdgeMargin - win.width;
+            top = (screen.height - win.height) / 2;
+        } else {
+            left = (screen.width - win.width) / 2;
+            top = dockLocation === PlasmaCore.Types.TopEdge
+                ? panelEdgeMargin
+                : screen.height - panelEdgeMargin - win.height;
+        }
+        return Qt.point(left, top);
+    }
 
     Behavior on dockRevealProgress {
         // Beim Aufdecken bewegt sich mit OutQuint der Grossteil des Weges
@@ -3778,6 +3814,7 @@ PlasmoidItem {
         showHighlight: root.showHighlight
         highlightStrength: root.highlightStrength
         blurEnabled: root.enableBlur
+        borderStrength: root.borderStrength
         hoverScale: root.folderHoverScale
         viewMode: root.folderViewMode
 
@@ -3839,6 +3876,7 @@ PlasmoidItem {
         showHighlight: root.showHighlight
         highlightStrength: root.highlightStrength
         blurEnabled: root.enableBlur
+        borderStrength: root.borderStrength
         openDuration: root.appGroupPopupDuration
         openOvershoot: root.appGroupPopupOvershoot
         viewMode: root.appGroupViewMode
@@ -3962,6 +4000,11 @@ PlasmoidItem {
 
                 anchors.fill: parent
                 anchors.margins: root.surfaceInset
+                borderStrength: root.borderStrength
+                wallpaperBlur: root.wallpaperBlur
+                backdropOrigin: Qt.point(
+                    root.dockWindowOrigin(baseWindow).x + baseSurface.x,
+                    root.dockWindowOrigin(baseWindow).y + baseSurface.y)
                 surfaceOpacity: root.backgroundOpacity
                 useThemeColor: root.useThemeBackground
                 customColor: root.customBackgroundColor
@@ -4515,6 +4558,16 @@ PlasmoidItem {
                 id: overlayBackgroundSurface
 
                 z: 0
+                borderStrength: root.borderStrength
+                wallpaperBlur: root.wallpaperBlur
+                backdropOrigin: Qt.point(
+                    root.dockWindowOrigin(overlayWindow).x
+                        + overlayBackgroundSurface.x,
+                    root.dockWindowOrigin(overlayWindow).y
+                        + overlayBackgroundSurface.y)
+                lightActive: overlayHover.hovered
+                lightX: root.pointerX - overlayBackgroundSurface.x
+                lightY: root.pointerY - overlayBackgroundSurface.y
                 surfaceOpacity: root.backgroundOpacity
                 useThemeColor: root.useThemeBackground
                 customColor: root.customBackgroundColor
@@ -4616,6 +4669,8 @@ PlasmoidItem {
                     if (hovered) {
                         root.lastPointerMain = root.isVertical
                             ? point.position.y : point.position.x;
+                        root.pointerX = point.position.x;
+                        root.pointerY = point.position.y;
                     }
                 }
                 onHoveredChanged: {

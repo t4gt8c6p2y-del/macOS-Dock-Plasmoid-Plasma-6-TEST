@@ -23,7 +23,11 @@ KCM.SimpleKCM {
     property alias cfg_useThemeBackground: useThemeBackgroundCheckBox.checked
     property alias cfg_customBackgroundColor: backgroundColorButton.color
     property alias cfg_cornerRadius: cornerRadiusSlider.value
-    property alias cfg_borderOpacity: borderOpacitySlider.value
+    // L'ancienne opacité de bordure n'a plus de contrôle : la bordure est
+    // désormais réglée par cfg_borderStrength (part éclairée du contour).
+    property real cfg_borderOpacity: 0.22
+    property real cfg_borderStrength: -1
+    property alias cfg_wallpaperBlur: wallpaperBlurSlider.value
     // Le curseur d'ombre a été retiré de l'interface : la clé reste connue de
     // Plasma (popups) mais n'a plus de contrôle associé.
     property real cfg_shadowOpacity: 0.42
@@ -94,6 +98,8 @@ KCM.SimpleKCM {
     property color cfg_customBackgroundColorDefault: "#20242b"
     property int cfg_cornerRadiusDefault: 12
     property real cfg_borderOpacityDefault: 0.22
+    property real cfg_borderStrengthDefault: -1
+    property real cfg_wallpaperBlurDefault: 0
     property real cfg_shadowOpacityDefault: 0.42
     property bool cfg_showHighlightDefault: true
     property bool cfg_enableBlurDefault: true
@@ -147,7 +153,8 @@ KCM.SimpleKCM {
         "iconSize": [24, 96], "dockMargin": [4, 40],
         "dockCrossMargin": [0, 20], "screenEdgeMargin": [0, 32],
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
-        "borderOpacity": [0, 0.5], "shadowOpacity": [0, 0.7],
+        "borderStrength": [0, 1], "wallpaperBlur": [0, 1],
+        "shadowOpacity": [0, 0.7],
         "blurStrength": [0, 1], "highlightStrength": [0, 2],
         "launchAnimation": [0, 1], "magnificationSpring": [20, 60],
         "magnificationDamping": [0.2, 1], "clickBounceHeight": [0, 16],
@@ -173,6 +180,10 @@ KCM.SimpleKCM {
         if (key === "blurStrength") {
             return cfg_blurStrength >= 0
                 ? cfg_blurStrength : (cfg_enableBlur ? 1 : 0);
+        }
+        if (key === "borderStrength") {
+            return cfg_borderStrength >= 0
+                ? cfg_borderStrength : Math.min(1, cfg_borderOpacity / 0.5);
         }
         if (key === "highlightStrength") {
             return cfg_highlightStrength >= 0
@@ -298,6 +309,7 @@ KCM.SimpleKCM {
         // technique : on les remet explicitement à leur valeur d'origine.
         cfg_blurStrength = 1.0;
         cfg_highlightStrength = 1.0;
+        cfg_borderStrength = 0.5;
         cfg_enableBlur = true;
         cfg_showHighlight = true;
         showStyleMessage(Kirigami.MessageType.Information,
@@ -488,24 +500,35 @@ KCM.SimpleKCM {
                 }
 
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Border strength:")
+                    Kirigami.FormData.label: i18n("Border:")
 
                     QQC2.Slider {
-                        id: borderOpacitySlider
+                        id: borderStrengthSlider
                         Layout.fillWidth: true
                         from: 0
-                        to: 0.5
+                        to: 1
                         stepSize: 0.02
                         live: true
+                        value: configPage.cfg_borderStrength >= 0
+                            ? configPage.cfg_borderStrength
+                            : Math.min(1, configPage.cfg_borderOpacity / 0.5)
+                        onMoved: configPage.cfg_borderStrength = value
                     }
 
                     QQC2.Label {
-                        text: Math.round(borderOpacitySlider.value * 100) + "%"
+                        text: Math.round(borderStrengthSlider.value * 100) + "%"
                     }
                 }
 
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse.")
+                    opacity: 0.78
+                }
+
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Blur:")
+                    Kirigami.FormData.label: i18n("Liquid glass:")
 
                     QQC2.Slider {
                         id: blurStrengthSlider
@@ -531,7 +554,31 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur).")
+                    text: i18n("Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on.")
+                    opacity: 0.78
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Background blur:")
+
+                    QQC2.Slider {
+                        id: wallpaperBlurSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(wallpaperBlurSlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image.")
                     opacity: 0.78
                 }
 
@@ -573,9 +620,19 @@ KCM.SimpleKCM {
                         useThemeColor: useThemeBackgroundCheckBox.checked
                         customColor: backgroundColorButton.color
                         requestedRadius: cornerRadiusSlider.value
-                        borderOpacity: borderOpacitySlider.value
+                        id: previewBackground
+                        borderStrength: borderStrengthSlider.value
                         showShadow: false
                         highlightStrength: highlightStrengthSlider.value
+                        lightActive: previewHover.hovered
+                        lightX: previewHover.point.position.x
+                            - previewBackground.x
+                        lightY: previewHover.point.position.y
+                            - previewBackground.y
+                    }
+
+                    HoverHandler {
+                        id: previewHover
                     }
                 }
             }

@@ -21,6 +21,7 @@ Window {
     property bool useThemeColor: true
     property color customColor: "#20242b"
     property real requestedRadius: 18
+    property real borderStrength: 0.44
     property real borderOpacity: 0.22
     property real shadowOpacity: 0.42
     property bool showHighlight: true
@@ -452,6 +453,7 @@ Window {
             customColor: root.customColor
             requestedRadius: root.requestedRadius
             borderOpacity: root.borderOpacity
+            borderStrength: root.borderStrength
             shadowOpacity: root.shadowOpacity
             showHighlight: root.showHighlight
             highlightStrength: root.highlightStrength

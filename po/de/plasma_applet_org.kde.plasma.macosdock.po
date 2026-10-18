@@ -111,10 +111,6 @@ msgstr "Dock-Hintergrundfarbe auswählen"
 msgid "Corner radius:"
 msgstr "Eckenradius:"
 
-#: contents/ui/ConfigGeneral.qml:195
-msgid "Border strength:"
-msgstr "Rahmenintensität:"
-
 #: contents/ui/ConfigGeneral.qml:212
 msgid "Shadow strength:"
 msgstr "Schattenintensität:"
@@ -638,14 +634,6 @@ msgid "Miscellaneous"
 msgstr "Sonstiges"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Blur:"
-msgstr "Weichzeichnung:"
-
-#: contents/ui/ConfigGeneral.qml
-msgid "The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur)."
-msgstr "Die Weichzeichnung erzeugt KWin: 0 % schaltet sie aus, jeder andere Wert schaltet sie ein. Ihr Radius ist eine Systemeinstellung (Systemeinstellungen → Desktop-Effekte → Weichzeichnen)."
-
-#: contents/ui/ConfigGeneral.qml
 msgid "Glass highlight:"
 msgstr "Glasreflex:"
 
@@ -708,3 +696,27 @@ msgstr "Einstellungen zurückgesetzt. Die Dock-Symbole wurden beibehalten. Klick
 #: contents/ui/ConfigGeneral.qml
 msgid "All settings of every tab will return to their default values. The icons kept in the Dock are not affected."
 msgstr "Alle Einstellungen aller Reiter werden auf ihre Standardwerte zurückgesetzt. Die im Dock gehaltenen Symbole bleiben unverändert."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border:"
+msgstr "Rahmen:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Liquid glass:"
+msgstr "Liquid Glass:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Background blur:"
+msgstr "Hintergrund-Weichzeichnung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
+msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 % entfernt den Rahmen. Das Licht folgt der Maus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on."
+msgstr "Liquid Glass ist der Glaseffekt, den Ihr Compositor hinter dem Dock anwendet: 0 % schaltet ihn aus, jeder andere Wert schaltet ihn ein."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image."
+msgstr "Experimentell. Zeichnet das Hintergrundbild hinter dem Dock mit einstellbarer Stärke weich. Fenster hinter dem Dock werden nicht weichgezeichnet. Nichts passiert, wenn das Hintergrundbild kein Bild ist."

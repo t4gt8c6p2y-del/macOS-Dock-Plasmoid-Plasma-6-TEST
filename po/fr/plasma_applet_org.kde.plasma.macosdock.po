@@ -111,10 +111,6 @@ msgstr "Choisir la couleur d’arrière-plan du Dock"
 msgid "Corner radius:"
 msgstr "Rayon des coins :"
 
-#: contents/ui/ConfigGeneral.qml:195
-msgid "Border strength:"
-msgstr "Intensité de la bordure :"
-
 #: contents/ui/ConfigGeneral.qml:212
 msgid "Shadow strength:"
 msgstr "Intensité de l’ombre :"
@@ -640,14 +636,6 @@ msgid "Miscellaneous"
 msgstr "Divers"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Blur:"
-msgstr "Flou :"
-
-#: contents/ui/ConfigGeneral.qml
-msgid "The blur is rendered by KWin: 0 % turns it off, any other value turns it on. Its radius is a system-wide setting (System Settings → Desktop Effects → Blur)."
-msgstr "Le flou est réalisé par KWin : 0 % le désactive, toute autre valeur l’active. Son rayon est un réglage du système (Configuration du système → Effets de bureau → Flou)."
-
-#: contents/ui/ConfigGeneral.qml
 msgid "Glass highlight:"
 msgstr "Reflet vitré :"
 
@@ -710,3 +698,27 @@ msgstr "Paramètres réinitialisés. Les icônes du Dock ont été conservées. 
 #: contents/ui/ConfigGeneral.qml
 msgid "All settings of every tab will return to their default values. The icons kept in the Dock are not affected."
 msgstr "Tous les réglages de tous les onglets reviendront à leurs valeurs par défaut. Les icônes conservées dans le Dock ne sont pas modifiées."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border:"
+msgstr "Bordure :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Liquid glass:"
+msgstr "Liquid glass :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Background blur:"
+msgstr "Flou de l’arrière-plan :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
+msgstr "Part de la bordure qui est éclairée : 100 % éclaire tout le contour, 0 % supprime la bordure. La lumière suit la souris."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on."
+msgstr "Le liquid glass est l’effet de verre appliqué par votre compositeur derrière le Dock : 0 % le désactive, toute autre valeur l’active."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image."
+msgstr "Expérimental. Floute le fond d’écran derrière le Dock avec une intensité réglable. Les fenêtres situées derrière le Dock ne sont pas floutées. Rien ne se passe si le fond d’écran n’est pas une image."
