@@ -46,6 +46,12 @@ PlasmoidItem {
         || dockLocation === PlasmaCore.Types.RightEdge
     readonly property real itemSpacing: 4
     readonly property real windowPadding: 10
+    // Marge transparente (en px) laissée entre le fond du dock et le bord de
+    // ses fenêtres. Un fond qui touche exactement le bord d'une fenêtre fait
+    // apparaître, sur les parties droites, un filet d'un pixel dont la couleur
+    // dépend du fond d'écran. Les icônes ne bougent pas : seul le fond
+    // dessiné rétrécit de cette valeur de chaque côté.
+    readonly property real surfaceInset: 2
     readonly property real mainMargin: boundedNumber(
         Plasmoid.configuration.dockMargin, 16, 4, 40)
     readonly property real crossMargin: boundedNumber(
@@ -3932,6 +3938,7 @@ PlasmoidItem {
                 id: baseSurface
 
                 anchors.fill: parent
+                anchors.margins: root.surfaceInset
                 surfaceOpacity: root.backgroundOpacity
                 useThemeColor: root.useThemeBackground
                 customColor: root.customBackgroundColor
@@ -3950,6 +3957,7 @@ PlasmoidItem {
 
             Rectangle {
                 anchors.fill: parent
+                anchors.margins: root.surfaceInset
                 z: 9998
                 visible: root.folderDropActive
                 color: "transparent"
@@ -4491,18 +4499,25 @@ PlasmoidItem {
                 shadowOpacity: root.shadowOpacity
                 showHighlight: root.showHighlight
                 showShadow: false
-                x: root.isVertical
-                    ? overlayContent.surfaceCrossStart(width)
-                    : (overlayContent.width - width) / 2
-                y: root.isVertical
-                    ? (overlayContent.height - height) / 2
-                    : overlayContent.surfaceCrossStart(height)
-                width: root.isVertical
+                // Le « cadre » (frame) est le rectangle qui contient le fond
+                // et les icônes ; le fond dessiné est rétréci de surfaceInset
+                // de chaque côté pour ne jamais toucher le bord de la fenêtre.
+                readonly property real frameWidth: root.isVertical
                     ? root.baseSurfaceCrossLength
                     : overlayContent.currentMainLength + 2 * root.mainMargin
-                height: root.isVertical
+                readonly property real frameHeight: root.isVertical
                     ? overlayContent.currentMainLength + 2 * root.mainMargin
                     : root.baseSurfaceCrossLength
+                x: (root.isVertical
+                    ? overlayContent.surfaceCrossStart(frameWidth)
+                    : (overlayContent.width - frameWidth) / 2)
+                    + root.surfaceInset
+                y: (root.isVertical
+                    ? (overlayContent.height - frameHeight) / 2
+                    : overlayContent.surfaceCrossStart(frameHeight))
+                    + root.surfaceInset
+                width: frameWidth - 2 * root.surfaceInset
+                height: frameHeight - 2 * root.surfaceInset
             }
 
             FolderDropTarget {
@@ -4533,8 +4548,9 @@ PlasmoidItem {
             // place que dans la fenêtre de base.
             function iconAreaCrossStart() {
                 var areaLength = root.maximumIconSize + root.indicatorSpace;
-                var surfaceStart = root.isVertical
-                    ? overlayBackgroundSurface.x : overlayBackgroundSurface.y;
+                var surfaceStart = (root.isVertical
+                    ? overlayBackgroundSurface.x : overlayBackgroundSurface.y)
+                    - root.surfaceInset;
                 var surfaceLength = root.baseSurfaceCrossLength;
                 var atStart = (!root.isVertical
                         && root.dockLocation === PlasmaCore.Types.TopEdge)

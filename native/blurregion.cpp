@@ -172,7 +172,7 @@ void BlurRegion::apply()
     // qui ignorent l'arrondi des coins. On garde donc la zone légèrement à
     // l'intérieur de la fenêtre : le fond du dock reste dessiné jusqu'au bord,
     // seul un liseré de quelques pixels n'est pas flouté.
-    constexpr int kWindowEdgeInset = 3;
+    constexpr int kWindowEdgeInset = 2;
     const QRect windowBounds(0, 0, m_window->width(), m_window->height());
     const QRect safeBounds = windowBounds.adjusted(
         kWindowEdgeInset, kWindowEdgeInset,
