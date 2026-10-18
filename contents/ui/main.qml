@@ -3939,6 +3939,7 @@ PlasmoidItem {
                 borderOpacity: root.borderOpacity
                 shadowOpacity: root.shadowOpacity
                 showHighlight: root.showHighlight
+                showShadow: false
             }
 
             FolderDropTarget {
@@ -4489,6 +4490,7 @@ PlasmoidItem {
                 borderOpacity: root.borderOpacity
                 shadowOpacity: root.shadowOpacity
                 showHighlight: root.showHighlight
+                showShadow: false
                 x: root.isVertical
                     ? overlayContent.surfaceCrossStart(width)
                     : (overlayContent.width - width) / 2

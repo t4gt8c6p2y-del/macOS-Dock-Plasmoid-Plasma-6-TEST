@@ -12,6 +12,11 @@ Kirigami.ShadowedRectangle {
     property real requestedRadius: Kirigami.Units.cornerRadius * 2
     property real borderOpacity: 0.22
     property real shadowOpacity: 0.42
+    // L'ombre portée de ShadowedRectangle est dessinée sous le fond : comme
+    // celui-ci est translucide, elle transparaît à l'intérieur et forme un
+    // liseré sombre le long des bords. Les fenêtres du dock ont exactement la
+    // taille du fond, l'ombre n'y a de toute façon pas la place de s'afficher.
+    property bool showShadow: true
     property bool showHighlight: true
 
     readonly property color themeBackground: qtPalette.window
@@ -40,10 +45,11 @@ Kirigami.ShadowedRectangle {
         borderReference.b, Math.min(1, Math.max(0, borderOpacity)))
 
     shadow.xOffset: 0
-    shadow.yOffset: 2
-    shadow.size: 10
-    shadow.color: Qt.rgba(0, 0, 0,
-        Math.min(1, Math.max(0, shadowOpacity)))
+    shadow.yOffset: showShadow ? 2 : 0
+    shadow.size: showShadow ? 10 : 0
+    shadow.color: showShadow
+        ? Qt.rgba(0, 0, 0, Math.min(1, Math.max(0, shadowOpacity)))
+        : "transparent"
 
     Rectangle {
         anchors.fill: parent

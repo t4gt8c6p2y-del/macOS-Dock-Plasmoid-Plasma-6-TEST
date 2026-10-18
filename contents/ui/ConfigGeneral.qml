@@ -327,6 +327,7 @@ KCM.SimpleKCM {
                 requestedRadius: cornerRadiusSlider.value
                 borderOpacity: borderOpacitySlider.value
                 shadowOpacity: shadowOpacitySlider.value
+                showShadow: false
                 showHighlight: showHighlightCheckBox.checked
             }
         }
