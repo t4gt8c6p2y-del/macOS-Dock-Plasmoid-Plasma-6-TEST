@@ -46,18 +46,11 @@
     <entry name="showHighlight" type="Bool">
       <default>true</default>
     </entry>
-    <entry name="enableBlur" type="Bool">
-      <default>true</default>
-    </entry>
     <!--
-      Curseurs qui remplacent les cases « flou » et « reflet vitré ». La valeur
-      -1 signifie « pas encore réglé » : on reprend alors l'ancienne case
-      (enableBlur / showHighlight), les réglages existants restent donc
-      identiques après la mise à jour.
+      Curseur qui remplace la case « reflet vitré ». La valeur -1 signifie
+      « pas encore réglé » : on reprend alors l'ancienne case (showHighlight),
+      les réglages existants restent donc identiques après la mise à jour.
     -->
-    <entry name="blurStrength" type="Double">
-      <default>-1</default>
-    </entry>
     <entry name="highlightStrength" type="Double">
       <default>-1</default>
     </entry>
@@ -70,6 +63,10 @@
     </entry>
     <entry name="wallpaperBlur" type="Double">
       <default>0</default>
+    </entry>
+    <!-- Image à flouter si le fond d'écran n'est pas détecté (facultatif). -->
+    <entry name="wallpaperBlurImage" type="String">
+      <default></default>
     </entry>
     <entry name="perDesktopDock" type="Bool">
       <default>true</default>
@@ -112,9 +109,6 @@
     </entry>
     <entry name="folderUrl" type="String">
       <default></default>
-    </entry>
-    <entry name="folderViewMode" type="Int">
-      <default>0</default>
     </entry>
     <entry name="autoOpenFolderWithOpenDocument" type="Bool">
       <default>true</default>

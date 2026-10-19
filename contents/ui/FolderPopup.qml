@@ -2,12 +2,19 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls as QQC2
-import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.layershell as LayerShell
 import org.kde.plasma.core as PlasmaCore
-import "effects" as DockEffects
 
+// Contenu d'un dossier du Dock, à la manière de macOS : les fichiers sortent
+// de l'icône du dossier et se déplient en éventail, légèrement en diagonale
+// vers la droite, du plus récent au plus ancien. Un bouton « Ouvrir dans le
+// Finder » (le gestionnaire de fichiers) est tout en haut. À la fermeture,
+// les fichiers se replient dans l'icône du dossier avec un léger décalage de
+// l'un à l'autre.
+//
+// La fenêtre est transparente : seuls les fichiers et les boutons sont
+// dessinés.
 Window {
     id: root
 
@@ -25,42 +32,144 @@ Window {
     property real shadowOpacity: 0.42
     property bool showHighlight: true
     property real highlightStrength: 1.0
-    property bool blurEnabled: true
     property real hoverScale: 1.06
-    readonly property int listViewMode: 0
-    readonly property int gridViewMode: 1
-    readonly property int fanViewMode: 2
-    property int viewMode: listViewMode
+
+    // Le popup est « déplié » entre showPopup() et dismiss() ; la fenêtre
+    // reste visible pendant l'animation de repliement.
+    property bool expanded: false
+
+    // --- Géométrie de l'éventail -------------------------------------------
+    readonly property int maxItems: 10
+    readonly property real iconSize: 44
+    readonly property real step: 52
+    readonly property real pad: 12
+    readonly property real gap: 10
+    readonly property real labelMaxWidth: 220
+    readonly property real pillHeight: 26
+    readonly property real foldDistance: 34
 
     readonly property bool isVertical:
         location === PlasmaCore.Types.LeftEdge
         || location === PlasmaCore.Types.RightEdge
-    readonly property bool hovered: popupHover.hovered
-    readonly property string currentFolderName:
-        folderName(folderModel ? folderModel.resolvedUrl : rootFolderUrl)
+    // Les noms sont à gauche des icônes, sauf quand le Dock est à gauche de
+    // l'écran (il n'y aurait pas la place).
+    readonly property bool labelsLeft: location !== PlasmaCore.Types.LeftEdge
+    // Sens du décalage latéral : vers la droite, sauf Dock à droite.
+    readonly property int driftSign:
+        location === PlasmaCore.Types.RightEdge ? -1 : 1
+    // Sens de l'empilement : vers le haut, sauf Dock en haut.
+    readonly property int stackSign:
+        location === PlasmaCore.Types.TopEdge ? 1 : -1
+
+    function drift(slot) {
+        return 3.4 * slot + 0.6 * slot * slot;
+    }
+
+    readonly property real driftMax: drift(maxItems)
+    readonly property real windowWidth:
+        2 * pad + labelMaxWidth + gap + iconSize + driftMax
+    readonly property real originX: {
+        if (!labelsLeft) {
+            return pad + iconSize / 2;
+        }
+        return driftSign > 0
+            ? pad + labelMaxWidth + gap + iconSize / 2
+            : windowWidth - pad - iconSize / 2;
+    }
+
+    // Place disponible (en pixels) du côté de l'éventail ; mis à jour par
+    // positionPopup().
+    property real availableSpan: 520
+    readonly property int entryCount: fanList.count
+    readonly property int shownCount: Math.max(0, Math.min(maxItems,
+        entryCount,
+        Math.floor((availableSpan - 2 * pad - iconSize) / step) - 1))
+    // Lignes occupées par les fichiers (au moins une : message « dossier
+    // vide »), la ligne des boutons venant s'ajouter au bout.
+    readonly property int rows: Math.max(1, shownCount)
+
     readonly property bool atRootFolder:
         normalizedUrl(folderModel ? folderModel.resolvedUrl : "")
             === normalizedUrl(rootFolderUrl)
+
+    // Point d'attache : le centre de la première icône.
+    function slotX(slot) {
+        return originX + driftSign * drift(slot);
+    }
+
+    function slotY(slot) {
+        return stackSign < 0
+            ? height - pad - iconSize / 2 - slot * step
+            : pad + iconSize / 2 + slot * step;
+    }
+
+    // Les fichiers se replient vers l'icône du dossier : un point situé du
+    // côté du Dock par rapport à la première icône.
+    readonly property real foldX: {
+        if (location === PlasmaCore.Types.LeftEdge) {
+            return slotX(0) - foldDistance;
+        }
+        if (location === PlasmaCore.Types.RightEdge) {
+            return slotX(0) + foldDistance;
+        }
+        return slotX(0);
+    }
+
+    readonly property real foldY: {
+        if (isVertical) {
+            return slotY(0);
+        }
+        return slotY(0) - stackSign * foldDistance;
+    }
+
+    readonly property int closeDuration: 250 + (rows - 1) * 14 + 70
+
+    // Avancement (0..1, avec dépassement) de la ligne des boutons.
+    property real buttonProgress: 0
+
+    function clamp01(value) {
+        return Math.max(0, Math.min(1, value));
+    }
+
+    // Vrai quand le pointeur est sur une ligne de l'éventail (et pas dans la
+    // partie transparente de la fenêtre).
+    function pointOverFan(px, py) {
+        if (!expanded) {
+            return false;
+        }
+        for (var slot = 0; slot <= rows; ++slot) {
+            if (Math.abs(py - slotY(slot)) > step / 2) {
+                continue;
+            }
+            var x = slotX(slot);
+            var left = labelsLeft
+                ? x - iconSize / 2 - gap - labelMaxWidth : x - iconSize / 2;
+            var right = labelsLeft
+                ? x + iconSize / 2 : x + iconSize / 2 + gap + labelMaxWidth;
+            if (px >= left && px <= right) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    readonly property bool hovered: popupHover.hovered
+        && pointOverFan(popupHover.point.position.x,
+            popupHover.point.position.y)
+
+    signal openFolderRequested(url folderUrl)
+
+    width: windowWidth
+    height: 2 * pad + iconSize + rows * step
+    flags: Qt.FramelessWindowHint
+    color: "transparent"
+    visible: false
 
     property real placementLeft: 0
     property real placementTop: 0
     property real placementRight: 0
     property real placementBottom: 0
     property bool positionPending: false
-
-    signal openFolderRequested(url folderUrl)
-
-    width: root.viewMode === root.gridViewMode
-        ? 420 : (root.viewMode === root.fanViewMode ? 380 : 356)
-    height: screen
-        ? Math.max(minimumHeight, Math.min(
-            root.viewMode === root.fanViewMode ? 460 : 410,
-            screen.height - 48)) : 410
-    minimumWidth: 290
-    minimumHeight: 280
-    flags: Qt.FramelessWindowHint
-    color: "transparent"
-    visible: false
 
     LayerShell.Window.scope: "macosdock-folder-popup"
     LayerShell.Window.anchors: {
@@ -90,34 +199,8 @@ Window {
     LayerShell.Window.activateOnShow: true
     LayerShell.Window.wantsToBeOnActiveScreen: true
 
-    DockEffects.BlurRegion {
-        window: root
-        region: Qt.rect(0, 0, root.width, root.height)
-        radius: popupBackground.radius
-        enabled: root.blurEnabled
-    }
-
     function normalizedUrl(value) {
         return String(value || "").replace(/\/$/, "");
-    }
-
-    function folderName(value) {
-        var path = normalizedUrl(value);
-        try {
-            path = decodeURIComponent(path);
-        } catch (error) {
-            // Keep malformed or partially escaped URLs readable
-        }
-        var slash = path.lastIndexOf("/");
-        var name = slash >= 0 ? path.substring(slash + 1) : path;
-        return name.length > 0 ? name : i18n("Folder");
-    }
-
-    function entryDetails(type, size) {
-        var entryType = String(type || "");
-        var entrySize = String(size || "");
-        return entrySize.length > 0
-            ? entryType + " · " + entrySize : entryType;
     }
 
     function activateEntry(index, isDirectory) {
@@ -128,15 +211,89 @@ Window {
             folderModel.cd(index);
         } else {
             folderModel.run(index);
-            close();
+            dismiss(false);
         }
     }
 
     function showPopup() {
+        closeTimer.stop();
         positionPopup();
         visible = true;
+        expanded = true;
         requestActivate();
         schedulePositionPopup();
+    }
+
+    // Replie l'éventail puis cache la fenêtre. immediate = true cache tout de
+    // suite (changement de dossier).
+    function dismiss(immediate) {
+        if (!visible) {
+            return;
+        }
+        if (immediate === true) {
+            closeTimer.stop();
+            expanded = false;
+            visible = false;
+            return;
+        }
+        if (!expanded) {
+            return;
+        }
+        expanded = false;
+        closeTimer.interval = closeDuration;
+        closeTimer.restart();
+    }
+
+    Timer {
+        id: closeTimer
+
+        repeat: false
+        onTriggered: root.visible = false
+    }
+
+    onVisibleChanged: {
+        if (!visible) {
+            closeTimer.stop();
+            expanded = false;
+            buttonProgress = 0;
+        }
+    }
+
+    onExpandedChanged: {
+        if (expanded) {
+            buttonCloseAnimation.stop();
+            buttonOpenAnimation.restart();
+        } else {
+            buttonOpenAnimation.stop();
+            buttonCloseAnimation.restart();
+        }
+    }
+
+    SequentialAnimation {
+        id: buttonOpenAnimation
+
+        PauseAnimation {
+            duration: root.rows * 16 + 50
+        }
+
+        NumberAnimation {
+            target: root
+            property: "buttonProgress"
+            to: 1
+            duration: 300
+            easing.type: Easing.OutBack
+            easing.overshoot: 1.15
+        }
+    }
+
+    NumberAnimation {
+        id: buttonCloseAnimation
+
+        target: root
+        property: "buttonProgress"
+        to: 0
+        duration: 120
+        easing.type: Easing.InQuad
     }
 
     function schedulePositionPopup() {
@@ -198,10 +355,13 @@ Window {
         placementBottom = 0;
 
         if (root.isVertical) {
+            // La première icône est à la hauteur de l'icône du dossier ;
+            // l'éventail monte à partir de là.
+            var centerY = itemTopLeft.y - screenTop + visualParent.height / 2;
+            availableSpan = centerY + iconSize / 2 + pad - spacing;
             placementTop = Math.max(spacing,
                 Math.min(targetScreen.height - height - spacing,
-                    itemTopLeft.y - screenTop
-                        + (visualParent.height - height) / 2));
+                    centerY - (height - pad - iconSize / 2)));
             if (root.location === PlasmaCore.Types.LeftEdge) {
                 placementLeft = itemTopLeft.x - screenLeft
                     + visualParent.width + spacing;
@@ -209,14 +369,18 @@ Window {
                 placementRight = screenRight - itemTopLeft.x + spacing;
             }
         } else {
+            var centerX = itemTopLeft.x - screenLeft + visualParent.width / 2;
             placementLeft = Math.max(spacing,
                 Math.min(targetScreen.width - width - spacing,
-                    itemTopLeft.x - screenLeft
-                        + (visualParent.width - width) / 2));
+                    centerX - originX));
             if (root.location === PlasmaCore.Types.TopEdge) {
-                placementTop = itemTopLeft.y - screenTop
-                    + visualParent.height + spacing;
+                var iconBottom = itemTopLeft.y - screenTop
+                    + visualParent.height;
+                availableSpan = targetScreen.height - iconBottom - spacing;
+                placementTop = iconBottom + spacing;
             } else {
+                var iconTop = itemTopLeft.y - screenTop;
+                availableSpan = iconTop - spacing;
                 placementBottom = screenBottom - itemTopLeft.y + spacing;
             }
         }
@@ -249,425 +413,400 @@ Window {
     Shortcut {
         sequences: [StandardKey.Cancel]
         enabled: root.visible
-        onActivated: root.close()
+        onActivated: root.dismiss(false)
     }
 
-    DockBackground {
-        id: popupBackground
-        anchors.fill: parent
-        surfaceOpacity: root.surfaceOpacity
-        useThemeColor: root.useThemeColor
-        customColor: root.customColor
-        requestedRadius: root.requestedRadius
-        borderOpacity: root.borderOpacity
-        borderStrength: root.borderStrength
-        shadowOpacity: root.shadowOpacity
-        showHighlight: root.showHighlight
-        highlightStrength: root.highlightStrength
+    // --- Apparence des pastilles ------------------------------------------
+    SystemPalette {
+        id: palette
+
+        colorGroup: SystemPalette.Active
     }
+
+    readonly property color pillColor: {
+        var base = useThemeColor ? palette.window : customColor;
+        return Qt.rgba(base.r, base.g, base.b, 0.94);
+    }
+    readonly property color pillTextColor: {
+        var base = useThemeColor ? palette.window : customColor;
+        var luminance = 0.2126 * base.r + 0.7152 * base.g + 0.0722 * base.b;
+        return useThemeColor ? palette.windowText
+            : (luminance > 0.5 ? "#1b1b1b" : "#f5f5f5");
+    }
+    readonly property color pillBorderColor:
+        Qt.rgba(1, 1, 1, 0.22)
 
     HoverHandler {
         id: popupHover
     }
 
-    ColumnLayout {
+    // Un clic dans la partie transparente de la fenêtre referme l'éventail.
+    TapHandler {
+        onTapped: (eventPoint) => {
+            if (!root.pointOverFan(eventPoint.position.x,
+                    eventPoint.position.y)) {
+                root.dismiss(false);
+            }
+        }
+    }
+
+    // Les lignes sont dessinées dans ce conteneur (voir le délégué).
+    Item {
+        id: fanStage
+
         anchors.fill: parent
-        anchors.margins: Kirigami.Units.smallSpacing
-        spacing: Kirigami.Units.smallSpacing
+    }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Kirigami.Units.smallSpacing
+    // --- Fichiers ----------------------------------------------------------
+    // Le ListView ne sert qu'à créer les délégués des premiers fichiers : leur
+    // contenu est déplacé dans fanStage, à la position de l'éventail.
+    ListView {
+        id: fanList
 
-            QQC2.ToolButton {
-                visible: !root.atRootFolder
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                icon.name: "go-previous"
-                onClicked: root.folderModel.up()
+        x: 0
+        y: 0
+        width: root.width
+        height: Math.max(1, root.shownCount) * root.step
+        visible: false
+        interactive: false
+        cacheBuffer: 0
+        model: root.visible ? root.folderModel : null
 
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.text: i18n("Back")
-            }
+        delegate: Item {
+            id: fanDelegate
 
-            Kirigami.Icon {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                source: root.folderModel
-                    ? (root.folderModel.iconName || "folder") : "folder"
-            }
+            required property int index
+            required property bool isDir
+            required property string display
+            required property var decoration
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 0
+            width: ListView.view ? ListView.view.width : 0
+            height: root.step
 
-                QQC2.Label {
-                    Layout.fillWidth: true
-                    text: root.currentFolderName
-                    font.pixelSize: 15
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideMiddle
+            // 0 = replié dans l'icône du dossier, 1 = à sa place dans
+            // l'éventail (peut dépasser 1 pendant le rebond).
+            property real prog: 0
+            readonly property real slotX: root.slotX(index)
+            readonly property real slotY: root.slotY(index)
+            readonly property real centerX:
+                root.foldX + (slotX - root.foldX) * prog
+            readonly property real centerY:
+                root.foldY + (slotY - root.foldY) * prog
+            readonly property real clamped: root.clamp01(prog)
+            readonly property real iconOpacity: root.clamp01(prog / 0.3)
+            readonly property real labelOpacity:
+                root.clamp01((prog - 0.45) / 0.4)
+            readonly property bool shown: index < root.shownCount
+            readonly property real hoverFactor:
+                1 + (root.hoverScale - 1) * 2.5
+
+            SequentialAnimation {
+                id: openAnimation
+
+                PauseAnimation {
+                    duration: fanDelegate.index * 16
+                }
+
+                NumberAnimation {
+                    target: fanDelegate
+                    property: "prog"
+                    to: 1
+                    duration: 340
+                    easing.type: Easing.OutBack
+                    easing.overshoot: 1.25
                 }
             }
 
-            QQC2.ToolButton {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                icon.name: "document-open-folder"
-                onClicked: root.openFolderRequested(
-                    root.folderModel.resolvedUrl || root.rootFolderUrl)
+            // Repli : les fichiers les plus éloignés partent les premiers,
+            // avec un très léger recul avant de plonger dans l'icône.
+            SequentialAnimation {
+                id: closeAnimation
 
-                QQC2.ToolTip.visible: hovered
-                QQC2.ToolTip.text: i18n("Open in File Manager")
+                PauseAnimation {
+                    duration: Math.max(0,
+                        root.rows - 1 - fanDelegate.index) * 14
+                }
+
+                NumberAnimation {
+                    target: fanDelegate
+                    property: "prog"
+                    to: 0
+                    duration: 250
+                    easing.type: Easing.InBack
+                    easing.overshoot: 0.8
+                }
+            }
+
+            function syncAnimation() {
+                if (root.expanded) {
+                    closeAnimation.stop();
+                    openAnimation.restart();
+                } else {
+                    openAnimation.stop();
+                    closeAnimation.restart();
+                }
+            }
+
+            Component.onCompleted: {
+                if (root.expanded) {
+                    openAnimation.start();
+                }
+            }
+
+            Connections {
+                target: root
+
+                function onExpandedChanged() {
+                    fanDelegate.syncAnimation();
+                }
+            }
+
+            Item {
+                id: row
+
+                parent: fanStage
+                visible: fanDelegate.shown
+                x: 0
+                y: fanDelegate.centerY - root.step / 2
+                width: root.width
+                height: root.step
+
+                // Zone cliquable : de la pastille à l'icône.
+                Item {
+                    id: hitArea
+
+                    readonly property real iconLeft:
+                        fanDelegate.centerX - root.iconSize / 2
+                    x: root.labelsLeft
+                        ? iconLeft - root.gap - pill.width : iconLeft
+                    width: root.labelsLeft
+                        ? root.iconSize + root.gap + pill.width
+                        : root.iconSize + root.gap + pill.width
+                    height: root.step
+                    enabled: root.expanded
+
+                    HoverHandler {
+                        id: rowHover
+
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    TapHandler {
+                        onTapped: root.activateEntry(fanDelegate.index,
+                            fanDelegate.isDir)
+                    }
+                }
+
+                Rectangle {
+                    id: pill
+
+                    readonly property real iconLeft:
+                        fanDelegate.centerX - root.iconSize / 2
+                    width: Math.min(root.labelMaxWidth,
+                        pillLabel.implicitWidth + 20)
+                    height: root.pillHeight
+                    radius: height / 2
+                    x: root.labelsLeft
+                        ? iconLeft - root.gap - width
+                        : fanDelegate.centerX + root.iconSize / 2 + root.gap
+                    y: (root.step - height) / 2
+                    color: rowHover.hovered
+                        ? Qt.tint(root.pillColor,
+                            Qt.rgba(palette.highlight.r, palette.highlight.g,
+                                palette.highlight.b, 0.35))
+                        : root.pillColor
+                    border.width: 1
+                    border.color: root.pillBorderColor
+                    opacity: fanDelegate.labelOpacity
+
+                    QQC2.Label {
+                        id: pillLabel
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        width: parent.width - 20
+                        text: fanDelegate.display
+                        color: root.pillTextColor
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                        elide: Text.ElideMiddle
+                    }
+                }
+
+                Kirigami.Icon {
+                    id: fileIcon
+
+                    width: root.iconSize
+                    height: root.iconSize
+                    x: fanDelegate.centerX - width / 2
+                    y: (root.step - height) / 2
+                    source: fanDelegate.decoration
+                    opacity: fanDelegate.iconOpacity
+                    scale: (0.35 + 0.65 * Math.min(1.08, fanDelegate.prog))
+                        * (rowHover.hovered ? fanDelegate.hoverFactor : 1.0)
+
+                    Behavior on scale {
+                        enabled: root.expanded
+                        NumberAnimation {
+                            duration: 140
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Dossier vide ------------------------------------------------------
+    Rectangle {
+        id: emptyPill
+
+        readonly property real progress: root.buttonProgress
+        readonly property real centerX: root.foldX
+            + (root.slotX(0) - root.foldX) * progress
+        readonly property real centerY: root.foldY
+            + (root.slotY(0) - root.foldY) * progress
+
+        visible: root.entryCount === 0
+        width: Math.min(root.labelMaxWidth, emptyLabel.implicitWidth + 24)
+        height: root.pillHeight
+        radius: height / 2
+        color: root.pillColor
+        border.width: 1
+        border.color: root.pillBorderColor
+        opacity: root.clamp01(progress)
+        x: root.labelsLeft
+            ? centerX + root.iconSize / 2 - width
+            : centerX - root.iconSize / 2
+        y: centerY - height / 2
+
+        QQC2.Label {
+            id: emptyLabel
+
+            anchors.centerIn: parent
+            width: parent.width - 24
+            horizontalAlignment: Text.AlignHCenter
+            text: root.folderModel && root.folderModel.errorString.length > 0
+                ? root.folderModel.errorString : i18n("This folder is empty")
+            color: root.pillTextColor
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
+    }
+
+    // --- Ligne des boutons : retour et « Ouvrir dans le Finder » -----------
+    Item {
+        id: buttonRow
+
+        readonly property real progress: root.buttonProgress
+        readonly property real slot: root.rows
+        readonly property real targetX: root.slotX(slot)
+        readonly property real targetY: root.slotY(slot)
+        readonly property real centerX:
+            root.foldX + (targetX - root.foldX) * progress
+        readonly property real centerY:
+            root.foldY + (targetY - root.foldY) * progress
+
+        x: 0
+        y: centerY - root.step / 2
+        width: root.width
+        height: root.step
+        opacity: root.clamp01(progress)
+        enabled: root.expanded
+
+        Rectangle {
+            id: openPill
+
+            width: openLabel.implicitWidth + 28
+            height: root.pillHeight + 2
+            radius: height / 2
+            x: root.labelsLeft
+                ? buttonRow.centerX + root.iconSize / 2 - width
+                : buttonRow.centerX - root.iconSize / 2
+            y: (root.step - height) / 2
+            color: openHover.hovered
+                ? Qt.tint(root.pillColor,
+                    Qt.rgba(palette.highlight.r, palette.highlight.g,
+                        palette.highlight.b, 0.35))
+                : root.pillColor
+            border.width: 1
+            border.color: root.pillBorderColor
+            scale: openHover.hovered ? 1.04 : 1.0
+
+            Behavior on scale {
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            QQC2.Label {
+                id: openLabel
+
+                anchors.centerIn: parent
+                text: i18n("Open in Finder")
+                color: root.pillTextColor
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+            }
+
+            HoverHandler {
+                id: openHover
+
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+                onTapped: {
+                    root.openFolderRequested(root.folderModel
+                        && root.folderModel.resolvedUrl
+                            ? root.folderModel.resolvedUrl
+                            : root.rootFolderUrl);
+                    root.dismiss(false);
+                }
             }
         }
 
         Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 40
-            radius: 8
-            color: Kirigami.Theme.alternateBackgroundColor
+            id: backPill
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: Math.max(2, Kirigami.Units.smallSpacing / 2)
-                anchors.rightMargin: Math.max(2, Kirigami.Units.smallSpacing / 2)
-                spacing: Kirigami.Units.smallSpacing
+            visible: !root.atRootFolder
+            width: root.pillHeight + 2
+            height: width
+            radius: width / 2
+            x: root.labelsLeft
+                ? openPill.x - root.gap / 2 - width
+                : openPill.x + openPill.width + root.gap / 2
+            y: (root.step - height) / 2
+            color: backHover.hovered
+                ? Qt.tint(root.pillColor,
+                    Qt.rgba(palette.highlight.r, palette.highlight.g,
+                        palette.highlight.b, 0.35))
+                : root.pillColor
+            border.width: 1
+            border.color: root.pillBorderColor
 
-                QQC2.ComboBox {
-                    id: sortCombo
-                    Layout.fillWidth: true
-                    model: [i18n("Name"), i18n("Date"),
-                        i18n("Size"), i18n("Type")]
-                    onActivated: root.folderModel.sortMode
-                        = [0, 2, 1, 6][currentIndex]
-                }
-
-                QQC2.ToolButton {
-                    icon.name: root.folderModel && root.folderModel.sortDesc
-                        ? "view-sort-descending" : "view-sort-ascending"
-                    onClicked: root.folderModel.sortDesc
-                        = !root.folderModel.sortDesc
-
-                    QQC2.ToolTip.visible: hovered
-                    QQC2.ToolTip.text: root.folderModel
-                        && root.folderModel.sortDesc
-                            ? i18n("Descending") : i18n("Ascending")
-                }
-
-                QQC2.ToolButton {
-                    checkable: true
-                    checked: root.folderModel
-                        ? root.folderModel.showHiddenFiles : false
-                    icon.name: checked ? "view-visible" : "view-hidden"
-                    onToggled: root.folderModel.showHiddenFiles = checked
-
-                    QQC2.ToolTip.visible: hovered
-                    QQC2.ToolTip.text: checked
-                        ? i18n("Hide hidden files")
-                        : i18n("Show hidden files")
-                }
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-
-            ListView {
-                id: fileList
-                anchors.fill: parent
-                visible: root.viewMode === root.listViewMode
-                clip: true
-                spacing: Math.max(2, Kirigami.Units.smallSpacing / 2)
-                model: root.visible && fileList.visible
-                    ? root.folderModel : null
-                boundsBehavior: Flickable.StopAtBounds
-                reuseItems: true
-                cacheBuffer: 104
-
-                delegate: Item {
-                    id: fileDelegate
-                    required property int index
-                    required property bool isDir
-                    required property var size
-                    required property string type
-                    required property string display
-                    required property var decoration
-
-                    width: ListView.view.width
-                    height: 48
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 8
-                        color: fileHover.hovered
-                            ? Kirigami.Theme.highlightColor
-                            : Kirigami.Theme.alternateBackgroundColor
-                        opacity: fileHover.hovered ? 0.24 : 0.62
-
-                        Behavior on opacity {
-                            NumberAnimation { duration: 100 }
-                        }
-                    }
-
-                    Kirigami.Icon {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Kirigami.Units.smallSpacing
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 28
-                        height: 28
-                        source: fileDelegate.decoration
-                    }
-
-                    Column {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Kirigami.Units.smallSpacing + 36
-                        anchors.right: parent.right
-                        anchors.rightMargin: Kirigami.Units.smallSpacing
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 1
-
-                        QQC2.Label {
-                            width: parent.width
-                            text: fileDelegate.display
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideMiddle
-                        }
-
-                        QQC2.Label {
-                            width: parent.width
-                            text: root.entryDetails(fileDelegate.type,
-                                fileDelegate.size)
-                            opacity: 0.66
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    HoverHandler {
-                        id: fileHover
-                        cursorShape: Qt.PointingHandCursor
-                    }
-
-                    TapHandler {
-                        onTapped: root.activateEntry(fileDelegate.index,
-                            fileDelegate.isDir)
-                    }
-                }
-
-                QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+            Kirigami.Icon {
+                anchors.centerIn: parent
+                width: 16
+                height: 16
+                source: "go-previous"
+                color: root.pillTextColor
             }
 
-            GridView {
-                id: fileGrid
-                anchors.fill: parent
-                visible: root.viewMode === root.gridViewMode
-                clip: true
-                cellWidth: 98
-                cellHeight: 96
-                model: root.visible && fileGrid.visible
-                    ? root.folderModel : null
-                boundsBehavior: Flickable.StopAtBounds
-                reuseItems: true
-                cacheBuffer: 104
+            HoverHandler {
+                id: backHover
 
-                delegate: Item {
-                    id: gridDelegate
-                    required property int index
-                    required property bool isDir
-                    required property string display
-                    required property var decoration
-
-                    width: GridView.view.cellWidth
-                    height: GridView.view.cellHeight
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: 4
-                        radius: 10
-                        color: gridHover.hovered
-                            ? Kirigami.Theme.highlightColor
-                            : Kirigami.Theme.alternateBackgroundColor
-                        opacity: gridHover.hovered ? 0.28 : 0.45
-
-                        Behavior on opacity {
-                            NumberAnimation { duration: 100 }
-                        }
-                    }
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 6
-                        spacing: 2
-
-                        Kirigami.Icon {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: 44
-                            Layout.preferredHeight: 44
-                            source: gridDelegate.decoration
-                        }
-
-                        QQC2.Label {
-                            Layout.fillWidth: true
-                            text: gridDelegate.display
-                            font.pixelSize: 11
-                            font.weight: Font.Medium
-                            horizontalAlignment: Text.AlignHCenter
-                            maximumLineCount: 2
-                            wrapMode: Text.WrapAnywhere
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    HoverHandler {
-                        id: gridHover
-                        cursorShape: Qt.PointingHandCursor
-                    }
-
-                    TapHandler {
-                        onTapped: root.activateEntry(gridDelegate.index,
-                            gridDelegate.isDir)
-                    }
-                }
-
-                QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+                cursorShape: Qt.PointingHandCursor
             }
 
-            ListView {
-                id: fileFanList
-                anchors.fill: parent
-                visible: root.viewMode === root.fanViewMode
-                clip: true
-                spacing: 6
-                model: root.visible && fileFanList.visible
-                    ? root.folderModel : null
-                boundsBehavior: Flickable.StopAtBounds
-                reuseItems: true
-                cacheBuffer: 104
-
-                delegate: Item {
-                    id: fanDelegate
-                    required property int index
-                    required property bool isDir
-                    required property var size
-                    required property string type
-                    required property string display
-                    required property var decoration
-
-                    width: ListView.view.width
-                    height: 44
-
-                    readonly property real arcOffset: Math.sin(
-                        Math.min(1.0, fanDelegate.index / Math.max(1,
-                            fileFanList.count - 1)) * Math.PI * 0.7
-                    ) * 28
-
-                    Item {
-                        anchors.fill: parent
-                        anchors.leftMargin: Math.max(4, fanDelegate.arcOffset)
-                        anchors.rightMargin: Math.max(4, 28 - fanDelegate.arcOffset)
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: fanHover.hovered
-                                ? Kirigami.Theme.highlightColor
-                                : Kirigami.Theme.alternateBackgroundColor
-                            opacity: fanHover.hovered ? 0.32 : 0.68
-                            border.color: fanHover.hovered
-                                ? Kirigami.Theme.highlightColor
-                                : Qt.rgba(255, 255, 255, 0.1)
-                            border.width: 1
-
-                            // Die Voreinstellung 1.06 ist sichtbar, ohne dass
-                            // die Kachel im Raster springt. Der Hub ist in den
-                            // Dock-Einstellungen anpassbar.
-                            scale: fanHover.hovered ? root.hoverScale : 1.0
-                            Behavior on scale {
-                                // Bewusst keine SpringAnimation: die
-                                // integriert auf einem festen 16-ms-Raster
-                                // und aktualisiert deshalb auf einem
-                                // 120-Hz-Bildschirm nur jedes zweite Bild.
-                                // OutBack gibt denselben leicht federnden
-                                // Eindruck bei voller Bildrate.
-                                NumberAnimation {
-                                    duration: 160
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 2.2
-                                }
-                            }
-                            Behavior on opacity {
-                                NumberAnimation { duration: 100 }
-                            }
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: Kirigami.Units.smallSpacing + 2
-                            anchors.rightMargin: Kirigami.Units.smallSpacing + 2
-                            spacing: Kirigami.Units.smallSpacing
-
-                            Kirigami.Icon {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                source: fanDelegate.decoration
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 0
-
-                                QQC2.Label {
-                                    Layout.fillWidth: true
-                                    text: fanDelegate.display
-                                    font.weight: Font.Bold
-                                    font.pixelSize: 12
-                                    elide: Text.ElideMiddle
-                                }
-
-                                QQC2.Label {
-                                    Layout.fillWidth: true
-                                    text: root.entryDetails(fanDelegate.type,
-                                        fanDelegate.size)
-                                    font.pixelSize: 10
-                                    opacity: 0.7
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-
-                        HoverHandler {
-                            id: fanHover
-                            cursorShape: Qt.PointingHandCursor
-                        }
-
-                        TapHandler {
-                            onTapped: root.activateEntry(fanDelegate.index,
-                                fanDelegate.isDir)
-                        }
+            TapHandler {
+                onTapped: {
+                    if (root.folderModel) {
+                        root.folderModel.up();
                     }
                 }
-
-                QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
-            }
-
-            QQC2.Label {
-                anchors.fill: parent
-                anchors.margins: Kirigami.Units.largeSpacing
-                visible: (root.viewMode === root.listViewMode
-                        && fileList.count === 0)
-                    || (root.viewMode === root.gridViewMode
-                        && fileGrid.count === 0)
-                    || (root.viewMode === root.fanViewMode
-                        && fileFanList.count === 0)
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                wrapMode: Text.WordWrap
-                text: root.folderModel
-                    && root.folderModel.errorString.length > 0
-                        ? root.folderModel.errorString
-                        : i18n("This folder is empty")
-                opacity: 0.68
             }
         }
     }

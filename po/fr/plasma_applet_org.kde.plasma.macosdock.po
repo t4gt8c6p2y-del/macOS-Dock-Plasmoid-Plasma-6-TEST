@@ -262,10 +262,6 @@ msgstr "Disposition des vues"
 msgid "App group layout:"
 msgstr "Disposition des groupes d’applications :"
 
-#: contents/ui/ConfigGeneral.qml:366
-msgid "Folder view mode:"
-msgstr "Mode d’affichage du dossier :"
-
 #: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:359
 msgid "List View"
 msgstr "Vue en liste"
@@ -273,10 +269,6 @@ msgstr "Vue en liste"
 #: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:374
 msgid "Grid View"
 msgstr "Vue en grille"
-
-#: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:389
-msgid "Fan / Stack View"
-msgstr "Vue en éventail / pile"
 
 #: contents/ui/ConfigGeneral.qml:375
 msgid "Power button position:"
@@ -704,10 +696,6 @@ msgid "Border:"
 msgstr "Bordure :"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Liquid glass:"
-msgstr "Liquid glass :"
-
-#: contents/ui/ConfigGeneral.qml
 msgid "Background blur:"
 msgstr "Flou de l’arrière-plan :"
 
@@ -715,10 +703,31 @@ msgstr "Flou de l’arrière-plan :"
 msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
 msgstr "Part de la bordure qui est éclairée : 100 % éclaire tout le contour, 0 % supprime la bordure. La lumière suit la souris."
 
-#: contents/ui/ConfigGeneral.qml
-msgid "Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on."
-msgstr "Le liquid glass est l’effet de verre appliqué par votre compositeur derrière le Dock : 0 % le désactive, toute autre valeur l’active."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image."
-msgstr "Expérimental. Floute le fond d’écran derrière le Dock avec une intensité réglable. Les fenêtres situées derrière le Dock ne sont pas floutées. Rien ne se passe si le fond d’écran n’est pas une image."
+msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below."
+msgstr "Expérimental. Floute le fond d’écran derrière le Dock avec une intensité réglable. Les fenêtres situées derrière le Dock ne sont pas floutées. Le fond d’écran est détecté automatiquement ; si rien ne se passe, choisissez l’image vous-même ci-dessous."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Open in Finder"
+msgstr "Ouvrir dans le Finder"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Wallpaper image:"
+msgstr "Image du fond d’écran :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Automatic"
+msgstr "Automatique"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Detect the wallpaper automatically"
+msgstr "Détecter le fond d’écran automatiquement"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the wallpaper image"
+msgstr "Choisir l’image du fond d’écran"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
+msgstr "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"

@@ -92,15 +92,6 @@ PlasmoidItem {
             || Boolean(Plasmoid.configuration.showHighlight) ? 1.0 : 0.0;
     }
     readonly property bool showHighlight: highlightStrength > 0.001
-    readonly property real blurStrength: {
-        var stored = Number(Plasmoid.configuration.blurStrength);
-        if (Number.isFinite(stored) && stored >= 0) {
-            return Math.min(1.0, stored);
-        }
-        return Plasmoid.configuration.enableBlur === undefined
-            || Boolean(Plasmoid.configuration.enableBlur) ? 1.0 : 0.0;
-    }
-    readonly property bool enableBlur: blurStrength > 0.001
     // Chaque bureau virtuel a son propre dock : les fenêtres des autres
     // bureaux n'y apparaissent pas (ni voyant « ouvert », ni redirection).
     readonly property bool perDesktopDock:
@@ -137,8 +128,6 @@ PlasmoidItem {
     readonly property bool showFolderView:
         Plasmoid.configuration.showFolderView === undefined
             ? true : Boolean(Plasmoid.configuration.showFolderView)
-    readonly property int folderViewMode: Math.round(boundedNumber(
-        Plasmoid.configuration.folderViewMode, 0, 0, 2))
     readonly property bool autoOpenFolderWithOpenDocument:
         Plasmoid.configuration.autoOpenFolderWithOpenDocument === undefined
             ? true
@@ -417,6 +406,159 @@ PlasmoidItem {
         return Qt.point(left, top);
     }
 
+    // --- Fond d'écran pour le flou de l'arrière-plan -------------------------
+    // { source, fillMode, width, height } ; source vide = fond non trouvé.
+    property var wallpaperInfo: ({ "source": "", "fillMode": 2,
+        "width": 0, "height": 0 })
+    property bool wallpaperMissingLogged: false
+
+    function wallpaperImageNode(node, depth) {
+        if (!node || depth > 12) {
+            return null;
+        }
+        var found = null;
+        try {
+            if (node.source !== undefined && node.fillMode !== undefined
+                    && String(node.source).length > 0) {
+                return node;
+            }
+            if (node.item) {
+                found = wallpaperImageNode(node.item, depth + 1);
+                if (found) {
+                    return found;
+                }
+            }
+            if (node.currentItem) {
+                found = wallpaperImageNode(node.currentItem, depth + 1);
+                if (found) {
+                    return found;
+                }
+            }
+            var children = node.children;
+            if (children) {
+                for (var i = 0; i < children.length; ++i) {
+                    found = wallpaperImageNode(children[i], depth + 1);
+                    if (found) {
+                        return found;
+                    }
+                }
+            }
+        } catch (error) {
+            return null;
+        }
+        return null;
+    }
+
+    function wallpaperObject() {
+        var holders = [];
+        try {
+            if (Plasmoid.containmentItem) {
+                holders.push(Plasmoid.containmentItem);
+            }
+        } catch (error) {
+            // Propriété absente sur cette version de Plasma
+        }
+        try {
+            if (Plasmoid.containment) {
+                holders.push(Plasmoid.containment);
+            }
+        } catch (error) {
+            // idem
+        }
+        var ancestor = root.parent;
+        for (var depth = 0; ancestor && depth < 8; ++depth) {
+            holders.push(ancestor);
+            ancestor = ancestor.parent;
+        }
+        for (var i = 0; i < holders.length; ++i) {
+            try {
+                if (holders[i].wallpaperGraphicsObject) {
+                    return holders[i].wallpaperGraphicsObject;
+                }
+            } catch (error) {
+                // on essaie le suivant
+            }
+        }
+        return null;
+    }
+
+    function fileUrl(path) {
+        var text = String(path || "");
+        if (text.length > 0 && text.indexOf("://") < 0
+                && text.charAt(0) === "/") {
+            return "file://" + text;
+        }
+        return text;
+    }
+
+    function refreshWallpaperInfo() {
+        var screen = baseWindow ? baseWindow.screen : null;
+        var screenWidth = screen ? screen.width : 0;
+        var screenHeight = screen ? screen.height : 0;
+        var source = "";
+        var fillMode = 2;
+        var width = screenWidth;
+        var height = screenHeight;
+
+        var manual = String(Plasmoid.configuration.wallpaperBlurImage || "");
+        if (manual.length > 0) {
+            source = fileUrl(manual);
+        } else {
+            var wallpaper = wallpaperObject();
+            if (wallpaper) {
+                var image = wallpaperImageNode(wallpaper, 0);
+                if (image) {
+                    source = fileUrl(image.source);
+                    fillMode = Number(image.fillMode);
+                } else {
+                    try {
+                        var configuration = wallpaper.configuration;
+                        if (configuration && configuration.Image) {
+                            source = fileUrl(configuration.Image);
+                            if (configuration.FillMode !== undefined) {
+                                fillMode = Number(configuration.FillMode);
+                            }
+                        }
+                    } catch (error) {
+                        source = "";
+                    }
+                }
+                if (wallpaper.width > 0 && wallpaper.height > 0) {
+                    width = wallpaper.width;
+                    height = wallpaper.height;
+                }
+            }
+        }
+        if (source.length === 0 && wallpaperBlur > 0.001
+                && !wallpaperMissingLogged) {
+            wallpaperMissingLogged = true;
+            console.warn("macOS Dock: wallpaper not found for the background blur;"
+                + " choose the image in the settings.");
+        }
+        var previous = wallpaperInfo;
+        if (previous.source !== source || previous.fillMode !== fillMode
+                || previous.width !== width || previous.height !== height) {
+            wallpaperInfo = { "source": source, "fillMode": fillMode,
+                "width": width, "height": height };
+        }
+    }
+
+    Timer {
+        interval: 4000
+        repeat: true
+        running: root.wallpaperBlur > 0.001
+        triggeredOnStart: true
+        onTriggered: root.refreshWallpaperInfo()
+    }
+
+    Connections {
+        target: Plasmoid.configuration
+
+        function onWallpaperBlurImageChanged() {
+            root.refreshWallpaperInfo();
+        }
+    }
+
     Behavior on dockRevealProgress {
         // Beim Aufdecken bewegt sich mit OutQuint der Grossteil des Weges
         // sofort und laeuft dann lange weich aus - dieselbe Dauer wie zuvor,
@@ -436,28 +578,6 @@ PlasmoidItem {
 
         font.pixelSize: 13
         font.weight: Font.DemiBold
-    }
-
-    DockEffects.BlurRegion {
-        window: baseWindow
-        region: Qt.rect(baseSurface.x
-                + root.dockSlideX(baseWindow.width),
-            baseSurface.y + root.dockSlideY(baseWindow.height),
-            baseSurface.width, baseSurface.height)
-        radius: baseSurface.radius
-        enabled: root.enableBlur
-    }
-
-    DockEffects.BlurRegion {
-        window: overlayWindow
-        region: Qt.rect(overlayBackgroundSurface.x
-                + root.dockSlideX(overlayWindow.width),
-            overlayBackgroundSurface.y
-                + root.dockSlideY(overlayWindow.height),
-            overlayBackgroundSurface.width,
-            overlayBackgroundSurface.height)
-        radius: overlayBackgroundSurface.radius
-        enabled: root.enableBlur
     }
 
     DockEffects.WindowActions {
@@ -679,7 +799,7 @@ PlasmoidItem {
     function openFolderPopup(folderUrl, visualParent) {
         var targetUrl = String(folderUrl || configuredFolderUrl);
         if (folderPopup.visible) {
-            folderPopup.close();
+            folderPopup.dismiss(true);
         }
         activeFolderUrl = targetUrl;
         folderModel.url = targetUrl;
@@ -697,7 +817,8 @@ PlasmoidItem {
         var sameTarget = comparableFolderUrl(activeFolderUrl)
             === comparableFolderUrl(targetUrl);
         closeAppGroupPopup();
-        if ((folderPopup.visible || folderPopupOpenPending) && sameTarget) {
+        if (((folderPopup.visible && folderPopup.expanded)
+                || folderPopupOpenPending) && sameTarget) {
             closeFolderPopup();
             return;
         }
@@ -756,7 +877,7 @@ PlasmoidItem {
         folderPopupAutoOpened = false;
         autoOpenedFolderHovered = false;
         if (folderPopup.visible) {
-            folderPopup.close();
+            folderPopup.dismiss(false);
         }
     }
 
@@ -2489,9 +2610,10 @@ PlasmoidItem {
         id: folderModel
 
         url: String(root.configuredFolderUrl)
-        sortMode: 0
-        sortDesc: false
-        sortDirsFirst: true
+        // Éventail façon macOS : le plus récent en premier, dossiers mêlés.
+        sortMode: 2
+        sortDesc: true
+        sortDirsFirst: false
         parseDesktopFiles: true
         // File thumbnails trigger asynchronous I/O and decoding for every
         // visited directory. Theme icons keep this transient view responsive.
@@ -3813,10 +3935,8 @@ PlasmoidItem {
         shadowOpacity: root.shadowOpacity
         showHighlight: root.showHighlight
         highlightStrength: root.highlightStrength
-        blurEnabled: root.enableBlur
         borderStrength: root.borderStrength
         hoverScale: root.folderHoverScale
-        viewMode: root.folderViewMode
 
         onOpenFolderRequested: (folderUrl) =>
             Folder.AppLauncher.openUrl(folderUrl)
@@ -3857,7 +3977,7 @@ PlasmoidItem {
                 return;
             }
             if (!root.overlayHovered) {
-                folderPopup.close();
+                folderPopup.dismiss(false);
             }
         }
     }
@@ -3875,7 +3995,6 @@ PlasmoidItem {
         shadowOpacity: root.shadowOpacity
         showHighlight: root.showHighlight
         highlightStrength: root.highlightStrength
-        blurEnabled: root.enableBlur
         borderStrength: root.borderStrength
         openDuration: root.appGroupPopupDuration
         openOvershoot: root.appGroupPopupOvershoot
@@ -4002,6 +4121,7 @@ PlasmoidItem {
                 anchors.margins: root.surfaceInset
                 borderStrength: root.borderStrength
                 wallpaperBlur: root.wallpaperBlur
+                wallpaperInfo: root.wallpaperInfo
                 backdropOrigin: Qt.point(
                     root.dockWindowOrigin(baseWindow).x + baseSurface.x,
                     root.dockWindowOrigin(baseWindow).y + baseSurface.y)
@@ -4560,6 +4680,7 @@ PlasmoidItem {
                 z: 0
                 borderStrength: root.borderStrength
                 wallpaperBlur: root.wallpaperBlur
+                wallpaperInfo: root.wallpaperInfo
                 backdropOrigin: Qt.point(
                     root.dockWindowOrigin(overlayWindow).x
                         + overlayBackgroundSurface.x,

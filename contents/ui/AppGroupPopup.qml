@@ -6,7 +6,6 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.layershell as LayerShell
 import org.kde.plasma.core as PlasmaCore
-import "effects" as DockEffects
 
 Window {
     id: root
@@ -26,7 +25,6 @@ Window {
     property real shadowOpacity: 0.42
     property bool showHighlight: true
     property real highlightStrength: 1.0
-    property bool blurEnabled: true
     property int openDuration: 260
     property real openOvershoot: 1.35
     readonly property int listViewMode: 0
@@ -215,13 +213,6 @@ Window {
         LayerShell.Window.KeyboardInteractivityOnDemand
     LayerShell.Window.activateOnShow: true
     LayerShell.Window.wantsToBeOnActiveScreen: true
-
-    DockEffects.BlurRegion {
-        window: root
-        region: Qt.rect(0, 0, root.width, root.height)
-        radius: popupBackground.radius
-        enabled: root.blurEnabled
-    }
 
     function showPopup() {
         closeAnimation.stop();

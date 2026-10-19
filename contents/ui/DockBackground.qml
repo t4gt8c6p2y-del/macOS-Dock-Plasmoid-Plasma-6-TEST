@@ -37,6 +37,9 @@ Kirigami.ShadowedRectangle {
     // Flou réel du fond d'écran (0 = désactivé). backdropOrigin est la
     // position (en pixels écran) du coin supérieur gauche de ce fond.
     property real wallpaperBlur: 0
+    // Image du fond d'écran (voir main.qml) : { source, fillMode, width, height }
+    property var wallpaperInfo: ({ "source": "", "fillMode": 2,
+        "width": 0, "height": 0 })
     property point backdropOrigin: Qt.point(0, 0)
 
     readonly property color themeBackground: qtPalette.window
@@ -94,6 +97,13 @@ Kirigami.ShadowedRectangle {
 
         Binding {
             target: backdropLoader.item
+            property: "info"
+            value: background.wallpaperInfo
+            when: backdropLoader.item !== null
+        }
+
+        Binding {
+            target: backdropLoader.item
             property: "origin"
             value: background.backdropOrigin
             when: backdropLoader.item !== null
@@ -136,13 +146,13 @@ Kirigami.ShadowedRectangle {
     }
 
     // --- Contour éclairé ---------------------------------------------------
-    // Un anneau d'1,4 px rempli par deux dégradés radiaux : l'un centré sur la
+    // Un anneau d'1,6 px rempli par deux dégradés radiaux : l'un centré sur la
     // lumière (pointeur ou position de repos), l'autre, plus faible, sur le
     // point opposé. La luminosité décroît de façon exponentielle avec la
     // distance : la bordure est vive près des lumières et s'efface ailleurs.
     // borderStrength règle la PART du tour qui est éclairée (et non la
     // luminosité) : à 0 il n'y a plus de bordure, à 1 tout le tour est éclairé.
-    readonly property real ringThickness: 1.4
+    readonly property real ringThickness: 1.6
     readonly property real litShare: Math.min(1, Math.max(0, borderStrength))
     readonly property real perimeter: 2 * (width + height)
     // Rayon d'étalement (distance où la lumière tombe à 1/e).
@@ -151,7 +161,7 @@ Kirigami.ShadowedRectangle {
     // la bordure devient uniforme à 100 %.
     readonly property real litFloor:
         Math.pow(Math.max(0, (litShare - 0.7) / 0.3), 2)
-    readonly property real peakAlpha: 0.55
+    readonly property real peakAlpha: 1.0
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
 
@@ -233,37 +243,37 @@ Kirigami.ShadowedRectangle {
 
                 GradientStop {
                     position: 0.0
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.0))
                 }
                 GradientStop {
                     position: 0.08
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.08))
                 }
                 GradientStop {
                     position: 0.18
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.18))
                 }
                 GradientStop {
                     position: 0.3
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.3))
                 }
                 GradientStop {
                     position: 0.45
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.45))
                 }
                 GradientStop {
                     position: 0.65
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litAlpha(0.65))
                 }
                 GradientStop {
                     position: 1.0
-                    color: Qt.rgba(1, 0.98, 0.94, background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, background.peakAlpha
                         * background.litFloor)
                 }
             }
@@ -287,37 +297,37 @@ Kirigami.ShadowedRectangle {
 
                 GradientStop {
                     position: 0.0
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.0))
                 }
                 GradientStop {
                     position: 0.08
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.08))
                 }
                 GradientStop {
                     position: 0.18
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.18))
                 }
                 GradientStop {
                     position: 0.3
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.3))
                 }
                 GradientStop {
                     position: 0.45
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.45))
                 }
                 GradientStop {
                     position: 0.65
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litAlpha(0.65))
                 }
                 GradientStop {
                     position: 1.0
-                    color: Qt.rgba(1, 0.98, 0.94, 0.65 * background.peakAlpha
+                    color: Qt.rgba(1, 1, 1, 0.8 * background.peakAlpha
                         * background.litFloor)
                 }
             }

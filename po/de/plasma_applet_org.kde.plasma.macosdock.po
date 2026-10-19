@@ -260,10 +260,6 @@ msgstr "Ansichtslayouts"
 msgid "App group layout:"
 msgstr "Layout der App-Gruppen:"
 
-#: contents/ui/ConfigGeneral.qml:366
-msgid "Folder view mode:"
-msgstr "Darstellung der Ordneransicht:"
-
 #: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:359
 msgid "List View"
 msgstr "Listenansicht"
@@ -271,10 +267,6 @@ msgstr "Listenansicht"
 #: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:374
 msgid "Grid View"
 msgstr "Rasteransicht"
-
-#: contents/ui/ConfigGeneral.qml:369 contents/ui/FolderPopup.qml:389
-msgid "Fan / Stack View"
-msgstr "Fächer-/Stapelansicht"
 
 #: contents/ui/ConfigGeneral.qml:375
 msgid "Power button position:"
@@ -702,10 +694,6 @@ msgid "Border:"
 msgstr "Rahmen:"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Liquid glass:"
-msgstr "Liquid Glass:"
-
-#: contents/ui/ConfigGeneral.qml
 msgid "Background blur:"
 msgstr "Hintergrund-Weichzeichnung:"
 
@@ -713,10 +701,31 @@ msgstr "Hintergrund-Weichzeichnung:"
 msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
 msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 % entfernt den Rahmen. Das Licht folgt der Maus."
 
-#: contents/ui/ConfigGeneral.qml
-msgid "Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on."
-msgstr "Liquid Glass ist der Glaseffekt, den Ihr Compositor hinter dem Dock anwendet: 0 % schaltet ihn aus, jeder andere Wert schaltet ihn ein."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image."
-msgstr "Experimentell. Zeichnet das Hintergrundbild hinter dem Dock mit einstellbarer Stärke weich. Fenster hinter dem Dock werden nicht weichgezeichnet. Nichts passiert, wenn das Hintergrundbild kein Bild ist."
+msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below."
+msgstr "Experimentell. Zeichnet das Hintergrundbild hinter dem Dock mit einstellbarer Stärke weich. Fenster hinter dem Dock werden nicht weichgezeichnet. Das Hintergrundbild wird automatisch erkannt; passiert nichts, wählen Sie unten das Bild selbst aus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Open in Finder"
+msgstr "Im Finder öffnen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Wallpaper image:"
+msgstr "Hintergrundbild:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Detect the wallpaper automatically"
+msgstr "Hintergrundbild automatisch erkennen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the wallpaper image"
+msgstr "Hintergrundbild auswählen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
+msgstr "Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"

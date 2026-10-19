@@ -28,13 +28,12 @@ KCM.SimpleKCM {
     property real cfg_borderOpacity: 0.22
     property real cfg_borderStrength: -1
     property alias cfg_wallpaperBlur: wallpaperBlurSlider.value
+    property alias cfg_wallpaperBlurImage: wallpaperBlurImageField.text
     // Le curseur d'ombre a été retiré de l'interface : la clé reste connue de
     // Plasma (popups) mais n'a plus de contrôle associé.
     property real cfg_shadowOpacity: 0.42
     property bool cfg_showHighlight: true
     property real cfg_highlightStrength: -1
-    property bool cfg_enableBlur: true
-    property real cfg_blurStrength: -1
     property bool cfg_perDesktopDock: true
     property alias cfg_hideOnMaximized: hideOnMaximizedCheckBox.checked
     property alias cfg_launchAnimation: launchAnimationCombo.currentIndex
@@ -50,7 +49,6 @@ KCM.SimpleKCM {
         appGroupPopupOvershootSlider.value
     property alias cfg_folderHoverScale: folderHoverScaleSlider.value
     property alias cfg_showFolderView: showFolderViewCheckBox.checked
-    property alias cfg_folderViewMode: folderViewModeCombo.currentIndex
     property alias cfg_autoOpenFolderWithOpenDocument:
         autoOpenFolderWithOpenDocumentCheckBox.checked
     property alias cfg_autoOpenAppGroupWithRunningApp:
@@ -100,10 +98,9 @@ KCM.SimpleKCM {
     property real cfg_borderOpacityDefault: 0.22
     property real cfg_borderStrengthDefault: -1
     property real cfg_wallpaperBlurDefault: 0
+    property string cfg_wallpaperBlurImageDefault: ""
     property real cfg_shadowOpacityDefault: 0.42
     property bool cfg_showHighlightDefault: true
-    property bool cfg_enableBlurDefault: true
-    property real cfg_blurStrengthDefault: -1
     property real cfg_highlightStrengthDefault: -1
     property bool cfg_perDesktopDockDefault: true
     property bool cfg_hideOnMaximizedDefault: true
@@ -119,7 +116,6 @@ KCM.SimpleKCM {
     property real cfg_folderHoverScaleDefault: 1.06
     property bool cfg_showFolderViewDefault: true
     property string cfg_folderUrlDefault: ""
-    property int cfg_folderViewModeDefault: 0
     property bool cfg_autoOpenFolderWithOpenDocumentDefault: true
     property bool cfg_autoOpenAppGroupWithRunningAppDefault: true
     property int cfg_appGroupViewModeDefault: 1
@@ -155,13 +151,13 @@ KCM.SimpleKCM {
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
         "borderStrength": [0, 1], "wallpaperBlur": [0, 1],
         "shadowOpacity": [0, 0.7],
-        "blurStrength": [0, 1], "highlightStrength": [0, 2],
+        "highlightStrength": [0, 2],
         "launchAnimation": [0, 1], "magnificationSpring": [20, 60],
         "magnificationDamping": [0.2, 1], "clickBounceHeight": [0, 16],
         "launchBounceHeight": [0, 24], "dockRevealDuration": [60, 400],
         "dockHideDuration": [60, 400], "appGroupPopupDuration": [60, 400],
         "appGroupPopupOvershoot": [0, 3], "folderHoverScale": [1, 1.2],
-        "folderViewMode": [0, 2], "appGroupViewMode": [0, 1],
+        "appGroupViewMode": [0, 1],
         "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
         "desktopSwitcherLabelMode": [0, 1]
     })
@@ -177,10 +173,6 @@ KCM.SimpleKCM {
     readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls"]
 
     function effectiveStyleValue(key) {
-        if (key === "blurStrength") {
-            return cfg_blurStrength >= 0
-                ? cfg_blurStrength : (cfg_enableBlur ? 1 : 0);
-        }
         if (key === "borderStrength") {
             return cfg_borderStrength >= 0
                 ? cfg_borderStrength : Math.min(1, cfg_borderOpacity / 0.5);
@@ -202,6 +194,7 @@ KCM.SimpleKCM {
                 Boolean(configPage["cfg_" + styleBooleanKeys[b]]);
         }
         settings["customBackgroundColor"] = String(cfg_customBackgroundColor);
+        settings["wallpaperBlurImage"] = String(cfg_wallpaperBlurImage);
         var contents = {
             "folderUrl": String(cfg_folderUrl)
         };
@@ -259,8 +252,10 @@ KCM.SimpleKCM {
                     settings["customBackgroundColor"])) {
             cfg_customBackgroundColor = settings["customBackgroundColor"];
         }
+        if (typeof settings["wallpaperBlurImage"] === "string") {
+            cfg_wallpaperBlurImage = settings["wallpaperBlurImage"];
+        }
         // Les anciennes cases restent cohérentes avec les curseurs.
-        cfg_enableBlur = effectiveStyleValue("blurStrength") > 0.001;
         cfg_showHighlight = effectiveStyleValue("highlightStrength") > 0.001;
 
         if (typeof contents["folderUrl"] === "string") {
@@ -297,7 +292,7 @@ KCM.SimpleKCM {
 
     function resetSettings() {
         var keys = Object.keys(styleNumberRanges).concat(
-            styleBooleanKeys, ["customBackgroundColor"]);
+            styleBooleanKeys, ["customBackgroundColor", "wallpaperBlurImage"]);
         for (var i = 0; i < keys.length; ++i) {
             var key = keys[i];
             var fallback = configPage["cfg_" + key + "Default"];
@@ -307,10 +302,8 @@ KCM.SimpleKCM {
         }
         // Les curseurs ont -1 (« jamais réglé ») comme valeur par défaut
         // technique : on les remet explicitement à leur valeur d'origine.
-        cfg_blurStrength = 1.0;
         cfg_highlightStrength = 1.0;
         cfg_borderStrength = 0.5;
-        cfg_enableBlur = true;
         cfg_showHighlight = true;
         showStyleMessage(Kirigami.MessageType.Information,
             i18n("Settings reset. Dock icons were kept. Click “Apply” to save."));
@@ -528,37 +521,6 @@ KCM.SimpleKCM {
                 }
 
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Liquid glass:")
-
-                    QQC2.Slider {
-                        id: blurStrengthSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 1
-                        stepSize: 0.05
-                        live: true
-                        value: configPage.cfg_blurStrength >= 0
-                            ? configPage.cfg_blurStrength
-                            : (configPage.cfg_enableBlur ? 1 : 0)
-                        onMoved: {
-                            configPage.cfg_blurStrength = value;
-                            configPage.cfg_enableBlur = value > 0.001;
-                        }
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(blurStrengthSlider.value * 100) + "%"
-                    }
-                }
-
-                QQC2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    text: i18n("Liquid glass is the glass effect applied by your compositor behind the Dock: 0 % turns it off, any other value turns it on.")
-                    opacity: 0.78
-                }
-
-                RowLayout {
                     Kirigami.FormData.label: i18n("Background blur:")
 
                     QQC2.Slider {
@@ -578,8 +540,43 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. Nothing happens if the wallpaper is not an image.")
+                    text: i18n("Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below.")
                     opacity: 0.78
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Wallpaper image:")
+                    enabled: wallpaperBlurSlider.value > 0.001
+
+                    QQC2.TextField {
+                        id: wallpaperBlurImageField
+                        Layout.fillWidth: true
+                        placeholderText: i18n("Automatic")
+                    }
+
+                    QQC2.Button {
+                        text: i18n("Choose…")
+                        icon.name: "document-open"
+                        onClicked: wallpaperImageDialog.open()
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-clear"
+                        enabled: wallpaperBlurImageField.text.length > 0
+                        onClicked: wallpaperBlurImageField.text = ""
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Detect the wallpaper automatically")
+                    }
+                }
+
+                FileDialog {
+                    id: wallpaperImageDialog
+
+                    title: i18n("Choose the wallpaper image")
+                    nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)")]
+                    onAccepted: wallpaperBlurImageField.text =
+                        String(selectedFile)
                 }
 
                 RowLayout {
@@ -906,15 +903,6 @@ KCM.SimpleKCM {
                     Kirigami.FormData.label: i18n("App group layout:")
                     Layout.fillWidth: true
                     model: [i18n("List View"), i18n("Grid View")]
-                }
-
-                QQC2.ComboBox {
-                    id: folderViewModeCombo
-
-                    Kirigami.FormData.label: i18n("Folder view mode:")
-                    Layout.fillWidth: true
-                    enabled: showFolderViewCheckBox.checked
-                    model: [i18n("List View"), i18n("Grid View"), i18n("Fan / Stack View")]
                 }
 
                 QQC2.ComboBox {
