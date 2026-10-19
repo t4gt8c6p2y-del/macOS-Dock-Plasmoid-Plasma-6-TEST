@@ -68,6 +68,10 @@
     <entry name="wallpaperBlurImage" type="String">
       <default></default>
     </entry>
+    <!-- La lumière de la bordure suit le pointeur sur le Dock. -->
+    <entry name="borderFollowMouse" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="perDesktopDock" type="Bool">
       <default>true</default>
     </entry>

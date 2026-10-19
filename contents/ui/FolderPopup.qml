@@ -80,7 +80,7 @@ Window {
     // Place disponible (en pixels) du côté de l'éventail ; mis à jour par
     // positionPopup().
     property real availableSpan: 520
-    readonly property int entryCount: fanList.count
+    readonly property int entryCount: fanRepeater.count
     readonly property int shownCount: Math.max(0, Math.min(maxItems,
         entryCount,
         Math.floor((availableSpan - 2 * pad - iconSize) / step) - 1))
@@ -122,10 +122,33 @@ Window {
         return slotY(0) - stackSign * foldDistance;
     }
 
-    readonly property int closeDuration: 250 + (rows - 1) * 14 + 70
+    // --- Chronologie -------------------------------------------------------
+    // Toute l'animation découle d'UNE seule valeur, « timeline » (0 = replié,
+    // timelineMax = entièrement déplié). La position de chaque fichier est
+    // calculée à partir d'elle : rien ne peut rester bloqué à mi-course, et
+    // le repli est exactement le dépli à l'envers (les fichiers les plus
+    // éloignés partent les premiers, avec un léger recul avant de plonger).
+    readonly property real timelineMax: 520
+    readonly property real slotDelay: 16
+    readonly property real slotDuration: 340
+    property real timeline: 0
 
-    // Avancement (0..1, avec dépassement) de la ligne des boutons.
-    property real buttonProgress: 0
+    function easeOutBack(t) {
+        var c1 = 1.25;
+        var c3 = c1 + 1;
+        var u = t - 1;
+        return 1 + c3 * u * u * u + c1 * u * u;
+    }
+
+    // Avancement (0..1, avec dépassement) du fichier de rang « slot ».
+    function slotProgress(slot) {
+        return easeOutBack(clamp01((timeline - slot * slotDelay)
+            / slotDuration));
+    }
+
+    // Avancement de la ligne des boutons : elle arrive en dernier.
+    readonly property real buttonProgress: easeOutBack(clamp01(
+        (timeline - (rows * slotDelay + 50)) / 300))
 
     function clamp01(value) {
         return Math.max(0, Math.min(1, value));
@@ -220,6 +243,7 @@ Window {
         positionPopup();
         visible = true;
         expanded = true;
+        runTimeline(timelineMax, Math.max(1, timelineMax - timeline));
         requestActivate();
         schedulePositionPopup();
     }
@@ -232,6 +256,8 @@ Window {
         }
         if (immediate === true) {
             closeTimer.stop();
+            timelineAnimation.stop();
+            timeline = 0;
             expanded = false;
             visible = false;
             return;
@@ -240,8 +266,25 @@ Window {
             return;
         }
         expanded = false;
-        closeTimer.interval = closeDuration;
+        var duration = Math.max(120, timeline * 0.8);
+        runTimeline(0, duration);
+        closeTimer.interval = duration + 40;
         closeTimer.restart();
+    }
+
+    function runTimeline(target, duration) {
+        timelineAnimation.stop();
+        timelineAnimation.to = target;
+        timelineAnimation.duration = duration;
+        timelineAnimation.start();
+    }
+
+    NumberAnimation {
+        id: timelineAnimation
+
+        target: root
+        property: "timeline"
+        easing.type: Easing.Linear
     }
 
     Timer {
@@ -254,46 +297,10 @@ Window {
     onVisibleChanged: {
         if (!visible) {
             closeTimer.stop();
+            timelineAnimation.stop();
+            timeline = 0;
             expanded = false;
-            buttonProgress = 0;
         }
-    }
-
-    onExpandedChanged: {
-        if (expanded) {
-            buttonCloseAnimation.stop();
-            buttonOpenAnimation.restart();
-        } else {
-            buttonOpenAnimation.stop();
-            buttonCloseAnimation.restart();
-        }
-    }
-
-    SequentialAnimation {
-        id: buttonOpenAnimation
-
-        PauseAnimation {
-            duration: root.rows * 16 + 50
-        }
-
-        NumberAnimation {
-            target: root
-            property: "buttonProgress"
-            to: 1
-            duration: 300
-            easing.type: Easing.OutBack
-            easing.overshoot: 1.15
-        }
-    }
-
-    NumberAnimation {
-        id: buttonCloseAnimation
-
-        target: root
-        property: "buttonProgress"
-        to: 0
-        duration: 120
-        easing.type: Easing.InQuad
     }
 
     function schedulePositionPopup() {
@@ -458,21 +465,15 @@ Window {
     }
 
     // --- Fichiers ----------------------------------------------------------
-    // Le ListView ne sert qu'à créer les délégués des premiers fichiers : leur
-    // contenu est déplacé dans fanStage, à la position de l'éventail.
-    ListView {
-        id: fanList
+    // Chaque délégué est un Loader : seuls les premiers fichiers (shownCount)
+    // créent réellement leur ligne. Sa position ne dépend que de « timeline ».
+    Repeater {
+        id: fanRepeater
 
-        x: 0
-        y: 0
-        width: root.width
-        height: Math.max(1, root.shownCount) * root.step
-        visible: false
-        interactive: false
-        cacheBuffer: 0
+        parent: fanStage
         model: root.visible ? root.folderModel : null
 
-        delegate: Item {
+        delegate: Loader {
             id: fanDelegate
 
             required property int index
@@ -480,177 +481,119 @@ Window {
             required property string display
             required property var decoration
 
-            width: ListView.view ? ListView.view.width : 0
-            height: root.step
+            x: 0
+            y: 0
+            active: index < root.shownCount
+            sourceComponent: fanRow
 
             // 0 = replié dans l'icône du dossier, 1 = à sa place dans
             // l'éventail (peut dépasser 1 pendant le rebond).
-            property real prog: 0
+            readonly property real prog: root.slotProgress(index)
             readonly property real slotX: root.slotX(index)
             readonly property real slotY: root.slotY(index)
             readonly property real centerX:
                 root.foldX + (slotX - root.foldX) * prog
             readonly property real centerY:
                 root.foldY + (slotY - root.foldY) * prog
-            readonly property real clamped: root.clamp01(prog)
             readonly property real iconOpacity: root.clamp01(prog / 0.3)
             readonly property real labelOpacity:
                 root.clamp01((prog - 0.45) / 0.4)
-            readonly property bool shown: index < root.shownCount
             readonly property real hoverFactor:
                 1 + (root.hoverScale - 1) * 2.5
 
-            SequentialAnimation {
-                id: openAnimation
+            Component {
+                id: fanRow
 
-                PauseAnimation {
-                    duration: fanDelegate.index * 16
-                }
-
-                NumberAnimation {
-                    target: fanDelegate
-                    property: "prog"
-                    to: 1
-                    duration: 340
-                    easing.type: Easing.OutBack
-                    easing.overshoot: 1.25
-                }
-            }
-
-            // Repli : les fichiers les plus éloignés partent les premiers,
-            // avec un très léger recul avant de plonger dans l'icône.
-            SequentialAnimation {
-                id: closeAnimation
-
-                PauseAnimation {
-                    duration: Math.max(0,
-                        root.rows - 1 - fanDelegate.index) * 14
-                }
-
-                NumberAnimation {
-                    target: fanDelegate
-                    property: "prog"
-                    to: 0
-                    duration: 250
-                    easing.type: Easing.InBack
-                    easing.overshoot: 0.8
-                }
-            }
-
-            function syncAnimation() {
-                if (root.expanded) {
-                    closeAnimation.stop();
-                    openAnimation.restart();
-                } else {
-                    openAnimation.stop();
-                    closeAnimation.restart();
-                }
-            }
-
-            Component.onCompleted: {
-                if (root.expanded) {
-                    openAnimation.start();
-                }
-            }
-
-            Connections {
-                target: root
-
-                function onExpandedChanged() {
-                    fanDelegate.syncAnimation();
-                }
-            }
-
-            Item {
-                id: row
-
-                parent: fanStage
-                visible: fanDelegate.shown
-                x: 0
-                y: fanDelegate.centerY - root.step / 2
-                width: root.width
-                height: root.step
-
-                // Zone cliquable : de la pastille à l'icône.
                 Item {
-                    id: hitArea
+                    id: row
 
-                    readonly property real iconLeft:
-                        fanDelegate.centerX - root.iconSize / 2
-                    x: root.labelsLeft
-                        ? iconLeft - root.gap - pill.width : iconLeft
-                    width: root.labelsLeft
-                        ? root.iconSize + root.gap + pill.width
-                        : root.iconSize + root.gap + pill.width
+                    x: 0
+                    y: fanDelegate.centerY - root.step / 2
+                    width: root.width
                     height: root.step
-                    enabled: root.expanded
 
-                    HoverHandler {
-                        id: rowHover
+                    // Zone cliquable : de la pastille à l'icône.
+                    Item {
+                        id: hitArea
 
-                        cursorShape: Qt.PointingHandCursor
-                    }
-
-                    TapHandler {
-                        onTapped: root.activateEntry(fanDelegate.index,
-                            fanDelegate.isDir)
-                    }
-                }
-
-                Rectangle {
-                    id: pill
-
-                    readonly property real iconLeft:
-                        fanDelegate.centerX - root.iconSize / 2
-                    width: Math.min(root.labelMaxWidth,
-                        pillLabel.implicitWidth + 20)
-                    height: root.pillHeight
-                    radius: height / 2
-                    x: root.labelsLeft
-                        ? iconLeft - root.gap - width
-                        : fanDelegate.centerX + root.iconSize / 2 + root.gap
-                    y: (root.step - height) / 2
-                    color: rowHover.hovered
-                        ? Qt.tint(root.pillColor,
-                            Qt.rgba(palette.highlight.r, palette.highlight.g,
-                                palette.highlight.b, 0.35))
-                        : root.pillColor
-                    border.width: 1
-                    border.color: root.pillBorderColor
-                    opacity: fanDelegate.labelOpacity
-
-                    QQC2.Label {
-                        id: pillLabel
-
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        width: parent.width - 20
-                        text: fanDelegate.display
-                        color: root.pillTextColor
-                        font.pixelSize: 12
-                        font.weight: Font.Medium
-                        elide: Text.ElideMiddle
-                    }
-                }
-
-                Kirigami.Icon {
-                    id: fileIcon
-
-                    width: root.iconSize
-                    height: root.iconSize
-                    x: fanDelegate.centerX - width / 2
-                    y: (root.step - height) / 2
-                    source: fanDelegate.decoration
-                    opacity: fanDelegate.iconOpacity
-                    scale: (0.35 + 0.65 * Math.min(1.08, fanDelegate.prog))
-                        * (rowHover.hovered ? fanDelegate.hoverFactor : 1.0)
-
-                    Behavior on scale {
+                        readonly property real iconLeft:
+                            fanDelegate.centerX - root.iconSize / 2
+                        x: root.labelsLeft
+                            ? iconLeft - root.gap - pill.width : iconLeft
+                        width: root.iconSize + root.gap + pill.width
+                        height: root.step
                         enabled: root.expanded
-                        NumberAnimation {
-                            duration: 140
-                            easing.type: Easing.OutCubic
+
+                        HoverHandler {
+                            id: rowHover
+
+                            cursorShape: Qt.PointingHandCursor
+                        }
+
+                        TapHandler {
+                            onTapped: root.activateEntry(fanDelegate.index,
+                                fanDelegate.isDir)
+                        }
+                    }
+
+                    Rectangle {
+                        id: pill
+
+                        width: Math.min(root.labelMaxWidth,
+                            pillLabel.implicitWidth + 20)
+                        height: root.pillHeight
+                        radius: height / 2
+                        x: root.labelsLeft
+                            ? fanDelegate.centerX - root.iconSize / 2
+                                - root.gap - width
+                            : fanDelegate.centerX + root.iconSize / 2
+                                + root.gap
+                        y: (root.step - height) / 2
+                        color: rowHover.hovered
+                            ? Qt.tint(root.pillColor,
+                                Qt.rgba(palette.highlight.r,
+                                    palette.highlight.g,
+                                    palette.highlight.b, 0.35))
+                            : root.pillColor
+                        border.width: 1
+                        border.color: root.pillBorderColor
+                        opacity: fanDelegate.labelOpacity
+
+                        QQC2.Label {
+                            id: pillLabel
+
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 10
+                            width: parent.width - 20
+                            text: fanDelegate.display
+                            color: root.pillTextColor
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    Kirigami.Icon {
+                        id: fileIcon
+
+                        width: root.iconSize
+                        height: root.iconSize
+                        x: fanDelegate.centerX - width / 2
+                        y: (root.step - height) / 2
+                        source: fanDelegate.decoration
+                        opacity: fanDelegate.iconOpacity
+                        scale: (0.35 + 0.65 * Math.min(1.08,
+                                Math.max(0, fanDelegate.prog)))
+                            * (rowHover.hovered
+                                ? fanDelegate.hoverFactor : 1.0)
+
+                        Behavior on scale {
+                            enabled: root.expanded
+                            NumberAnimation {
+                                duration: 140
+                                easing.type: Easing.OutCubic
+                            }
                         }
                     }
                 }

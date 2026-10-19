@@ -699,10 +699,6 @@ msgstr "Bordure :"
 msgid "Background blur:"
 msgstr "Flou de l’arrière-plan :"
 
-#: contents/ui/ConfigGeneral.qml
-msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
-msgstr "Part de la bordure qui est éclairée : 100 % éclaire tout le contour, 0 % supprime la bordure. La lumière suit la souris."
-
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below."
@@ -731,3 +727,11 @@ msgstr "Choisir l’image du fond d’écran"
 #: contents/ui/ConfigGeneral.qml
 msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 msgstr "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it."
+msgstr "Part de la bordure qui est éclairée : 100 % éclaire tout le contour, 0 % supprime la bordure."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The border light follows the mouse"
+msgstr "La lumière de la bordure suit la souris"

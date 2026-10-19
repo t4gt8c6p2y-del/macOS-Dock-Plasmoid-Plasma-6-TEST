@@ -41,6 +41,10 @@ Item {
         y: -backdrop.pad
         width: backdrop.width + 2 * backdrop.pad
         height: backdrop.height + 2 * backdrop.pad
+        // MultiEffect exige une source « en couche » (layer) : sans cela il ne
+        // dessine rien.
+        layer.enabled: true
+        layer.smooth: true
         visible: false
 
         Image {
@@ -57,6 +61,22 @@ Item {
             smooth: true
             sourceSize.width: backdrop.info.width
             sourceSize.height: backdrop.info.height
+        }
+    }
+
+    // Diagnostic : visible dans le journal (journalctl --user -b).
+    Connections {
+        target: wallpaperImage
+
+        function onStatusChanged() {
+            if (wallpaperImage.status === Image.Ready) {
+                console.log("macOS Dock: wallpaper blur uses",
+                    String(backdrop.info.source), backdrop.info.width + "x"
+                    + backdrop.info.height);
+            } else if (wallpaperImage.status === Image.Error) {
+                console.warn("macOS Dock: cannot load the wallpaper image",
+                    String(backdrop.info.source));
+            }
         }
     }
 

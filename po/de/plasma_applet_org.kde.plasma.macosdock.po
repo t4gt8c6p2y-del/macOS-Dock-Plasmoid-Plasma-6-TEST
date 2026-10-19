@@ -697,10 +697,6 @@ msgstr "Rahmen:"
 msgid "Background blur:"
 msgstr "Hintergrund-Weichzeichnung:"
 
-#: contents/ui/ConfigGeneral.qml
-msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse."
-msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 % entfernt den Rahmen. Das Licht folgt der Maus."
-
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below."
@@ -729,3 +725,11 @@ msgstr "Hintergrundbild auswählen"
 #: contents/ui/ConfigGeneral.qml
 msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 msgstr "Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it."
+msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 % entfernt den Rahmen."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The border light follows the mouse"
+msgstr "Das Licht des Rahmens folgt der Maus"

@@ -76,6 +76,9 @@ PlasmoidItem {
         }
         return Math.min(1.0, borderOpacity / 0.5);
     }
+    readonly property bool borderFollowMouse:
+        Plasmoid.configuration.borderFollowMouse === undefined
+            ? true : Boolean(Plasmoid.configuration.borderFollowMouse)
     readonly property real wallpaperBlur: boundedNumber(
         Plasmoid.configuration.wallpaperBlur, 0, 0, 1)
     readonly property real shadowOpacity: boundedNumber(
@@ -4687,6 +4690,7 @@ PlasmoidItem {
                     root.dockWindowOrigin(overlayWindow).y
                         + overlayBackgroundSurface.y)
                 lightActive: overlayHover.hovered
+                followMouse: root.borderFollowMouse
                 lightX: root.pointerX - overlayBackgroundSurface.x
                 lightY: root.pointerY - overlayBackgroundSurface.y
                 surfaceOpacity: root.backgroundOpacity

@@ -35,6 +35,7 @@ KCM.SimpleKCM {
     property bool cfg_showHighlight: true
     property real cfg_highlightStrength: -1
     property bool cfg_perDesktopDock: true
+    property alias cfg_borderFollowMouse: borderFollowMouseCheckBox.checked
     property alias cfg_hideOnMaximized: hideOnMaximizedCheckBox.checked
     property alias cfg_launchAnimation: launchAnimationCombo.currentIndex
     property alias cfg_magnificationSpring: magnificationSpringSlider.value
@@ -103,6 +104,7 @@ KCM.SimpleKCM {
     property bool cfg_showHighlightDefault: true
     property real cfg_highlightStrengthDefault: -1
     property bool cfg_perDesktopDockDefault: true
+    property bool cfg_borderFollowMouseDefault: true
     property bool cfg_hideOnMaximizedDefault: true
     property int cfg_launchAnimationDefault: 1
     property real cfg_magnificationSpringDefault: 50.0
@@ -166,7 +168,7 @@ KCM.SimpleKCM {
         "autoOpenFolderWithOpenDocument", "autoOpenAppGroupWithRunningApp",
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
-        "showKdeConnectRecentShares", "perDesktopDock"
+        "showKdeConnectRecentShares", "perDesktopDock", "borderFollowMouse"
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -516,8 +518,14 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Share of the border that is lit: 100 % lights the whole outline, 0 % removes it. The light follows the mouse.")
+                    text: i18n("Share of the border that is lit: 100 % lights the whole outline, 0 % removes it.")
                     opacity: 0.78
+                }
+
+                QQC2.CheckBox {
+                    id: borderFollowMouseCheckBox
+
+                    text: i18n("The border light follows the mouse")
                 }
 
                 RowLayout {
@@ -622,6 +630,7 @@ KCM.SimpleKCM {
                         showShadow: false
                         highlightStrength: highlightStrengthSlider.value
                         lightActive: previewHover.hovered
+                        followMouse: borderFollowMouseCheckBox.checked
                         lightX: previewHover.point.position.x
                             - previewBackground.x
                         lightY: previewHover.point.position.y
