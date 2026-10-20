@@ -183,7 +183,9 @@ Window {
     signal openFolderRequested(url folderUrl)
 
     width: windowWidth
-    height: 2 * pad + iconSize + rows * step
+    // Hauteur fixe : la fenêtre ne dépend pas du contenu du dossier, ce qui
+    // évite que sa taille (et donc sa position) change pendant le chargement.
+    height: 2 * pad + iconSize + (maxItems + 1) * step
     flags: Qt.FramelessWindowHint
     color: "transparent"
     visible: false
@@ -243,6 +245,8 @@ Window {
         positionPopup();
         visible = true;
         expanded = true;
+        settleTicks = 0;
+        settleTimer.restart();
         runTimeline(timelineMax, Math.max(1, timelineMax - timeline));
         requestActivate();
         schedulePositionPopup();
@@ -356,40 +360,72 @@ Window {
             windowTop + localTopLeft.y);
         var spacing = Kirigami.Units.largeSpacing;
 
-        placementLeft = 0;
-        placementTop = 0;
-        placementRight = 0;
-        placementBottom = 0;
+        // La place disponible ne dépend que de l'écran (stable).
+        availableSpan = targetScreen.height - 2 * spacing - 160;
+
+        var newLeft = 0;
+        var newTop = 0;
+        var newRight = 0;
+        var newBottom = 0;
+        var plausible = true;
 
         if (root.isVertical) {
             // La première icône est à la hauteur de l'icône du dossier ;
             // l'éventail monte à partir de là.
             var centerY = itemTopLeft.y - screenTop + visualParent.height / 2;
-            availableSpan = centerY + iconSize / 2 + pad - spacing;
-            placementTop = Math.max(spacing,
+            newTop = Math.max(spacing,
                 Math.min(targetScreen.height - height - spacing,
                     centerY - (height - pad - iconSize / 2)));
             if (root.location === PlasmaCore.Types.LeftEdge) {
-                placementLeft = itemTopLeft.x - screenLeft
+                newLeft = itemTopLeft.x - screenLeft
                     + visualParent.width + spacing;
+                plausible = newLeft >= 0 && newLeft < 420;
             } else {
-                placementRight = screenRight - itemTopLeft.x + spacing;
+                newRight = screenRight - itemTopLeft.x + spacing;
+                plausible = newRight >= 0 && newRight < 420;
             }
         } else {
             var centerX = itemTopLeft.x - screenLeft + visualParent.width / 2;
-            placementLeft = Math.max(spacing,
+            newLeft = Math.max(spacing,
                 Math.min(targetScreen.width - width - spacing,
                     centerX - originX));
             if (root.location === PlasmaCore.Types.TopEdge) {
                 var iconBottom = itemTopLeft.y - screenTop
                     + visualParent.height;
-                availableSpan = targetScreen.height - iconBottom - spacing;
-                placementTop = iconBottom + spacing;
+                newTop = iconBottom + spacing;
+                plausible = iconBottom >= 0 && iconBottom < 420;
             } else {
-                var iconTop = itemTopLeft.y - screenTop;
-                availableSpan = iconTop - spacing;
-                placementBottom = screenBottom - itemTopLeft.y + spacing;
+                newBottom = screenBottom - itemTopLeft.y + spacing;
+                plausible = newBottom >= 0 && newBottom < 420;
             }
+        }
+
+        // Pendant que la fenêtre du Dock change de taille, la position lue
+        // peut être incohérente (le popup se retrouvait alors loin du Dock) :
+        // on ne l'applique que si elle est plausible, et on la relit
+        // plusieurs fois juste après l'ouverture.
+        if (!plausible) {
+            return;
+        }
+        placementLeft = newLeft;
+        placementTop = newTop;
+        placementRight = newRight;
+        placementBottom = newBottom;
+    }
+
+    property int settleTicks: 0
+
+    Timer {
+        id: settleTimer
+
+        interval: 120
+        repeat: true
+        onTriggered: {
+            if (!root.visible || ++root.settleTicks > 8) {
+                stop();
+                return;
+            }
+            root.positionPopup();
         }
     }
 

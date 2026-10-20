@@ -4,6 +4,7 @@
 #include "kdeconnectsharemonitor.h"
 #include "opendocumentlocator.h"
 #include "removablevolumesmodel.h"
+#include "wallpaperlocator.h"
 
 #include <QQmlEngine>
 #include <QQmlExtensionPlugin>
@@ -22,6 +23,7 @@ public:
         qmlRegisterType<KdeConnectShareMonitor>(uri, 1, 0, "KdeConnectShareMonitor");
         qmlRegisterType<RemovableVolumesModel>(uri, 1, 0, "RemovableVolumesModel");
         qmlRegisterType<OpenDocumentLocator>(uri, 1, 0, "OpenDocumentLocator");
+        qmlRegisterType<WallpaperLocator>(uri, 1, 0, "WallpaperLocator");
     }
 };
 

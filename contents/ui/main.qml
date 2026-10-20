@@ -415,6 +415,10 @@ PlasmoidItem {
         "width": 0, "height": 0 })
     property bool wallpaperMissingLogged: false
 
+    DockEffects.WallpaperLocator {
+        id: wallpaperLocator
+    }
+
     function wallpaperImageNode(node, depth) {
         if (!node || depth > 12) {
             return null;
@@ -504,8 +508,22 @@ PlasmoidItem {
         var height = screenHeight;
 
         var manual = String(Plasmoid.configuration.wallpaperBlurImage || "");
+        var located = null;
+        if (manual.length === 0 && screen) {
+            // Lecture directe de la configuration de Plasma : plus fiable que
+            // de fouiller l'interface du bureau.
+            try {
+                located = wallpaperLocator.currentWallpaper(
+                    Qt.application.screens.indexOf(screen));
+            } catch (error) {
+                located = null;
+            }
+        }
         if (manual.length > 0) {
             source = fileUrl(manual);
+        } else if (located && located.source) {
+            source = String(located.source);
+            fillMode = Number(located.fillMode);
         } else {
             var wallpaper = wallpaperObject();
             if (wallpaper) {
@@ -532,8 +550,7 @@ PlasmoidItem {
                 }
             }
         }
-        if (source.length === 0 && wallpaperBlur > 0.001
-                && !wallpaperMissingLogged) {
+        if (source.length === 0 && !wallpaperMissingLogged) {
             wallpaperMissingLogged = true;
             console.warn("macOS Dock: wallpaper not found for the background blur;"
                 + " choose the image in the settings.");
@@ -549,7 +566,7 @@ PlasmoidItem {
     Timer {
         interval: 4000
         repeat: true
-        running: root.wallpaperBlur > 0.001
+        running: root.wallpaperBlur > 0.001 || root.borderStrength > 0.001
         triggeredOnStart: true
         onTriggered: root.refreshWallpaperInfo()
     }
@@ -4125,6 +4142,7 @@ PlasmoidItem {
                 borderStrength: root.borderStrength
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
+                colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(
                     root.dockWindowOrigin(baseWindow).x + baseSurface.x,
                     root.dockWindowOrigin(baseWindow).y + baseSurface.y)
@@ -4684,6 +4702,7 @@ PlasmoidItem {
                 borderStrength: root.borderStrength
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
+                colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(
                     root.dockWindowOrigin(overlayWindow).x
                         + overlayBackgroundSurface.x,
