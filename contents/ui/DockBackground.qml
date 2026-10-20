@@ -1,6 +1,8 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Shapes
+import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 
 Kirigami.ShadowedRectangle {
@@ -43,6 +45,11 @@ Kirigami.ShadowedRectangle {
     // d'écran derrière le Dock pour teinter la bordure. null = bordure blanche.
     property var colorSampler: null
     property point backdropOrigin: Qt.point(0, 0)
+    // Vrai quand l'image floutée du fond d'écran est chargée et affichée.
+    // main.qml s'en sert pour demander le flou de KWin quand ce n'est pas le
+    // cas (fond non trouvé), afin que le réglage ait toujours un effet.
+    readonly property bool backdropReady: backdropLoader.item !== null
+        && Boolean(backdropLoader.item["ready"])
 
     readonly property color themeBackground: qtPalette.window
     readonly property color themeText: qtPalette.windowText
@@ -149,22 +156,21 @@ Kirigami.ShadowedRectangle {
 
     // --- Contour éclairé ---------------------------------------------------
     // Un filet d'un pixel, continu sur tout le tour, comme le bord d'une vitre.
-    // Il est découpé en petits segments dont l'opacité dépend de la distance à
-    // deux lumières (l'une suit le pointeur, l'autre est au point opposé) et
-    // dont la couleur est celle du fond d'écran à cet endroit : la bordure
-    // brille donc de la couleur de l'arrière-plan. Les côtés restent sombres.
+    // Il est modulé par un masque : un niveau de base (litFloor) partout, plus
+    // une lumière qui suit le pointeur et une seconde, au point opposé, aussi
+    // vive. borderStrength règle la PART du tour qui est éclairée : à 0 il n'y
+    // a plus de bordure, à 1 tout le tour est éclairé uniformément.
     //
-    // borderStrength règle la PART du tour qui est éclairée : à 0 il n'y a plus
-    // de bordure, à 1 tout le tour est éclairé uniformément.
-    //
+    // Le filet est dessiné une fois (une seule forme) ; seul le masque bouge,
+    // ce qui est très léger pour le GPU : la lumière suit la souris en
+    // continu, sans attendre qu'elle s'arrête. Sa couleur est un dégradé
+    // calculé à partir du fond d'écran derrière le Dock (voir tintColor) :
+    // la bordure brille de la couleur de l'arrière-plan.
     // Faux : la lumière reste à sa position de repos au lieu de suivre le
     // pointeur.
     property bool followMouse: true
 
     readonly property real ringThickness: 1.0
-    readonly property int ringSegmentCount: 288
-    readonly property int rimColumns: 48
-    readonly property int rimRows: 3
     readonly property real litShare: Math.min(1, Math.max(0, borderStrength))
     readonly property real perimeter: 2 * (width + height)
     // Étalement de la lumière : plus la part éclairée est grande, plus elle
@@ -195,13 +201,17 @@ Kirigami.ShadowedRectangle {
     readonly property real secondaryX: width - primaryX
     readonly property real secondaryY: height - primaryY
 
-    // Couleurs du fond d'écran derrière le Dock (rimColumns x rimRows).
-    property var rimColors: []
+    // --- Teinte de la bordure -------------------------------------------------
+    // Couleurs du fond d'écran le long du Dock (tintStopCount mesures). Le
+    // dégradé suit l'axe long du Dock.
+    readonly property int tintStopCount: 12
+    readonly property bool tintVertical: height > width
+    property var tintColors: []
 
-    function refreshRimColors() {
+    function refreshTintColors() {
         if (!colorSampler || !wallpaperInfo || !wallpaperInfo.source
                 || width < 8 || height < 8) {
-            rimColors = [];
+            tintColors = [];
             return;
         }
         var colors = [];
@@ -209,41 +219,38 @@ Kirigami.ShadowedRectangle {
             colors = colorSampler.sampleColors(String(wallpaperInfo.source),
                 wallpaperInfo.fillMode, wallpaperInfo.width,
                 wallpaperInfo.height, backdropOrigin.x, backdropOrigin.y,
-                width, height, rimColumns, rimRows);
+                width, height, tintVertical ? 1 : tintStopCount,
+                tintVertical ? tintStopCount : 1);
         } catch (error) {
             colors = [];
         }
-        rimColors = colors || [];
+        tintColors = colors || [];
     }
 
     // Les mesures sont regroupées : le Dock bouge et se redimensionne souvent.
     Timer {
-        id: rimColorTimer
+        id: tintTimer
 
         interval: 250
         repeat: false
-        onTriggered: background.refreshRimColors()
+        onTriggered: background.refreshTintColors()
     }
 
-    onWallpaperInfoChanged: rimColorTimer.restart()
-    onBackdropOriginChanged: rimColorTimer.restart()
-    onColorSamplerChanged: rimColorTimer.restart()
-    onWidthChanged: rimColorTimer.restart()
-    onHeightChanged: rimColorTimer.restart()
-    Component.onCompleted: rimColorTimer.restart()
+    onWallpaperInfoChanged: tintTimer.restart()
+    onColorSamplerChanged: tintTimer.restart()
+    onBackdropOriginChanged: tintTimer.restart()
+    onWidthChanged: tintTimer.restart()
+    onHeightChanged: tintTimer.restart()
+    Component.onCompleted: tintTimer.restart()
 
-    // Couleur du filet à la position (px, py) : la teinte du fond d'écran,
+    // Couleur du dégradé au point « index » : la teinte du fond d'écran,
     // ramenée à pleine luminosité puis éclaircie (blanc si le fond est gris).
-    function rimColorAt(px, py) {
-        var list = rimColors;
-        if (!list || list.length < rimColumns * rimRows) {
+    function tintColor(index) {
+        var list = tintColors;
+        if (!list || list.length < tintStopCount) {
             return Qt.rgba(1, 1, 1, 1);
         }
-        var column = Math.max(0, Math.min(rimColumns - 1,
-            Math.floor(px / Math.max(1, width) * rimColumns)));
-        var row = Math.max(0, Math.min(rimRows - 1,
-            Math.floor(py / Math.max(1, height) * rimRows)));
-        var c = list[row * rimColumns + column];
+        var c = list[index];
         var peak = Math.max(c.r, c.g, c.b);
         if (peak < 0.02) {
             return Qt.rgba(1, 1, 1, 1);
@@ -253,90 +260,33 @@ Kirigami.ShadowedRectangle {
             c.b * k * 0.72 + 0.28, 1);
     }
 
-    // Opacité du filet à la position (px, py).
-    function ringAlpha(px, py) {
-        var radius = Math.max(1, lightRadius);
-        var d1 = Math.sqrt((px - primaryX) * (px - primaryX)
-            + (py - primaryY) * (py - primaryY)) / radius;
-        var d2 = Math.sqrt((px - secondaryX) * (px - secondaryX)
-            + (py - secondaryY) * (py - secondaryY)) / radius;
-        var light = lightGain * (Math.exp(-3 * d1) + 0.9 * Math.exp(-3 * d2));
-        return Math.min(1, litFloor + (1 - litFloor) * Math.min(1, light));
+    function roundedRectPath(x, y, w, h, r) {
+        r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+        if (r < 0.01) {
+            return "M" + x + "," + y + " H" + (x + w) + " V" + (y + h)
+                + " H" + x + " Z";
+        }
+        return "M" + (x + r) + "," + y
+            + " H" + (x + w - r)
+            + " A" + r + "," + r + " 0 0 1 " + (x + w) + "," + (y + r)
+            + " V" + (y + h - r)
+            + " A" + r + "," + r + " 0 0 1 " + (x + w - r) + "," + (y + h)
+            + " H" + (x + r)
+            + " A" + r + "," + r + " 0 0 1 " + x + "," + (y + h - r)
+            + " V" + (y + r)
+            + " A" + r + "," + r + " 0 0 1 " + (x + r) + "," + y + " Z";
     }
 
-    // Point, angle et longueur du segment « index » le long du filet (tour
-    // dans le sens horaire à partir du coin supérieur gauche).
-    function ringPoint(index) {
-        var t = ringThickness;
-        var w = Math.max(1, width - t);
-        var h = Math.max(1, height - t);
-        var r = Math.max(0, Math.min(radius - t / 2, Math.min(w, h) / 2));
-        var ox = t / 2;
-        var oy = t / 2;
-        var top = w - 2 * r;
-        var side = h - 2 * r;
-        var arc = Math.PI * r / 2;
-        var total = 2 * top + 2 * side + 4 * arc;
-        var s = (index + 0.5) / ringSegmentCount * total;
-        var theta;
-        var cx;
-        var cy;
+    readonly property string ringPath: width > 4 && height > 4
+        ? roundedRectPath(0, 0, width, height, radius) + " "
+            + roundedRectPath(ringThickness, ringThickness,
+                width - 2 * ringThickness, height - 2 * ringThickness,
+                radius - ringThickness)
+        : ""
 
-        if (s < top) {
-            return { "x": ox + r + s, "y": oy, "a": 0,
-                "len": total / ringSegmentCount };
-        }
-        s -= top;
-        if (s < arc) {
-            theta = r > 0 ? s / r : 0;
-            cx = ox + w - r;
-            cy = oy + r;
-            return { "x": cx + r * Math.sin(theta),
-                "y": cy - r * Math.cos(theta),
-                "a": theta * 180 / Math.PI, "len": total / ringSegmentCount };
-        }
-        s -= arc;
-        if (s < side) {
-            return { "x": ox + w, "y": oy + r + s, "a": 90,
-                "len": total / ringSegmentCount };
-        }
-        s -= side;
-        if (s < arc) {
-            theta = r > 0 ? s / r : 0;
-            cx = ox + w - r;
-            cy = oy + h - r;
-            return { "x": cx + r * Math.cos(theta),
-                "y": cy + r * Math.sin(theta),
-                "a": 90 + theta * 180 / Math.PI,
-                "len": total / ringSegmentCount };
-        }
-        s -= arc;
-        if (s < top) {
-            return { "x": ox + w - r - s, "y": oy + h, "a": 180,
-                "len": total / ringSegmentCount };
-        }
-        s -= top;
-        if (s < arc) {
-            theta = r > 0 ? s / r : 0;
-            cx = ox + r;
-            cy = oy + h - r;
-            return { "x": cx - r * Math.sin(theta),
-                "y": cy + r * Math.cos(theta),
-                "a": 180 + theta * 180 / Math.PI,
-                "len": total / ringSegmentCount };
-        }
-        s -= arc;
-        if (s < side) {
-            return { "x": ox, "y": oy + h - r - s, "a": 270,
-                "len": total / ringSegmentCount };
-        }
-        s -= side;
-        theta = r > 0 ? s / r : 0;
-        cx = ox + r;
-        cy = oy + r;
-        return { "x": cx - r * Math.cos(theta), "y": cy - r * Math.sin(theta),
-            "a": 270 + theta * 180 / Math.PI,
-            "len": total / ringSegmentCount };
+    // Chute de la lumière : exp(-3 d), d allant de 0 (centre) à 1 (bord).
+    function lightAlpha(position, strength) {
+        return strength * Math.exp(-3 * position);
     }
 
     Item {
@@ -345,27 +295,218 @@ Kirigami.ShadowedRectangle {
         anchors.fill: parent
         visible: background.litShare > 0.001
 
-        Repeater {
-            model: background.ringSegmentCount
+        // Le filet : teinté, opaque, jamais affiché tel quel.
+        Item {
+            id: ringSource
 
-            delegate: Rectangle {
-                id: segment
+            anchors.fill: parent
+            layer.enabled: true
+            visible: false
 
-                required property int index
+            Shape {
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
 
-                readonly property var point: background.ringPoint(index)
-                readonly property color tint:
-                    background.rimColorAt(point.x, point.y)
+                ShapePath {
+                    fillRule: ShapePath.OddEvenFill
+                    strokeWidth: -1
+                    strokeColor: "transparent"
 
-                width: point.len + 0.6
-                height: background.ringThickness
-                x: point.x - width / 2
-                y: point.y - height / 2
-                rotation: point.a
-                antialiasing: true
-                color: Qt.rgba(tint.r, tint.g, tint.b,
-                    background.ringAlpha(point.x, point.y))
+                    fillGradient: LinearGradient {
+                        x1: 0
+                        y1: 0
+                        x2: background.tintVertical ? 0 : background.width
+                        y2: background.tintVertical ? background.height : 0
+
+                        GradientStop {
+                            position: 0.0
+                            color: background.tintColor(0)
+                        }
+                        GradientStop {
+                            position: 0.090909
+                            color: background.tintColor(1)
+                        }
+                        GradientStop {
+                            position: 0.181818
+                            color: background.tintColor(2)
+                        }
+                        GradientStop {
+                            position: 0.272727
+                            color: background.tintColor(3)
+                        }
+                        GradientStop {
+                            position: 0.363636
+                            color: background.tintColor(4)
+                        }
+                        GradientStop {
+                            position: 0.454545
+                            color: background.tintColor(5)
+                        }
+                        GradientStop {
+                            position: 0.545455
+                            color: background.tintColor(6)
+                        }
+                        GradientStop {
+                            position: 0.636364
+                            color: background.tintColor(7)
+                        }
+                        GradientStop {
+                            position: 0.727273
+                            color: background.tintColor(8)
+                        }
+                        GradientStop {
+                            position: 0.818182
+                            color: background.tintColor(9)
+                        }
+                        GradientStop {
+                            position: 0.909091
+                            color: background.tintColor(10)
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: background.tintColor(11)
+                        }
+                    }
+
+                    PathSvg {
+                        path: background.ringPath
+                    }
+                }
             }
+        }
+
+        // Le masque : niveau de base + deux lumières.
+        Item {
+            id: lightMask
+
+            anchors.fill: parent
+            layer.enabled: true
+            visible: false
+
+            Rectangle {
+                anchors.fill: parent
+                color: Qt.rgba(1, 1, 1, background.litFloor)
+            }
+
+            Shape {
+                x: background.primaryX - background.lightRadius
+                y: background.primaryY - background.lightRadius
+                width: 2 * background.lightRadius
+                height: 2 * background.lightRadius
+
+                ShapePath {
+                    strokeWidth: -1
+                    strokeColor: "transparent"
+
+                    fillGradient: RadialGradient {
+                        centerX: background.lightRadius
+                        centerY: background.lightRadius
+                        centerRadius: background.lightRadius
+                        focalX: background.lightRadius
+                        focalY: background.lightRadius
+
+                        GradientStop {
+                            position: 0.0
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.0, background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.1
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.1, background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.22
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.22, background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.4
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.4, background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.65
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.65, background.lightGain))
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: Qt.rgba(1, 1, 1, 0)
+                        }
+                    }
+
+                    PathSvg {
+                        path: "M0,0 H" + (2 * background.lightRadius)
+                            + " V" + (2 * background.lightRadius) + " H0 Z"
+                    }
+                }
+            }
+
+            Shape {
+                x: background.secondaryX - background.lightRadius
+                y: background.secondaryY - background.lightRadius
+                width: 2 * background.lightRadius
+                height: 2 * background.lightRadius
+
+                ShapePath {
+                    strokeWidth: -1
+                    strokeColor: "transparent"
+
+                    fillGradient: RadialGradient {
+                        centerX: background.lightRadius
+                        centerY: background.lightRadius
+                        centerRadius: background.lightRadius
+                        focalX: background.lightRadius
+                        focalY: background.lightRadius
+
+                        GradientStop {
+                            position: 0.0
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.0, 0.9 * background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.1
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.1, 0.9 * background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.22
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.22, 0.9 * background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.4
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.4, 0.9 * background.lightGain))
+                        }
+                        GradientStop {
+                            position: 0.65
+                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
+                                0.65, 0.9 * background.lightGain))
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: Qt.rgba(1, 1, 1, 0)
+                        }
+                    }
+
+                    PathSvg {
+                        path: "M0,0 H" + (2 * background.lightRadius)
+                            + " V" + (2 * background.lightRadius) + " H0 Z"
+                    }
+                }
+            }
+        }
+
+        MultiEffect {
+            anchors.fill: parent
+            source: ringSource
+            autoPaddingEnabled: false
+            maskEnabled: true
+            maskSource: lightMask
+            maskThresholdMin: 0.0
+            maskSpreadAtMin: 1.0
         }
     }
 }

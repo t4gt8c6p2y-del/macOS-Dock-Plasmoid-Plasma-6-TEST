@@ -733,3 +733,11 @@ msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 
 #: contents/ui/ConfigGeneral.qml
 msgid "The border light follows the mouse"
 msgstr "Das Licht des Rahmens folgt der Maus"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Icon spacing:"
+msgstr "Symbolabstand:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock."
+msgstr "Das Dock wächst mit dem Abstand. Würde es nicht mehr auf den Bildschirm passen, wird der Abstand automatisch verringert, damit die Symbole das Dock nie verlassen."

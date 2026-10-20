@@ -44,7 +44,13 @@ PlasmoidItem {
     readonly property bool isVertical:
         dockLocation === PlasmaCore.Types.LeftEdge
         || dockLocation === PlasmaCore.Types.RightEdge
-    readonly property real itemSpacing: 4
+    // Espace entre les icônes (réglage « Espacement des icônes »). Il est
+    // réduit automatiquement si le Dock, agrandi au maximum, dépasserait de
+    // l'écran : les icônes restent toujours dans le fond du Dock.
+    readonly property real configuredItemSpacing: boundedNumber(
+        Plasmoid.configuration.iconSpacing, 4, 0, 32)
+    readonly property real itemSpacing:
+        fittedItemSpacing(configuredItemSpacing)
     readonly property real windowPadding: 10
     // Marge transparente (en px) laissée entre le fond du dock et le bord de
     // ses fenêtres. Un fond qui touche exactement le bord d'une fenêtre fait
@@ -564,7 +570,9 @@ PlasmoidItem {
     }
 
     Timer {
-        interval: 4000
+        // Fréquent tant que le fond n'est pas trouvé, rare ensuite : la
+        // lecture de la configuration de Plasma se fait sur le fil de l'interface.
+        interval: root.wallpaperInfo.source.length > 0 ? 20000 : 4000
         repeat: true
         running: root.wallpaperBlur > 0.001 || root.borderStrength > 0.001
         triggeredOnStart: true
@@ -600,6 +608,34 @@ PlasmoidItem {
         font.weight: Font.DemiBold
     }
 
+    // Flou de KWin derrière le Dock : floute aussi les fenêtres placées
+    // derrière. Il sert quand l'image floutée du fond d'écran n'est pas
+    // disponible (fond non trouvé ou pas encore chargé), pour que le réglage
+    // « Flou de l'arrière-plan » ait toujours un effet visible. Dès que
+    // l'image floutée est affichée, il est coupé pour ne pas se superposer.
+    DockEffects.BlurRegion {
+        window: baseWindow
+        region: Qt.rect(baseSurface.x
+                + root.dockSlideX(baseWindow.width),
+            baseSurface.y + root.dockSlideY(baseWindow.height),
+            baseSurface.width, baseSurface.height)
+        radius: baseSurface.radius
+        enabled: root.wallpaperBlur > 0.001 && !baseSurface.backdropReady
+    }
+
+    DockEffects.BlurRegion {
+        window: overlayWindow
+        region: Qt.rect(overlayBackgroundSurface.x
+                + root.dockSlideX(overlayWindow.width),
+            overlayBackgroundSurface.y
+                + root.dockSlideY(overlayWindow.height),
+            overlayBackgroundSurface.width,
+            overlayBackgroundSurface.height)
+        radius: overlayBackgroundSurface.radius
+        enabled: root.wallpaperBlur > 0.001
+            && !overlayBackgroundSurface.backdropReady
+    }
+
     DockEffects.WindowActions {
         id: windowActions
 
@@ -609,6 +645,28 @@ PlasmoidItem {
 
     Sessions.SessionManagement {
         id: sessionManagement
+    }
+
+    // Espacement réellement utilisé. Jusqu'à 4 px (valeur d'origine) rien ne
+    // change. Au-delà, on le limite pour que la fenêtre agrandie du Dock
+    // (survol, grossissement maximal) tienne dans l'écran.
+    function fittedItemSpacing(requested) {
+        if (requested <= 4) {
+            return requested;
+        }
+        var screen = baseWindow ? baseWindow.screen : null;
+        var count = dockItemCount;
+        if (!screen || count < 2) {
+            return requested;
+        }
+        var screenMain = isVertical ? screen.height : screen.width;
+        var fixedLength = count * baseIconSize
+            + sectionBreakAfterDockIndices.length * utilitySectionGap
+            + desktopSwitcherMainExtent + desktopSwitcherSectionSpacing
+            + count * baseIconSize * (maxScale - 1.0)
+            + 2 * mainMargin + 2 * windowPadding + 2 * panelEdgeMargin;
+        var room = (screenMain - fixedLength) / (count - 1);
+        return Math.max(4, Math.min(requested, room));
     }
 
     function boundedNumber(value, fallback, minimum, maximum) {
@@ -1644,6 +1702,8 @@ PlasmoidItem {
         return "";
     }
 
+    property int launcherToggleRetries: 0
+
     function scheduleLauncherToggle(url) {
         var stableUrl = String(url || "");
         if (stableUrl.length === 0) {
@@ -1652,17 +1712,31 @@ PlasmoidItem {
 
         // A launcher-only row disappears synchronously when it is unpinned.
         // Its context menu is owned by the same delegate and, on Qt 6.8+,
-        // lives in a separate transient window. Removing the row from inside
-        // MenuItem.onTriggered destroys both while Qt Quick is still
-        // dispatching and polishing that window, which can crash plasmashell.
-        // Close the transient UI first and let a root-owned timer mutate the
-        // model in the next event turn using a copied URL.
+        // lives in a separate transient window; the delegate also owns the
+        // tooltip/preview layer-shell window. Removing the row while any of
+        // them is still closing destroys them while Qt Quick is dispatching
+        // and polishing those windows, which crashes plasmashell.
+        // Close every transient window first, then let a root-owned timer
+        // mutate the model once they are really gone, using a copied URL.
         pendingLauncherToggle = stableUrl;
-        closeOpenContextMenu();
+        launcherToggleRetries = 0;
+        closeTransientUi();
+        launcherToggleTimer.interval = 300;
         launcherToggleTimer.restart();
     }
 
     function applyPendingLauncherToggle() {
+        // Menu, popups or previews still open (or still closing): wait.
+        if ((openMenuCount > 0 || openPreviewCount > 0)
+                && launcherToggleRetries < 10) {
+            ++launcherToggleRetries;
+            closeTransientUi();
+            launcherToggleTimer.interval = 150;
+            launcherToggleTimer.restart();
+            return;
+        }
+        launcherToggleRetries = 0;
+
         var url = pendingLauncherToggle;
         pendingLauncherToggle = "";
         if (url.length === 0) {
@@ -1679,7 +1753,7 @@ PlasmoidItem {
     Timer {
         id: launcherToggleTimer
 
-        interval: 0
+        interval: 300
         repeat: false
         onTriggered: root.applyPendingLauncherToggle()
     }
@@ -2182,6 +2256,15 @@ PlasmoidItem {
 
     function baseCenterForIndex(index) {
         return mainMargin + dockIndexOffset(index) + baseIconSize / 2;
+    }
+
+    // Centre (sur l'axe transversal) d'une icône non agrandie, dans la fenêtre
+    // de base. Le séparateur s'y centre : il ne doit pas bouger quand on
+    // survole le Dock.
+    function baseIconCrossCenter() {
+        var atStart = (!isVertical && dockLocation === PlasmaCore.Types.TopEdge)
+            || (isVertical && dockLocation === PlasmaCore.Types.LeftEdge);
+        return crossMargin + (atStart ? indicatorSpace : 0) + baseIconSize / 2;
     }
 
     function baseSeparatorPositionAfter(index) {
@@ -4217,15 +4300,13 @@ PlasmoidItem {
                     height: root.isVertical
                         ? 1 : root.baseIconSize * 0.62
                     x: root.isVertical
-                        ? root.crossMargin
-                            + (root.baseIconSize - width) / 2
+                        ? root.baseIconCrossCenter() - width / 2
                         : root.baseSeparatorPositionAfter(modelData)
                             - width / 2
                     y: root.isVertical
                         ? root.baseSeparatorPositionAfter(modelData)
                             - height / 2
-                        : root.crossMargin
-                            + (root.baseIconSize - height) / 2
+                        : root.baseIconCrossCenter() - height / 2
                 }
             }
 
@@ -4240,13 +4321,11 @@ PlasmoidItem {
                 height: root.isVertical
                     ? 1 : root.baseIconSize * 0.62
                 x: root.isVertical
-                    ? root.crossMargin
-                        + (root.baseIconSize - width) / 2
+                    ? root.baseIconCrossCenter() - width / 2
                     : root.baseDesktopSeparatorPosition() - width / 2
                 y: root.isVertical
                     ? root.baseDesktopSeparatorPosition() - height / 2
-                    : root.crossMargin
-                        + (root.baseIconSize - height) / 2
+                    : root.baseIconCrossCenter() - height / 2
             }
 
             DesktopSwitcher {
@@ -4657,6 +4736,21 @@ PlasmoidItem {
                         + root.desktopSwitcherSectionSpacing / 2;
             }
 
+            // Centre (sur l'axe transversal, dans la zone des icônes) d'une
+            // icône non agrandie. Les icônes grandissent à partir du bord du
+            // Dock : leur centre au repos n'est donc pas celui de la zone,
+            // qui est plus haute (taille maximale). Centrer le séparateur
+            // sur la zone le faisait monter dès que le Dock était survolé.
+            function restIconCrossCenter() {
+                var atStart = (!root.isVertical
+                        && root.dockLocation === PlasmaCore.Types.TopEdge)
+                    || (root.isVertical
+                        && root.dockLocation === PlasmaCore.Types.LeftEdge);
+                return atStart
+                    ? root.indicatorSpace + root.baseIconSize / 2
+                    : root.maximumIconSize - root.baseIconSize / 2;
+            }
+
             function desktopSwitcherCrossStart(crossExtent) {
                 if (!root.isVertical) {
                     if (root.dockLocation === PlasmaCore.Types.TopEdge) {
@@ -4877,13 +4971,13 @@ PlasmoidItem {
                         height: root.isVertical
                             ? 1 : root.baseIconSize * 0.62
                         x: root.isVertical
-                            ? (root.maximumIconSize - width) / 2
+                            ? overlayContent.restIconCrossCenter() - width / 2
                             : overlayContent.separatorPositionAfter(modelData)
                                 - width / 2
                         y: root.isVertical
                             ? overlayContent.separatorPositionAfter(modelData)
                                 - height / 2
-                            : (root.maximumIconSize - height) / 2
+                            : overlayContent.restIconCrossCenter() - height / 2
                     }
                 }
 
@@ -4898,13 +4992,13 @@ PlasmoidItem {
                     height: root.isVertical
                         ? 1 : root.baseIconSize * 0.62
                     x: root.isVertical
-                        ? (root.maximumIconSize - width) / 2
+                        ? overlayContent.restIconCrossCenter() - width / 2
                         : overlayContent.desktopSeparatorPosition()
                             - width / 2
                     y: root.isVertical
                         ? overlayContent.desktopSeparatorPosition()
                             - height / 2
-                        : (root.maximumIconSize - height) / 2
+                        : overlayContent.restIconCrossCenter() - height / 2
                 }
 
                 DesktopSwitcher {

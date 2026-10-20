@@ -16,6 +16,10 @@
     <entry name="iconSize" type="Int">
       <default>44</default>
     </entry>
+    <!-- Espace entre les icônes, en pixels (limité automatiquement à l'écran). -->
+    <entry name="iconSpacing" type="Int">
+      <default>4</default>
+    </entry>
     <entry name="dockMargin" type="Int">
       <default>16</default>
     </entry>

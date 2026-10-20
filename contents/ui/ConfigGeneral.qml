@@ -16,6 +16,7 @@ KCM.SimpleKCM {
     property alias cfg_maxScale: maxScaleSlider.value
     property alias cfg_zoomRadius: zoomRadiusSlider.value
     property alias cfg_iconSize: iconSizeSlider.value
+    property alias cfg_iconSpacing: iconSpacingSlider.value
     property alias cfg_dockMargin: dockMarginSlider.value
     property alias cfg_dockCrossMargin: dockCrossMarginSlider.value
     property alias cfg_screenEdgeMargin: screenEdgeMarginSlider.value
@@ -89,6 +90,7 @@ KCM.SimpleKCM {
     property real cfg_maxScaleDefault: 1.45
     property int cfg_zoomRadiusDefault: 70
     property int cfg_iconSizeDefault: 44
+    property int cfg_iconSpacingDefault: 4
     property int cfg_dockMarginDefault: 16
     property int cfg_dockCrossMarginDefault: 5
     property int cfg_screenEdgeMarginDefault: 8
@@ -148,7 +150,7 @@ KCM.SimpleKCM {
     // un style collé (une valeur hors plage est ramenée dans la plage).
     readonly property var styleNumberRanges: ({
         "dockPosition": [0, 2], "maxScale": [1, 2], "zoomRadius": [30, 200],
-        "iconSize": [24, 96], "dockMargin": [4, 40],
+        "iconSize": [24, 96], "iconSpacing": [0, 32], "dockMargin": [4, 40],
         "dockCrossMargin": [0, 20], "screenEdgeMargin": [0, 32],
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
         "borderStrength": [0, 1], "wallpaperBlur": [0, 1],
@@ -391,6 +393,30 @@ KCM.SimpleKCM {
                     QQC2.Label {
                         text: Math.round(iconSizeSlider.value) + i18n(" px")
                     }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Icon spacing:")
+
+                    QQC2.Slider {
+                        id: iconSpacingSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 32
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(iconSpacingSlider.value) + i18n(" px")
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock.")
+                    opacity: 0.78
                 }
 
                 RowLayout {
