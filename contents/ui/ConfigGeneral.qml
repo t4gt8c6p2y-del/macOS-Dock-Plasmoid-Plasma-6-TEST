@@ -28,7 +28,11 @@ KCM.SimpleKCM {
     // désormais réglée par cfg_borderStrength (part éclairée du contour).
     property real cfg_borderOpacity: 0.22
     property real cfg_borderStrength: -1
-    property alias cfg_wallpaperBlur: wallpaperBlurSlider.value
+    // Flou de l'arrière-plan : 0 = désactivé, au-dessus = activé (KWin ne
+    // permet pas de régler l'intensité fenêtre par fenêtre).
+    property real cfg_wallpaperBlur: 0
+    property alias cfg_useThemeIndicatorColor: useThemeIndicatorCheckBox.checked
+    property alias cfg_indicatorColor: indicatorColorButton.color
     property alias cfg_wallpaperBlurImage: wallpaperBlurImageField.text
     // Le curseur d'ombre a été retiré de l'interface : la clé reste connue de
     // Plasma (popups) mais n'a plus de contrôle associé.
@@ -100,6 +104,8 @@ KCM.SimpleKCM {
     property real cfg_backgroundOpacityDefault: 0.55
     property bool cfg_useThemeBackgroundDefault: true
     property color cfg_customBackgroundColorDefault: "#20242b"
+    property bool cfg_useThemeIndicatorColorDefault: true
+    property color cfg_indicatorColorDefault: "#3daee9"
     property int cfg_cornerRadiusDefault: 12
     property real cfg_borderOpacityDefault: 0.22
     property real cfg_borderStrengthDefault: -1
@@ -175,7 +181,8 @@ KCM.SimpleKCM {
         "autoOpenFolderWithOpenDocument", "autoOpenAppGroupWithRunningApp",
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
-        "showKdeConnectRecentShares", "perDesktopDock"
+        "showKdeConnectRecentShares", "perDesktopDock",
+        "useThemeIndicatorColor"
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -207,6 +214,7 @@ KCM.SimpleKCM {
                 Boolean(configPage["cfg_" + styleBooleanKeys[b]]);
         }
         settings["customBackgroundColor"] = String(cfg_customBackgroundColor);
+        settings["indicatorColor"] = String(cfg_indicatorColor);
         settings["wallpaperBlurImage"] = String(cfg_wallpaperBlurImage);
         var contents = {
             "folderUrl": String(cfg_folderUrl)
@@ -265,6 +273,11 @@ KCM.SimpleKCM {
                     settings["customBackgroundColor"])) {
             cfg_customBackgroundColor = settings["customBackgroundColor"];
         }
+        if (typeof settings["indicatorColor"] === "string"
+                && /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(
+                    settings["indicatorColor"])) {
+            cfg_indicatorColor = settings["indicatorColor"];
+        }
         if (typeof settings["wallpaperBlurImage"] === "string") {
             cfg_wallpaperBlurImage = settings["wallpaperBlurImage"];
         }
@@ -307,7 +320,8 @@ KCM.SimpleKCM {
 
     function resetSettings() {
         var keys = Object.keys(styleNumberRanges).concat(
-            styleBooleanKeys, ["customBackgroundColor", "wallpaperBlurImage"]);
+            styleBooleanKeys, ["customBackgroundColor", "indicatorColor",
+                "wallpaperBlurImage"]);
         for (var i = 0; i < keys.length; ++i) {
             var key = keys[i];
             var fallback = configPage["cfg_" + key + "Default"];
@@ -592,27 +606,25 @@ KCM.SimpleKCM {
                     opacity: 0.78
                 }
 
-                RowLayout {
+                QQC2.CheckBox {
+                    id: wallpaperBlurCheckBox
+
                     Kirigami.FormData.label: i18n("Background blur:")
+                    text: i18n("Blur what is behind the Dock")
+                    onToggled: configPage.cfg_wallpaperBlur = checked ? 1 : 0
+                }
 
-                    QQC2.Slider {
-                        id: wallpaperBlurSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 1
-                        stepSize: 0.05
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(wallpaperBlurSlider.value * 100) + "%"
-                    }
+                // Garde la case synchronisée (réinitialisation, style collé).
+                Binding {
+                    target: wallpaperBlurCheckBox
+                    property: "checked"
+                    value: configPage.cfg_wallpaperBlur > 0.001
                 }
 
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Blurs everything behind the Dock, windows included, with KWin's blur effect. Any value above 0 % turns it on; the strength is set by KWin (System Settings, Window Management, Desktop Effects, Blur), which must be enabled.")
+                    text: i18n("Blurs everything behind the Dock, windows included, using KWin's blur effect. KWin sets the strength for all windows (System Settings, Window Management, Desktop Effects, Blur), and that effect must be enabled.")
                     opacity: 0.78
                 }
 
@@ -921,6 +933,22 @@ KCM.SimpleKCM {
             }
 
             Kirigami.FormLayout {
+                QQC2.CheckBox {
+                    id: useThemeIndicatorCheckBox
+
+                    Kirigami.FormData.label: i18n("Active app indicator:")
+                    text: i18n("Use the highlight color of the Plasma theme")
+                }
+
+                KQuickControls.ColorButton {
+                    id: indicatorColorButton
+
+                    Kirigami.FormData.label: i18n("Indicator color:")
+                    enabled: !useThemeIndicatorCheckBox.checked
+                    showAlphaChannel: false
+                    dialogTitle: i18n("Choose the Active App Indicator Color")
+                }
+
                 ColumnLayout {
                     Kirigami.FormData.label: i18n("Utilities:")
 

@@ -92,6 +92,12 @@ PlasmoidItem {
         return Plasmoid.configuration.borderFollowMouse === undefined
             || Boolean(Plasmoid.configuration.borderFollowMouse) ? 1.0 : 0.0;
     }
+    // Voyant de l'application active : couleur du thème ou couleur choisie.
+    readonly property bool useThemeIndicatorColor:
+        Plasmoid.configuration.useThemeIndicatorColor === undefined
+            ? true : Boolean(Plasmoid.configuration.useThemeIndicatorColor)
+    readonly property color customIndicatorColor:
+        Plasmoid.configuration.indicatorColor || "#3daee9"
     readonly property real wallpaperBlur: boundedNumber(
         Plasmoid.configuration.wallpaperBlur, 0, 0, 1)
     readonly property real shadowOpacity: boundedNumber(
@@ -2934,6 +2940,11 @@ PlasmoidItem {
         // place du voyant « ouvert » (en bas) les faisait paraître trop hautes.
         // Dossier, corbeille, etc. ne changent pas.
         iconCrossShift: root.indicatorSpace / 2
+        // Le voyant « ouvert » se place près du bord bas (ou haut, ou côté) du
+        // fond : distance entre le délégué et ce bord.
+        surfaceEdgeDistance: Math.max(0, root.crossMargin - root.surfaceInset)
+        useCustomIndicatorColor: !root.useThemeIndicatorColor
+        customIndicatorColor: root.customIndicatorColor
         dragEnabled: !appGroupMember
         enabled: !hiddenAppGroupMember
         opacity: hiddenAppGroupMember ? 0 : 1

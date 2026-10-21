@@ -757,3 +757,27 @@ msgstr "Weichzeichnet alles hinter dem Dock, auch Fenster, mit dem Unschärfe-Ef
 #: contents/ui/ConfigGeneral.qml
 msgid "The border takes the colors of the wallpaper. If it stays white, choose the wallpaper image yourself below."
 msgstr "Der Rand übernimmt die Farben des Hintergrundbilds. Bleibt er weiß, wählen Sie das Hintergrundbild unten selbst aus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur what is behind the Dock"
+msgstr "Alles hinter dem Dock weichzeichnen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, using KWin's blur effect. KWin sets the strength for all windows (System Settings, Window Management, Desktop Effects, Blur), and that effect must be enabled."
+msgstr "Weichzeichnet alles hinter dem Dock, auch Fenster, mit dem Unschärfe-Effekt von KWin. KWin legt die Stärke für alle Fenster fest (Systemeinstellungen, Fensterverwaltung, Arbeitsflächeneffekte, Unschärfe); der Effekt muss aktiviert sein."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Active app indicator:"
+msgstr "Anzeige der aktiven Anwendung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Use the highlight color of the Plasma theme"
+msgstr "Hervorhebungsfarbe des Plasma-Designs verwenden"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Indicator color:"
+msgstr "Farbe der Anzeige:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the Active App Indicator Color"
+msgstr "Farbe der Anzeige der aktiven Anwendung wählen"

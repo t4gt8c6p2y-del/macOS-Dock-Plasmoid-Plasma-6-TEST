@@ -33,6 +33,13 @@ Item {
     // « ouvert » (en pixels). Sert à centrer visuellement l'icône dans le
     // fond du Dock malgré la place réservée au voyant. 0 = position d'origine.
     property real iconCrossShift: 0
+    // Distance entre le bord extérieur de ce délégué et le bord du fond du Dock
+    // (axe transversal). Quand elle est connue (>= 0), le voyant « ouvert » se
+    // place tout près de ce bord, sans le toucher. -1 = placement d'origine.
+    property real surfaceEdgeDistance: -1
+    // Couleur du voyant de l'application active : thème ou couleur choisie.
+    property bool useCustomIndicatorColor: false
+    property color customIndicatorColor: "#3daee9"
     property int launchAnimation: 1
     property real clickBounceHeight: 4
     property real launchBounceHeight: 8
@@ -140,8 +147,29 @@ Item {
 
     readonly property real indicatorSize: 3
     readonly property real indicatorGap: 2
-    // Le voyant suit l'icône, mais de 1 px au plus : il reste dans le fond.
-    readonly property real indicatorShift: Math.min(1, iconCrossShift)
+    // Espace laissé entre le voyant et le bord du fond du Dock.
+    readonly property real indicatorEdgeGap: 2
+    // Longueur du voyant de l'application active (le voyant d'une application
+    // ouverte mais inactive est un point : même longueur que sa hauteur).
+    readonly property real activeIndicatorLength: 7
+    // Position du voyant sur l'axe transversal (son bord haut ou gauche),
+    // dans le repère de ce délégué.
+    readonly property real indicatorCross: {
+        if (surfaceEdgeDistance < 0) {
+            return indicatorAtStart ? 0 : crossIconExtent + indicatorGap;
+        }
+        if (indicatorAtStart) {
+            // Voyant côté haut/gauche : il ne doit pas toucher l'icône.
+            return Math.min(indicatorSize + indicatorGap - iconCrossShift
+                    - indicatorSize - 1,
+                indicatorEdgeGap - surfaceEdgeDistance);
+        }
+        var delegateEnd = crossIconExtent + indicatorGap + indicatorSize;
+        // Près du bord, mais jamais sur l'icône.
+        return Math.max(crossIconExtent + iconCrossShift + 1,
+            delegateEnd + surfaceEdgeDistance - indicatorEdgeGap
+                - indicatorSize);
+    }
     readonly property real crossExtent: crossIconExtent + indicatorGap + indicatorSize
     readonly property bool indicatorAtStart: (!isVertical
         && location === PlasmaCore.Types.TopEdge)
@@ -753,29 +781,29 @@ Item {
     Rectangle {
         id: activeIndicator
 
-        width: root.isVertical ? root.indicatorSize : (root.isActive ? 9 : 6)
-        height: root.isVertical ? (root.isActive ? 9 : 6) : root.indicatorSize
+        width: root.isVertical ? root.indicatorSize
+            : (root.isActive ? root.activeIndicatorLength : root.indicatorSize)
+        height: root.isVertical
+            ? (root.isActive ? root.activeIndicatorLength : root.indicatorSize)
+            : root.indicatorSize
         radius: Math.min(width, height) / 2
-        color: root.isActive ? qtPalette.highlight : qtPalette.windowText
+        color: root.isActive
+            ? (root.useCustomIndicatorColor
+                ? root.customIndicatorColor : qtPalette.highlight)
+            : qtPalette.windowText
         opacity: root.isActive ? 1.0 : 0.66
         visible: root.isRunning
         x: {
             if (!root.isVertical) {
                 return (root.width - width) / 2;
             }
-            return root.indicatorAtStart
-                ? -root.indicatorShift
-                : root.crossIconExtent + root.indicatorGap
-                    + root.indicatorShift;
+            return root.indicatorCross;
         }
         y: {
             if (root.isVertical) {
                 return (root.height - height) / 2;
             }
-            return root.indicatorAtStart
-                ? -root.indicatorShift
-                : root.crossIconExtent + root.indicatorGap
-                    + root.indicatorShift;
+            return root.indicatorCross;
         }
 
         Behavior on width {

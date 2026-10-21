@@ -84,6 +84,13 @@
     <entry name="borderFollowMouse" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Voyant de l'application active : couleur du thème ou couleur choisie. -->
+    <entry name="useThemeIndicatorColor" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="indicatorColor" type="Color">
+      <default>#3daee9</default>
+    </entry>
     <entry name="perDesktopDock" type="Bool">
       <default>true</default>
     </entry>

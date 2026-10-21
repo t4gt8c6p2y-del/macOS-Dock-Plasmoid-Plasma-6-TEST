@@ -759,3 +759,27 @@ msgstr "Floute tout ce qui se trouve derrière le Dock, fenêtres comprises, gr�
 #: contents/ui/ConfigGeneral.qml
 msgid "The border takes the colors of the wallpaper. If it stays white, choose the wallpaper image yourself below."
 msgstr "La bordure prend les couleurs du fond d’écran. Si elle reste blanche, choisissez vous-même l’image du fond d’écran ci-dessous."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur what is behind the Dock"
+msgstr "Flouter ce qui se trouve derrière le Dock"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, using KWin's blur effect. KWin sets the strength for all windows (System Settings, Window Management, Desktop Effects, Blur), and that effect must be enabled."
+msgstr "Floute tout ce qui se trouve derrière le Dock, fenêtres comprises, grâce à l’effet de flou de KWin. KWin règle l’intensité pour toutes les fenêtres (Configuration du système, Gestion des fenêtres, Effets de bureau, Flou) et cet effet doit être activé."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Active app indicator:"
+msgstr "Voyant de l’application active :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Use the highlight color of the Plasma theme"
+msgstr "Utiliser la couleur d’accentuation du thème Plasma"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Indicator color:"
+msgstr "Couleur du voyant :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the Active App Indicator Color"
+msgstr "Choisir la couleur du voyant de l’application active"
