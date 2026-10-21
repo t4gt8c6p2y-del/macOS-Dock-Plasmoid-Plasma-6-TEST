@@ -72,7 +72,15 @@
     <entry name="wallpaperBlurImage" type="String">
       <default></default>
     </entry>
-    <!-- La lumière de la bordure suit le pointeur sur le Dock. -->
+    <!--
+      Intensité de la lumière de la bordure qui suit le pointeur (0..2,
+      1 = rendu d'origine). -1 = pas encore réglé : on reprend l'ancienne case
+      borderFollowMouse (cochée = 1, décochée = 0).
+    -->
+    <entry name="borderLightIntensity" type="Double">
+      <default>-1</default>
+    </entry>
+    <!-- Ancienne case, gardée pour reprendre les réglages existants. -->
     <entry name="borderFollowMouse" type="Bool">
       <default>true</default>
     </entry>

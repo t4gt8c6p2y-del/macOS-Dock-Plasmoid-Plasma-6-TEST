@@ -82,9 +82,16 @@ PlasmoidItem {
         }
         return Math.min(1.0, borderOpacity / 0.5);
     }
-    readonly property bool borderFollowMouse:
-        Plasmoid.configuration.borderFollowMouse === undefined
-            ? true : Boolean(Plasmoid.configuration.borderFollowMouse)
+    // Intensité de la lumière de la bordure (0..2). Tant que le curseur n'a
+    // jamais été réglé, on reprend l'ancienne case « suit la souris ».
+    readonly property real borderLightIntensity: {
+        var stored = Number(Plasmoid.configuration.borderLightIntensity);
+        if (Number.isFinite(stored) && stored >= 0) {
+            return Math.min(2.0, stored);
+        }
+        return Plasmoid.configuration.borderFollowMouse === undefined
+            || Boolean(Plasmoid.configuration.borderFollowMouse) ? 1.0 : 0.0;
+    }
     readonly property real wallpaperBlur: boundedNumber(
         Plasmoid.configuration.wallpaperBlur, 0, 0, 1)
     readonly property real shadowOpacity: boundedNumber(
@@ -608,11 +615,11 @@ PlasmoidItem {
         font.weight: Font.DemiBold
     }
 
-    // Flou de KWin derrière le Dock : floute aussi les fenêtres placées
-    // derrière. Il sert quand l'image floutée du fond d'écran n'est pas
-    // disponible (fond non trouvé ou pas encore chargé), pour que le réglage
-    // « Flou de l'arrière-plan » ait toujours un effet visible. Dès que
-    // l'image floutée est affichée, il est coupé pour ne pas se superposer.
+    // Flou de l'arrière-plan : c'est KWin qui floute ce qui se trouve derrière
+    // le Dock, fenêtres comprises (une fenêtre déplacée derrière le Dock reste
+    // visible, floutée). BlurRegion redemande le flou à chaque affichage de la
+    // fenêtre et force une image pour que le compositeur le prenne en compte
+    // tout de suite, sans attendre un survol.
     DockEffects.BlurRegion {
         window: baseWindow
         region: Qt.rect(baseSurface.x
@@ -620,7 +627,7 @@ PlasmoidItem {
             baseSurface.y + root.dockSlideY(baseWindow.height),
             baseSurface.width, baseSurface.height)
         radius: baseSurface.radius
-        enabled: root.wallpaperBlur > 0.001 && !baseSurface.backdropReady
+        enabled: root.wallpaperBlur > 0.001
     }
 
     DockEffects.BlurRegion {
@@ -633,7 +640,6 @@ PlasmoidItem {
             overlayBackgroundSurface.height)
         radius: overlayBackgroundSurface.radius
         enabled: root.wallpaperBlur > 0.001
-            && !overlayBackgroundSurface.backdropReady
     }
 
     DockEffects.WindowActions {
@@ -2924,6 +2930,10 @@ PlasmoidItem {
         launchBounceHeight: root.launchBounceHeight
         isAppGroup: appGroupLeader
         groupPreviewItems: appGroupPreviewItems
+        // Les icônes d'applications sont recentrées dans le fond du Dock : la
+        // place du voyant « ouvert » (en bas) les faisait paraître trop hautes.
+        // Dossier, corbeille, etc. ne changent pas.
+        iconCrossShift: root.indicatorSpace / 2
         dragEnabled: !appGroupMember
         enabled: !hiddenAppGroupMember
         opacity: hiddenAppGroupMember ? 0 : 1
@@ -4223,6 +4233,7 @@ PlasmoidItem {
                 anchors.fill: parent
                 anchors.margins: root.surfaceInset
                 borderStrength: root.borderStrength
+                lightIntensity: root.borderLightIntensity
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator
@@ -4803,7 +4814,7 @@ PlasmoidItem {
                     root.dockWindowOrigin(overlayWindow).y
                         + overlayBackgroundSurface.y)
                 lightActive: overlayHover.hovered
-                followMouse: root.borderFollowMouse
+                lightIntensity: root.borderLightIntensity
                 lightX: root.pointerX - overlayBackgroundSurface.x
                 lightY: root.pointerY - overlayBackgroundSurface.y
                 surfaceOpacity: root.backgroundOpacity

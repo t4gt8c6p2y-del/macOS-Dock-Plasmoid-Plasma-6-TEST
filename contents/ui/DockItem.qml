@@ -29,6 +29,10 @@ Item {
     property bool isActive: false
     property bool isStarting: false
     property bool dragEnabled: true
+    // Décalage de l'icône sur l'axe transversal, vers le côté du voyant
+    // « ouvert » (en pixels). Sert à centrer visuellement l'icône dans le
+    // fond du Dock malgré la place réservée au voyant. 0 = position d'origine.
+    property real iconCrossShift: 0
     property int launchAnimation: 1
     property real clickBounceHeight: 4
     property real launchBounceHeight: 8
@@ -136,6 +140,8 @@ Item {
 
     readonly property real indicatorSize: 3
     readonly property real indicatorGap: 2
+    // Le voyant suit l'icône, mais de 1 px au plus : il reste dans le fond.
+    readonly property real indicatorShift: Math.min(1, iconCrossShift)
     readonly property real crossExtent: crossIconExtent + indicatorGap + indicatorSize
     readonly property bool indicatorAtStart: (!isVertical
         && location === PlasmaCore.Types.TopEdge)
@@ -560,10 +566,11 @@ Item {
                 return 0;
             }
             if (root.indicatorAtStart) {
-                return root.indicatorSize + root.indicatorGap;
+                return root.indicatorSize + root.indicatorGap
+                    - root.iconCrossShift;
             }
             if (root.location === PlasmaCore.Types.RightEdge) {
-                return root.crossIconExtent - width;
+                return root.crossIconExtent - width + root.iconCrossShift;
             }
             return (root.crossIconExtent - width) / 2;
         }
@@ -572,10 +579,11 @@ Item {
                 return 0;
             }
             if (root.indicatorAtStart) {
-                return root.indicatorSize + root.indicatorGap;
+                return root.indicatorSize + root.indicatorGap
+                    - root.iconCrossShift;
             }
             if (root.location === PlasmaCore.Types.BottomEdge) {
-                return root.crossIconExtent - height;
+                return root.crossIconExtent - height + root.iconCrossShift;
             }
             return (root.crossIconExtent - height) / 2;
         }
@@ -756,14 +764,18 @@ Item {
                 return (root.width - width) / 2;
             }
             return root.indicatorAtStart
-                ? 0 : root.crossIconExtent + root.indicatorGap;
+                ? -root.indicatorShift
+                : root.crossIconExtent + root.indicatorGap
+                    + root.indicatorShift;
         }
         y: {
             if (root.isVertical) {
                 return (root.height - height) / 2;
             }
             return root.indicatorAtStart
-                ? 0 : root.crossIconExtent + root.indicatorGap;
+                ? -root.indicatorShift
+                : root.crossIconExtent + root.indicatorGap
+                    + root.indicatorShift;
         }
 
         Behavior on width {

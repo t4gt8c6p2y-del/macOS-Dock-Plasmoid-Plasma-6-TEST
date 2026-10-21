@@ -741,3 +741,19 @@ msgstr "Symbolabstand:"
 #: contents/ui/ConfigGeneral.qml
 msgid "The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock."
 msgstr "Das Dock wächst mit dem Abstand. Würde es nicht mehr auf den Bildschirm passen, wird der Abstand automatisch verringert, damit die Symbole das Dock nie verlassen."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border light:"
+msgstr "Randlicht:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Intensity of the light that follows the mouse along the border: 100 % is the original look, 0 % turns the light off."
+msgstr "Stärke des Lichts, das der Maus am Rand entlang folgt: 100 % entspricht dem ursprünglichen Aussehen, 0 % schaltet das Licht aus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, with KWin's blur effect. Any value above 0 % turns it on; the strength is set by KWin (System Settings, Window Management, Desktop Effects, Blur), which must be enabled."
+msgstr "Weichzeichnet alles hinter dem Dock, auch Fenster, mit dem Unschärfe-Effekt von KWin. Jeder Wert über 0 % schaltet ihn ein; die Stärke stellt KWin ein (Systemeinstellungen, Fensterverwaltung, Arbeitsflächeneffekte, Unschärfe), der Effekt muss aktiviert sein."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The border takes the colors of the wallpaper. If it stays white, choose the wallpaper image yourself below."
+msgstr "Der Rand übernimmt die Farben des Hintergrundbilds. Bleibt er weiß, wählen Sie das Hintergrundbild unten selbst aus."

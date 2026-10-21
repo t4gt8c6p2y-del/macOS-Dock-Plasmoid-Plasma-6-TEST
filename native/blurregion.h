@@ -44,6 +44,7 @@ protected:
 
 private:
     void scheduleApply();
+    void scheduleDelayedApply();
     void disableFor(QWindow *window);
     void requestCommit();
 

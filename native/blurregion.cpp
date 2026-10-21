@@ -87,6 +87,7 @@ void BlurRegion::setWindow(QWindow *window)
                 [this](bool visible) {
                     if (visible) {
                         scheduleApply();
+                        scheduleDelayedApply();
                     }
                 });
         connect(m_window, &QWindow::widthChanged,
@@ -146,6 +147,9 @@ void BlurRegion::setEnabled(bool enabled)
     m_enabled = enabled;
     Q_EMIT enabledChanged();
     scheduleApply();
+    if (m_enabled) {
+        scheduleDelayedApply();
+    }
 }
 
 void BlurRegion::apply()
@@ -218,10 +222,21 @@ bool BlurRegion::eventFilter(QObject *watched, QEvent *event)
         if (surfaceEvent->surfaceEventType()
                 == QPlatformSurfaceEvent::SurfaceCreated) {
             scheduleApply();
+            scheduleDelayedApply();
         }
     }
 
     return QObject::eventFilter(watched, event);
+}
+
+// Filet de sécurité : sous Wayland, la surface native d'une fenêtre qui vient
+// d'être affichée peut apparaître un peu après visibleChanged. On redemande le
+// flou deux fois, peu après, pour qu'il soit toujours pris en compte sans
+// qu'il faille survoler le Dock.
+void BlurRegion::scheduleDelayedApply()
+{
+    QTimer::singleShot(150, this, &BlurRegion::apply);
+    QTimer::singleShot(600, this, &BlurRegion::apply);
 }
 
 void BlurRegion::scheduleApply()

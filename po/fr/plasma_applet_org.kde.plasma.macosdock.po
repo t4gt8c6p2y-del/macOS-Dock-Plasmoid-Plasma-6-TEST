@@ -743,3 +743,19 @@ msgstr "Espacement des icônes :"
 #: contents/ui/ConfigGeneral.qml
 msgid "The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock."
 msgstr "Le Dock s’agrandit avec l’espacement. S’il ne tenait plus dans l’écran, l’espacement est réduit automatiquement : les icônes ne sortent jamais du Dock."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border light:"
+msgstr "Lumière de la bordure :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Intensity of the light that follows the mouse along the border: 100 % is the original look, 0 % turns the light off."
+msgstr "Intensité de la lumière qui suit la souris le long de la bordure : 100 % correspond au rendu d’origine, 0 % éteint la lumière."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, with KWin's blur effect. Any value above 0 % turns it on; the strength is set by KWin (System Settings, Window Management, Desktop Effects, Blur), which must be enabled."
+msgstr "Floute tout ce qui se trouve derrière le Dock, fenêtres comprises, grâce à l’effet de flou de KWin. Toute valeur supérieure à 0 % l’active ; l’intensité est réglée par KWin (Configuration du système, Gestion des fenêtres, Effets de bureau, Flou), qui doit être activé."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The border takes the colors of the wallpaper. If it stays white, choose the wallpaper image yourself below."
+msgstr "La bordure prend les couleurs du fond d’écran. Si elle reste blanche, choisissez vous-même l’image du fond d’écran ci-dessous."

@@ -36,7 +36,10 @@ KCM.SimpleKCM {
     property bool cfg_showHighlight: true
     property real cfg_highlightStrength: -1
     property bool cfg_perDesktopDock: true
-    property alias cfg_borderFollowMouse: borderFollowMouseCheckBox.checked
+    // Intensité de la lumière de la bordure (0..2). -1 = jamais réglé : on
+    // reprend l'ancienne case cfg_borderFollowMouse, qui n'a plus de contrôle.
+    property real cfg_borderLightIntensity: -1
+    property bool cfg_borderFollowMouse: true
     property alias cfg_hideOnMaximized: hideOnMaximizedCheckBox.checked
     property alias cfg_launchAnimation: launchAnimationCombo.currentIndex
     property alias cfg_magnificationSpring: magnificationSpringSlider.value
@@ -106,6 +109,7 @@ KCM.SimpleKCM {
     property bool cfg_showHighlightDefault: true
     property real cfg_highlightStrengthDefault: -1
     property bool cfg_perDesktopDockDefault: true
+    property real cfg_borderLightIntensityDefault: -1
     property bool cfg_borderFollowMouseDefault: true
     property bool cfg_hideOnMaximizedDefault: true
     property int cfg_launchAnimationDefault: 1
@@ -153,7 +157,8 @@ KCM.SimpleKCM {
         "iconSize": [24, 96], "iconSpacing": [0, 32], "dockMargin": [4, 40],
         "dockCrossMargin": [0, 20], "screenEdgeMargin": [0, 32],
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
-        "borderStrength": [0, 1], "wallpaperBlur": [0, 1],
+        "borderStrength": [0, 1], "borderLightIntensity": [0, 2],
+        "wallpaperBlur": [0, 1],
         "shadowOpacity": [0, 0.7],
         "highlightStrength": [0, 2],
         "launchAnimation": [0, 1], "magnificationSpring": [20, 60],
@@ -170,7 +175,7 @@ KCM.SimpleKCM {
         "autoOpenFolderWithOpenDocument", "autoOpenAppGroupWithRunningApp",
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
-        "showKdeConnectRecentShares", "perDesktopDock", "borderFollowMouse"
+        "showKdeConnectRecentShares", "perDesktopDock"
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -180,6 +185,10 @@ KCM.SimpleKCM {
         if (key === "borderStrength") {
             return cfg_borderStrength >= 0
                 ? cfg_borderStrength : Math.min(1, cfg_borderOpacity / 0.5);
+        }
+        if (key === "borderLightIntensity") {
+            return cfg_borderLightIntensity >= 0
+                ? cfg_borderLightIntensity : (cfg_borderFollowMouse ? 1 : 0);
         }
         if (key === "highlightStrength") {
             return cfg_highlightStrength >= 0
@@ -261,6 +270,8 @@ KCM.SimpleKCM {
         }
         // Les anciennes cases restent cohérentes avec les curseurs.
         cfg_showHighlight = effectiveStyleValue("highlightStrength") > 0.001;
+        cfg_borderFollowMouse =
+            effectiveStyleValue("borderLightIntensity") > 0.001;
 
         if (typeof contents["folderUrl"] === "string") {
             cfg_folderUrl = contents["folderUrl"];
@@ -308,6 +319,8 @@ KCM.SimpleKCM {
         // technique : on les remet explicitement à leur valeur d'origine.
         cfg_highlightStrength = 1.0;
         cfg_borderStrength = 0.5;
+        cfg_borderLightIntensity = 1.0;
+        cfg_borderFollowMouse = true;
         cfg_showHighlight = true;
         showStyleMessage(Kirigami.MessageType.Information,
             i18n("Settings reset. Dock icons were kept. Click “Apply” to save."));
@@ -548,10 +561,35 @@ KCM.SimpleKCM {
                     opacity: 0.78
                 }
 
-                QQC2.CheckBox {
-                    id: borderFollowMouseCheckBox
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Border light:")
 
-                    text: i18n("The border light follows the mouse")
+                    QQC2.Slider {
+                        id: borderLightSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                        value: configPage.cfg_borderLightIntensity >= 0
+                            ? configPage.cfg_borderLightIntensity
+                            : (configPage.cfg_borderFollowMouse ? 1 : 0)
+                        onMoved: {
+                            configPage.cfg_borderLightIntensity = value;
+                            configPage.cfg_borderFollowMouse = value > 0.001;
+                        }
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(borderLightSlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Intensity of the light that follows the mouse along the border: 100 % is the original look, 0 % turns the light off.")
+                    opacity: 0.78
                 }
 
                 RowLayout {
@@ -574,13 +612,19 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below.")
+                    text: i18n("Blurs everything behind the Dock, windows included, with KWin's blur effect. Any value above 0 % turns it on; the strength is set by KWin (System Settings, Window Management, Desktop Effects, Blur), which must be enabled.")
+                    opacity: 0.78
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The border takes the colors of the wallpaper. If it stays white, choose the wallpaper image yourself below.")
                     opacity: 0.78
                 }
 
                 RowLayout {
                     Kirigami.FormData.label: i18n("Wallpaper image:")
-                    enabled: wallpaperBlurSlider.value > 0.001
 
                     QQC2.TextField {
                         id: wallpaperBlurImageField
@@ -656,7 +700,7 @@ KCM.SimpleKCM {
                         showShadow: false
                         highlightStrength: highlightStrengthSlider.value
                         lightActive: previewHover.hovered
-                        followMouse: borderFollowMouseCheckBox.checked
+                        lightIntensity: borderLightSlider.value
                         lightX: previewHover.point.position.x
                             - previewBackground.x
                         lightY: previewHover.point.position.y
