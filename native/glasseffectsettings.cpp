@@ -3,6 +3,7 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QDebug>
 #include <QMetaType>
 #include <QProcess>
 #include <QRegularExpression>
@@ -89,7 +90,11 @@ void GlassEffectSettings::start(const QVariantMap &keys, bool ensureGlassLoaded)
 
     m_process = new QProcess(this);
     connect(m_process, &QProcess::finished, this,
-            [this, ensureGlassLoaded](int, QProcess::ExitStatus) {
+            [this, ensureGlassLoaded](int exitCode, QProcess::ExitStatus) {
+                if (exitCode != 0) {
+                    qWarning() << "GlassEffectSettings : kwriteconfig6 a échoué, code" << exitCode
+                               << m_process->readAllStandardError();
+                }
                 m_process->deleteLater();
                 m_process = nullptr;
                 finish(ensureGlassLoaded);
@@ -104,6 +109,7 @@ void GlassEffectSettings::start(const QVariantMap &keys, bool ensureGlassLoaded)
                     return;
                 }
                 // kwriteconfig6 / sh introuvable : « finished » ne viendra pas.
+                qWarning() << "GlassEffectSettings : impossible de lancer sh / kwriteconfig6";
                 m_process->deleteLater();
                 m_process = nullptr;
                 m_hasPending = false;
@@ -116,6 +122,7 @@ void GlassEffectSettings::finish(bool ensureGlassLoaded)
     QDBusInterface effects(kwinService, effectsPath, effectsInterface,
                            QDBusConnection::sessionBus());
     if (!effects.isValid()) {
+        qWarning() << "GlassEffectSettings : KWin injoignable par D-Bus";
         return;
     }
 
@@ -125,6 +132,8 @@ void GlassEffectSettings::finish(bool ensureGlassLoaded)
         effects.call(QStringLiteral("unloadEffect"), blurEffect);
         const QDBusReply<bool> loaded = effects.call(QStringLiteral("loadEffect"), glassEffect);
         if (!loaded.isValid() || !loaded.value()) {
+            qWarning() << "GlassEffectSettings : l'effet Glass n'a pas pu être chargé "
+                          "(installé ? compatible avec cette version de KWin ?), flou standard rétabli";
             effects.call(QStringLiteral("loadEffect"), blurEffect);
             return;
         }

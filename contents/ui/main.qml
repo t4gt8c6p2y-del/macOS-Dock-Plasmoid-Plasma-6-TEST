@@ -96,58 +96,73 @@ PlasmoidItem {
     readonly property real borderWidth: boundedNumber(
         Plasmoid.configuration.borderWidth, 1.0, 0.5, 4)
 
-    // --- Onglet « Glass » : réglages de l'effet KWin Glass ------------------
-    // Ils ne sont écrits dans kwinrc que si la case « Régler l'effet Glass
-    // depuis le Dock » est cochée, et seulement quand une valeur CHANGE (pas au
-    // démarrage) : les réglages faits ailleurs ne sont jamais écrasés par
-    // surprise.
-    readonly property bool glassManaged:
+    // --- Flou et Liquid Glass (effet KWin « Glass ») -----------------------
+    // Le flou derrière le Dock est fait par KWin. L'effet « Glass » (projet
+    // liquid-glass-kde) a des réglages propres aux docks : la force du flou
+    // (DockBlurStrength, 1 à 15) suit le curseur « Intensité du flou », et la
+    // réfraction du verre sur les docks (RefractionExcludeDocks) suit la case
+    // « Liquid Glass ». Sans elle, le Dock a un flou simple.
+    //
+    // Les valeurs sont écrites dans kwinrc quand un réglage change, et une
+    // fois au premier lancement après la mise à jour (glassMigrated).
+    readonly property bool liquidGlass:
         Boolean(Plasmoid.configuration.glassManage)
+    readonly property bool blurEnabled:
+        wallpaperBlur > 0.001 || liquidGlass
+    readonly property bool borderColorFromWallpaper:
+        Plasmoid.configuration.borderColorFromWallpaper === undefined
+            ? true : Boolean(Plasmoid.configuration.borderColorFromWallpaper)
 
     function glassKeys() {
         var cfg = Plasmoid.configuration;
-        var refraction = cfg.glassRefraction === undefined
-            ? true : Boolean(cfg.glassRefraction);
-        var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
-        var thickness = Math.round(boundedNumber(cfg.glassThickness, 14, 4, 120));
-        var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
-        var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
-        var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
-        var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
-        // Les échelles sont celles de l'effet (voir docs/DESIGN.md du projet
-        // liquid-glass-kde) : force = (IOR - 1) x 20, épaisseur en dizaines de
-        // pixels, franges = dispersion x 20, profil x 2, biseau x 10.
-        return {
+        // Intensité 2 % .. 100 % -> force 1 .. 15 ; Liquid Glass seul (flou à
+        // 0 %) -> force 1, quasi net comme dans le projet liquid-glass-kde.
+        var strength = wallpaperBlur > 0.001
+            ? Math.round(1 + wallpaperBlur * 14) : 1;
+        var keys = {
             "BlurDocks": true,
-            "DockBlurStrength": Math.round(boundedNumber(
-                cfg.glassBlurStrength, 1, 1, 10)),
+            "DockBlurStrength": strength,
             "DockBlurFinetune": Math.round(boundedNumber(
                 cfg.glassBlurFinetune, 5, 0, 10)),
             "DockNoiseStrength": Math.round(boundedNumber(
                 cfg.glassNoise, 0, 0, 20)),
-            "Saturation": Math.round(boundedNumber(
-                cfg.glassSaturation, 1.0, 0.5, 2.0) * 100) / 100,
-            "PhysicallyBasedRefraction": true,
-            "RefractionStrength": refraction
-                ? Math.round((ior - 1) * 2000) / 100 : 0,
-            "RefractionEdgeSize": thickness / 10,
-            "RefractionBevelIntensity": Math.round(bevel * 10),
-            "RefractionRGBFringing": Math.round(dispersion * 2000) / 100,
-            "RefractionNormalPow": Math.round(normalPower * 200) / 100,
-            "RefractionEdgeBlur": Math.round(boundedNumber(
-                cfg.glassEdgeBlur, 10, 0, 60)),
-            "RimSpecularScale": Math.round(rim * 10)
+            "RefractionExcludeDocks": !liquidGlass
         };
+        if (liquidGlass) {
+            var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
+            var thickness = Math.round(boundedNumber(
+                cfg.glassThickness, 14, 4, 120));
+            var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
+            var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
+            var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
+            var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
+            // Échelles de l'effet (voir docs/DESIGN.md du projet
+            // liquid-glass-kde) : force = (IOR - 1) x 20, épaisseur en
+            // dizaines de pixels, franges = dispersion x 20, profil x 2,
+            // biseau x 10.
+            keys["PhysicallyBasedRefraction"] = true;
+            keys["RefractionStrength"] = Math.round((ior - 1) * 2000) / 100;
+            keys["RefractionEdgeSize"] = thickness / 10;
+            keys["RefractionBevelIntensity"] = Math.round(bevel * 10);
+            keys["RefractionRGBFringing"] = Math.round(dispersion * 2000) / 100;
+            keys["RefractionNormalPow"] = Math.round(normalPower * 200) / 100;
+            keys["RefractionEdgeBlur"] = Math.round(boundedNumber(
+                cfg.glassEdgeBlur, 10, 0, 60));
+            keys["RimSpecularScale"] = Math.round(rim * 10);
+        }
+        return keys;
     }
 
-    // Change dès qu'un réglage Glass change : déclenche l'écriture (regroupée).
+    // Change dès qu'un réglage de flou ou de verre change.
     readonly property string glassSignature:
-        JSON.stringify([glassManaged, glassKeys()])
+        JSON.stringify([blurEnabled, liquidGlass, glassKeys()])
     onGlassSignatureChanged: glassSyncTimer.restart()
 
     function syncGlassEffect() {
-        if (glassManaged) {
-            glassEffectSettings.apply(glassKeys(), true);
+        if (blurEnabled) {
+            // L'effet Glass n'est chargé à la place du flou standard que si
+            // le Liquid Glass est demandé.
+            glassEffectSettings.apply(glassKeys(), liquidGlass);
         }
     }
 
@@ -157,6 +172,21 @@ PlasmoidItem {
         interval: 400
         repeat: false
         onTriggered: root.syncGlassEffect()
+    }
+
+    // Première application après la mise à jour : le flou du Dock prend tout
+    // de suite la force réglée (et perd la réfraction si le Liquid Glass n'est
+    // pas coché), sans attendre un changement de réglage.
+    Timer {
+        interval: 6000
+        repeat: false
+        running: true
+        onTriggered: {
+            if (!Plasmoid.configuration.glassMigrated) {
+                Plasmoid.configuration.glassMigrated = true;
+                root.syncGlassEffect();
+            }
+        }
     }
 
     DockEffects.GlassEffectSettings {
@@ -658,7 +688,9 @@ PlasmoidItem {
         // lecture de la configuration de Plasma se fait sur le fil de l'interface.
         interval: root.wallpaperInfo.source.length > 0 ? 20000 : 4000
         repeat: true
-        running: root.wallpaperBlur > 0.001 || root.borderStrength > 0.001
+        running: root.borderColorFromWallpaper
+            && (root.borderStrength > 0.001
+                || root.borderLightIntensity > 0.001)
         triggeredOnStart: true
         onTriggered: root.refreshWallpaperInfo()
     }
@@ -704,7 +736,7 @@ PlasmoidItem {
             baseSurface.y + root.dockSlideY(baseWindow.height),
             baseSurface.width, baseSurface.height)
         radius: baseSurface.radius
-        enabled: root.wallpaperBlur > 0.001
+        enabled: root.blurEnabled
     }
 
     DockEffects.BlurRegion {
@@ -716,7 +748,7 @@ PlasmoidItem {
             overlayBackgroundSurface.width,
             overlayBackgroundSurface.height)
         radius: overlayBackgroundSurface.radius
-        enabled: root.wallpaperBlur > 0.001
+        enabled: root.blurEnabled
     }
 
     DockEffects.WindowActions {
@@ -4317,6 +4349,7 @@ PlasmoidItem {
                 anchors.margins: root.surfaceInset
                 borderStrength: root.borderStrength
                 borderWidth: root.borderWidth
+                colorFromWallpaper: root.borderColorFromWallpaper
                 lightIntensity: root.borderLightIntensity
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
@@ -4890,6 +4923,7 @@ PlasmoidItem {
                 z: 0
                 borderStrength: root.borderStrength
                 borderWidth: root.borderWidth
+                colorFromWallpaper: root.borderColorFromWallpaper
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator

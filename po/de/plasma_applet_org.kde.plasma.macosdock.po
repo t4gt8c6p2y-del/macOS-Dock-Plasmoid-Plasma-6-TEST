@@ -869,3 +869,55 @@ msgstr "Randreflex:"
 #: contents/ui/ConfigGeneral.qml
 msgid "The edge blur needs the patched Glass effect of the liquid-glass-kde project. The light that follows the mouse around the Dock border is the Dock's own (Appearance tab)."
 msgstr "Die Randunschärfe benötigt den angepassten Glass-Effekt des Projekts liquid-glass-kde. Das Licht, das der Maus am Dock-Rahmen folgt, ist das des Docks selbst (Reiter Darstellung)."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Off"
+msgstr "Aus"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included. 0 % turns the blur off. The strength is set through the KWin “Glass” effect (liquid-glass-kde), for docks only; with KWin's standard blur it is only on or off."
+msgstr "Macht alles hinter dem Dock unscharf, auch Fenster. 0 % schaltet die Unschärfe aus. Die Stärke wird über den KWin-Effekt „Glass“ (liquid-glass-kde) nur für Docks eingestellt; beim Standard-Weichzeichner von KWin gibt es nur Ein oder Aus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border color:"
+msgstr "Rahmenfarbe:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Each part of the border takes the color of the wallpaper behind it"
+msgstr "Jeder Teil des Rahmens übernimmt die Farbe des Hintergrundbilds dahinter"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "If the border stays white, choose the wallpaper image yourself below."
+msgstr "Bleibt der Rahmen weiß, wählen Sie unten das Hintergrundbild selbst aus."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Liquid Glass:"
+msgstr "Liquid Glass:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Bend what is behind the Dock edges, like glass"
+msgstr "Das Dahinterliegende an den Dock-Rändern wie Glas verzerren"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Uses the KWin “Glass” effect (the liquid-glass-kde project), which must be installed. When this box is unchecked the Dock has a plain blur, without refraction. The blur intensity is set in the Appearance tab. The settings below are applied to KWin when a value changes; they are global to the effect (panels and menus too), and start from the defaults of the liquid-glass-kde project."
+msgstr "Verwendet den KWin-Effekt „Glass“ (Projekt liquid-glass-kde), der installiert sein muss. Ist das Feld deaktiviert, hat das Dock eine einfache Unschärfe ohne Brechung. Die Stärke der Unschärfe wird im Reiter Darstellung eingestellt. Die Einstellungen unten werden auf KWin angewendet, sobald sich ein Wert ändert; sie gelten global für den Effekt (auch für Leisten und Menüs) und beginnen mit den Standardwerten des Projekts liquid-glass-kde."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "KWin effect:"
+msgstr "KWin-Effekt:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The fineness and the grain apply to docks only."
+msgstr "Feinheit und Körnung gelten nur für Docks."
+
+#: contents/ui/GlassStatus.qml
+msgid "The Glass effect is loaded in KWin."
+msgstr "Der Glass-Effekt ist in KWin geladen."
+
+#: contents/ui/GlassStatus.qml
+msgid "The Glass effect is not loaded in KWin. Install the liquid-glass-kde effect, or tick “Liquid Glass” and apply: the Dock then tries to load it."
+msgstr "Der Glass-Effekt ist in KWin nicht geladen. Installieren Sie den Effekt liquid-glass-kde oder aktivieren Sie „Liquid Glass“ und wenden Sie an: Das Dock versucht dann, ihn zu laden."
+
+#: contents/ui/GlassStatus.qml
+msgid "Check again"
+msgstr "Erneut prüfen"

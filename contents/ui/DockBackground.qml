@@ -111,37 +111,42 @@ Kirigami.ShadowedRectangle {
     }
 
     // --- Bordure ---------------------------------------------------------
-    // La bordure est un simple Rectangle à contour : son opacité est
-    // l'intensité réglée et son épaisseur la largeur réglée. Aucun effet,
-    // aucun masque : le rendu est identique sur toutes les configurations
-    // graphiques et chaque réglage se voit immédiatement.
-    //
-    // La lumière qui suit le pointeur est dessinée à part (lightCanvas) par-
-    // dessus ; si elle ne pouvait pas s'afficher, la bordure resterait visible.
+    // La bordure est faite de pièces simples (Rectangle, dégradés) : aucun
+    // effet, aucun masque, aucun Canvas. Le rendu est donc le même sur toutes
+    // les configurations graphiques.
+    //  - Intensité : opacité de la bordure.
+    //  - Largeur : épaisseur du trait.
+    //  - Couleur : chaque partie prend la couleur du fond d'écran qui se
+    //    trouve derrière elle (désactivable : bordure blanche).
+    //  - Lumière : deux halos blancs qui glissent le long de la bordure et
+    //    suivent le pointeur.
     //
     // Intensité de la lumière qui suit le pointeur : 0 = aucune lumière,
     // 1 = rendu d'origine, 2 = le double.
     property real lightIntensity: 1.0
     // Largeur de la bordure en pixels.
     property real borderWidth: 1.0
+    // Couleur de la bordure : celle du fond d'écran derrière chaque partie.
+    property bool colorFromWallpaper: true
 
     readonly property real borderIntensity:
         Math.min(1, Math.max(0, borderStrength))
     readonly property real ringWidth: Math.min(6, Math.max(0.25, borderWidth))
-    readonly property bool ringVisible:
-        borderIntensity > 0.001 && borderWidth > 0.01
-    // 100 % = bordure presque opaque ; 0 % = aucune bordure.
-    readonly property real ringAlpha: 0.9 * borderIntensity
-    readonly property color ringColor: tintKnown ? tintColor : "white"
+    // Un trait de moins d'un pixel est dessiné à un pixel, moins opaque.
+    readonly property real drawnWidth: Math.max(1, ringWidth)
+    readonly property real ringAlpha:
+        0.75 * borderIntensity * Math.min(1, ringWidth)
+    // Largeur des extrémités arrondies ; les côtés droits sont entre elles.
+    readonly property real capWidth:
+        Math.ceil(Math.max(radius, drawnWidth))
+    readonly property real edgeWidth: Math.max(0, width - 2 * capWidth)
 
-    // La lumière : un halo qui glisse le long de la bordure.
+    // La lumière.
     readonly property real lightRadius:
         Math.max(80, Math.min(0.4 * width, 300))
     readonly property bool lightEnabled: lightIntensity > 0.001
-    // Opacité maximale de la lumière : elle suit aussi l'intensité de la
-    // bordure pour qu'une bordure très discrète le reste.
-    readonly property real lightGain:
-        0.7 * lightIntensity * (0.3 + 0.7 * borderIntensity)
+    readonly property real lightPeak: lightEnabled
+        ? Math.min(1, 0.8 * lightIntensity) : 0
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
 
@@ -157,44 +162,67 @@ Kirigami.ShadowedRectangle {
 
     readonly property real primaryX: restX + (lightX - restX) * fadeValue
     readonly property real primaryY: restY + (lightY - restY) * fadeValue
+    // La seconde lumière, plus faible, est au point opposé.
     readonly property real secondaryX: width - primaryX
     readonly property real secondaryY: height - primaryY
+    readonly property real secondaryScale: 0.6
 
-    // --- Teinte de la bordure -------------------------------------------------
-    // Couleur moyenne du fond d'écran derrière le Dock, ramenée à pleine
-    // luminosité puis éclaircie. Tant qu'elle est inconnue (ou si le fond est
-    // gris), la bordure reste blanche. Elle est appliquée en une fois à l'effet
-    // final (colorization) : aucun calque supplémentaire.
-    property color tintColor: Qt.rgba(1, 1, 1, 1)
-    property bool tintKnown: false
+    // Force d'un halo sur un côté droit : plus le pointeur est loin du côté
+    // (en hauteur), plus la lumière est faible.
+    function edgeLight(pointerY, edgeY, scale) {
+        return lightPeak * scale
+            * Math.exp(-2.5 * Math.abs(pointerY - edgeY) / lightRadius);
+    }
+
+    // Force de la lumière sur une extrémité, selon sa distance au pointeur.
+    function capLight(pointerX, pointerY, centerX, centerY, scale) {
+        var dx = pointerX - centerX;
+        var dy = pointerY - centerY;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        return lightPeak * scale
+            * Math.exp(-3 * Math.min(1, distance / lightRadius));
+    }
+
+    // --- Couleurs de la bordure ----------------------------------------------
+    // Le fond d'écran derrière le Dock est découpé en colorColumns zones, de
+    // gauche à droite ; chaque zone donne la couleur de la bordure à cet
+    // endroit (ramenée à pleine luminosité puis éclaircie). Tant que les
+    // couleurs sont inconnues, ou si l'option est désactivée, la bordure est
+    // blanche.
+    readonly property int colorColumns: 16
+    property var edgeColors: []
 
     function refreshTint() {
         var colors = [];
-        if (colorSampler && wallpaperInfo && wallpaperInfo.source
-                && width >= 8 && height >= 8) {
+        if (colorFromWallpaper && colorSampler && wallpaperInfo
+                && wallpaperInfo.source && width >= 8 && height >= 8) {
             try {
                 colors = colorSampler.sampleColors(
                     String(wallpaperInfo.source), wallpaperInfo.fillMode,
                     wallpaperInfo.width, wallpaperInfo.height,
-                    backdropOrigin.x, backdropOrigin.y, width, height, 1, 1);
+                    backdropOrigin.x, backdropOrigin.y, width, height,
+                    colorColumns, 1);
             } catch (error) {
                 colors = [];
             }
         }
-        if (!colors || colors.length < 1) {
-            tintKnown = false;
+        if (!colors || colors.length < colorColumns) {
+            edgeColors = [];
             return;
         }
-        var c = colors[0];
-        var peak = Math.max(c.r, c.g, c.b);
-        if (peak < 0.02) {
-            tintKnown = false;
-            return;
+        var result = [];
+        for (var i = 0; i < colorColumns; ++i) {
+            var c = colors[i];
+            var peak = Math.max(c.r, c.g, c.b);
+            if (peak < 0.02) {
+                result.push(Qt.rgba(1, 1, 1, 1));
+            } else {
+                var k = 1 / peak;
+                result.push(Qt.rgba(c.r * k * 0.72 + 0.28,
+                    c.g * k * 0.72 + 0.28, c.b * k * 0.72 + 0.28, 1));
+            }
         }
-        var k = 1 / peak;
-        tintColor = Qt.rgba(c.r * k * 0.72 + 0.28, c.g * k * 0.72 + 0.28,
-            c.b * k * 0.72 + 0.28, 1);
-        tintKnown = true;
+        edgeColors = result;
     }
 
     // Les mesures sont regroupées : le Dock bouge et se redimensionne souvent.
@@ -209,110 +237,83 @@ Kirigami.ShadowedRectangle {
     onWallpaperInfoChanged: tintTimer.restart()
     onColorSamplerChanged: tintTimer.restart()
     onBackdropOriginChanged: tintTimer.restart()
+    onColorFromWallpaperChanged: refreshTint()
     Component.onCompleted: tintTimer.restart()
 
-    Rectangle {
-        id: ringRectangle
-
-        anchors.fill: parent
-        visible: background.ringVisible
-        color: "transparent"
-        radius: background.radius
-        border.width: background.ringWidth
-        border.color: Qt.rgba(background.ringColor.r, background.ringColor.g,
-            background.ringColor.b, background.ringAlpha)
+    // Côté haut.
+    BorderEdge {
+        x: background.capWidth
+        y: 0
+        width: background.edgeWidth
+        height: background.drawnWidth
+        colors: background.edgeColors
+        baseOpacity: background.ringAlpha
+        lightRadius: background.lightRadius
+        lightX1: background.primaryX - background.capWidth
+        lightStrength1: background.edgeLight(background.primaryY, 0, 1)
+        lightX2: background.secondaryX - background.capWidth
+        lightStrength2: background.edgeLight(background.secondaryY, 0,
+            background.secondaryScale)
     }
 
-    Canvas {
-        id: lightCanvas
+    // Côté bas.
+    BorderEdge {
+        x: background.capWidth
+        y: background.height - background.drawnWidth
+        width: background.edgeWidth
+        height: background.drawnWidth
+        colors: background.edgeColors
+        baseOpacity: background.ringAlpha
+        lightRadius: background.lightRadius
+        lightX1: background.primaryX - background.capWidth
+        lightStrength1: background.edgeLight(background.primaryY,
+            background.height, 1)
+        lightX2: background.secondaryX - background.capWidth
+        lightStrength2: background.edgeLight(background.secondaryY,
+            background.height, background.secondaryScale)
+    }
 
-        anchors.fill: parent
-        visible: background.ringVisible && background.lightEnabled
-        renderTarget: Canvas.Image
-        renderStrategy: Canvas.Cooperative
+    // Extrémité gauche.
+    BorderCap {
+        x: 0
+        y: 0
+        width: background.capWidth
+        height: background.height
+        leftSide: true
+        fullWidth: background.width
+        ringRadius: background.radius
+        ringWidth: background.drawnWidth
+        ringColor: background.edgeColors.length > 0
+            ? background.edgeColors[0] : "white"
+        baseOpacity: background.ringAlpha
+        lightStrength: background.capLight(background.primaryX,
+                background.primaryY, background.capWidth / 2,
+                background.height / 2, 1)
+            + background.capLight(background.secondaryX,
+                background.secondaryY, background.capWidth / 2,
+                background.height / 2, background.secondaryScale)
+    }
 
-        readonly property real pixelRatio: Math.max(1, Screen.devicePixelRatio)
-        canvasSize: Qt.size(Math.max(1, Math.round(width * pixelRatio)),
-            Math.max(1, Math.round(height * pixelRatio)))
-
-        // Tout ce qui change l'aspect de la lumière : un seul signal pour
-        // redessiner.
-        readonly property string paintKey: [
-            background.primaryX.toFixed(1), background.primaryY.toFixed(1),
-            background.lightGain.toFixed(3), background.ringWidth.toFixed(2),
-            background.radius.toFixed(1), background.lightRadius.toFixed(1),
-            String(background.ringColor)
-        ].join("|")
-
-        onPaintKeyChanged: requestPaint()
-        onCanvasSizeChanged: requestPaint()
-        onVisibleChanged: {
-            if (visible) {
-                requestPaint();
-            }
-        }
-        Component.onCompleted: requestPaint()
-
-        function roundedPath(ctx, x, y, w, h, r) {
-            r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-            ctx.beginPath();
-            if (r < 0.01) {
-                ctx.rect(x, y, w, h);
-                return;
-            }
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
-            ctx.lineTo(x + r, y + h);
-            ctx.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
-            ctx.lineTo(x, y + r);
-            ctx.arc(x + r, y + r, r, Math.PI, 1.5 * Math.PI, false);
-            ctx.closePath();
-        }
-
-        function strokeLight(ctx, cx, cy, peak) {
-            var color = background.ringColor;
-            var red = Math.round(color.r * 255);
-            var green = Math.round(color.g * 255);
-            var blue = Math.round(color.b * 255);
-            var radius = background.lightRadius;
-            var gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-            var positions = [0, 0.1, 0.22, 0.4, 0.65, 1];
-            for (var i = 0; i < positions.length; ++i) {
-                var p = positions[i];
-                // Chute de la lumière : exp(-3 d), d allant de 0 (centre)
-                // à 1 (bord du halo, où elle s'éteint).
-                var alpha = p >= 1 ? 0 : Math.min(1, peak * Math.exp(-3 * p));
-                gradient.addColorStop(p, "rgba(" + red + "," + green + ","
-                    + blue + "," + alpha.toFixed(3) + ")");
-            }
-            var half = background.ringWidth / 2;
-            ctx.strokeStyle = gradient;
-            ctx.lineWidth = background.ringWidth;
-            roundedPath(ctx, half, half, background.width - 2 * half,
-                background.height - 2 * half, background.radius - half);
-            ctx.stroke();
-        }
-
-        onPaint: {
-            var ctx = getContext("2d");
-            if (!ctx) {
-                return;
-            }
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
-            if (!background.ringVisible || !background.lightEnabled
-                    || width < 4 || height < 4) {
-                return;
-            }
-            var scale = canvasSize.width / width;
-            ctx.scale(scale, scale);
-            strokeLight(ctx, background.primaryX, background.primaryY,
-                background.lightGain);
-            strokeLight(ctx, background.secondaryX, background.secondaryY,
-                0.9 * background.lightGain);
-        }
+    // Extrémité droite.
+    BorderCap {
+        x: background.width - background.capWidth
+        y: 0
+        width: background.capWidth
+        height: background.height
+        leftSide: false
+        fullWidth: background.width
+        ringRadius: background.radius
+        ringWidth: background.drawnWidth
+        ringColor: background.edgeColors.length > 0
+            ? background.edgeColors[background.edgeColors.length - 1]
+            : "white"
+        baseOpacity: background.ringAlpha
+        lightStrength: background.capLight(background.primaryX,
+                background.primaryY, background.width - background.capWidth / 2,
+                background.height / 2, 1)
+            + background.capLight(background.secondaryX,
+                background.secondaryY,
+                background.width - background.capWidth / 2,
+                background.height / 2, background.secondaryScale)
     }
 }

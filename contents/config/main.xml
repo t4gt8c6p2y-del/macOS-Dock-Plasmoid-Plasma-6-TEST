@@ -88,28 +88,27 @@
     <entry name="borderWidth" type="Double">
       <default>1.0</default>
     </entry>
+    <!-- Couleur de la bordure : celle du fond d'écran derrière chaque partie. -->
+    <entry name="borderColorFromWallpaper" type="Bool">
+      <default>true</default>
+    </entry>
     <!--
-      Onglet « Glass » : réglages de l'effet KWin « Glass » (flou et verre
-      liquide). Ils ne sont écrits dans kwinrc que si glassManage est coché ;
-      les valeurs par défaut sont celles du projet liquid-glass-kde.
+      Onglet « Glass » : Liquid Glass sur le Dock (réfraction du verre) et
+      réglages de l'effet KWin « Glass ». Les valeurs par défaut sont celles du
+      projet liquid-glass-kde. glassMigrated : première application du flou
+      après la mise à jour.
     -->
-    <entry name="glassManage" type="Bool">
+    <entry name="glassMigrated" type="Bool">
       <default>false</default>
     </entry>
-    <entry name="glassBlurStrength" type="Int">
-      <default>1</default>
+    <entry name="glassManage" type="Bool">
+      <default>false</default>
     </entry>
     <entry name="glassBlurFinetune" type="Int">
       <default>5</default>
     </entry>
     <entry name="glassNoise" type="Int">
       <default>0</default>
-    </entry>
-    <entry name="glassSaturation" type="Double">
-      <default>1.0</default>
-    </entry>
-    <entry name="glassRefraction" type="Bool">
-      <default>true</default>
     </entry>
     <entry name="glassThickness" type="Int">
       <default>14</default>
