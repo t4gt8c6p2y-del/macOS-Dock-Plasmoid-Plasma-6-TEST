@@ -28,6 +28,21 @@ KCM.SimpleKCM {
     // désormais réglée par cfg_borderStrength (part éclairée du contour).
     property real cfg_borderOpacity: 0.22
     property real cfg_borderStrength: -1
+    property alias cfg_borderWidth: borderWidthSlider.value
+    // Onglet Glass (effet KWin Glass).
+    property alias cfg_glassManage: glassManageCheckBox.checked
+    property alias cfg_glassBlurStrength: glassBlurStrengthSlider.value
+    property alias cfg_glassBlurFinetune: glassBlurFinetuneSlider.value
+    property alias cfg_glassNoise: glassNoiseSlider.value
+    property alias cfg_glassSaturation: glassSaturationSlider.value
+    property alias cfg_glassRefraction: glassRefractionCheckBox.checked
+    property alias cfg_glassThickness: glassThicknessSlider.value
+    property alias cfg_glassIor: glassIorSlider.value
+    property alias cfg_glassBevel: glassBevelSlider.value
+    property alias cfg_glassDispersion: glassDispersionSlider.value
+    property alias cfg_glassNormalPower: glassNormalPowerSlider.value
+    property alias cfg_glassEdgeBlur: glassEdgeBlurSlider.value
+    property alias cfg_glassRimStrength: glassRimStrengthSlider.value
     // Flou de l'arrière-plan : 0 = désactivé, au-dessus = activé (KWin ne
     // permet pas de régler l'intensité fenêtre par fenêtre).
     property real cfg_wallpaperBlur: 0
@@ -109,6 +124,20 @@ KCM.SimpleKCM {
     property int cfg_cornerRadiusDefault: 12
     property real cfg_borderOpacityDefault: 0.22
     property real cfg_borderStrengthDefault: -1
+    property real cfg_borderWidthDefault: 1.0
+    property bool cfg_glassManageDefault: false
+    property int cfg_glassBlurStrengthDefault: 1
+    property int cfg_glassBlurFinetuneDefault: 5
+    property int cfg_glassNoiseDefault: 0
+    property real cfg_glassSaturationDefault: 1.0
+    property bool cfg_glassRefractionDefault: true
+    property int cfg_glassThicknessDefault: 14
+    property real cfg_glassIorDefault: 2.0
+    property real cfg_glassBevelDefault: 3.4
+    property real cfg_glassDispersionDefault: 0.25
+    property real cfg_glassNormalPowerDefault: 1.0
+    property int cfg_glassEdgeBlurDefault: 10
+    property real cfg_glassRimStrengthDefault: 1.0
     property real cfg_wallpaperBlurDefault: 0
     property string cfg_wallpaperBlurImageDefault: ""
     property real cfg_shadowOpacityDefault: 0.42
@@ -164,6 +193,13 @@ KCM.SimpleKCM {
         "dockCrossMargin": [0, 20], "screenEdgeMargin": [0, 32],
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
         "borderStrength": [0, 1], "borderLightIntensity": [0, 2],
+        "borderWidth": [0.5, 4],
+        "glassBlurStrength": [1, 10], "glassBlurFinetune": [0, 10],
+        "glassNoise": [0, 20], "glassSaturation": [0.5, 2],
+        "glassThickness": [4, 120], "glassIor": [1, 2.5],
+        "glassBevel": [0.5, 10], "glassDispersion": [0, 1],
+        "glassNormalPower": [0.5, 4], "glassEdgeBlur": [0, 60],
+        "glassRimStrength": [0, 2],
         "wallpaperBlur": [0, 1],
         "shadowOpacity": [0, 0.7],
         "highlightStrength": [0, 2],
@@ -182,7 +218,7 @@ KCM.SimpleKCM {
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
         "showKdeConnectRecentShares", "perDesktopDock",
-        "useThemeIndicatorColor"
+        "useThemeIndicatorColor", "glassRefraction"
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -336,6 +372,7 @@ KCM.SimpleKCM {
         cfg_borderLightIntensity = 1.0;
         cfg_borderFollowMouse = true;
         cfg_showHighlight = true;
+        cfg_glassManage = false;
         showStyleMessage(Kirigami.MessageType.Information,
             i18n("Settings reset. Dock icons were kept. Click “Apply” to save."));
     }
@@ -372,6 +409,10 @@ KCM.SimpleKCM {
 
             QQC2.TabButton {
                 text: i18n("Appearance")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Glass")
             }
 
             QQC2.TabButton {
@@ -548,7 +589,7 @@ KCM.SimpleKCM {
                 }
 
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Border:")
+                    Kirigami.FormData.label: i18n("Border intensity:")
 
                     QQC2.Slider {
                         id: borderStrengthSlider
@@ -571,8 +612,25 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Share of the border that is lit: 100 % lights the whole outline, 0 % removes it.")
+                    text: i18n("Brightness of the border: 100 % is a solid outline, 0 % removes it.")
                     opacity: 0.78
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Border width:")
+
+                    QQC2.Slider {
+                        id: borderWidthSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 4
+                        stepSize: 0.5
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: borderWidthSlider.value.toFixed(1) + i18n(" px")
+                    }
                 }
 
                 RowLayout {
@@ -709,6 +767,7 @@ KCM.SimpleKCM {
                         requestedRadius: cornerRadiusSlider.value
                         id: previewBackground
                         borderStrength: borderStrengthSlider.value
+                        borderWidth: borderWidthSlider.value
                         showShadow: false
                         highlightStrength: highlightStrengthSlider.value
                         lightActive: previewHover.hovered
@@ -722,6 +781,275 @@ KCM.SimpleKCM {
                     HoverHandler {
                         id: previewHover
                     }
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Onglet Glass : flou et verre liquide (effet KWin « Glass »)
+            // ---------------------------------------------------------------
+            Kirigami.FormLayout {
+                QQC2.CheckBox {
+                    id: glassBlurCheckBox
+
+                    Kirigami.FormData.label: i18n("Behind the Dock:")
+                    text: i18n("Blur what is behind the Dock")
+                    onToggled: configPage.cfg_wallpaperBlur = checked ? 1 : 0
+                }
+
+                // Même réglage que la case de l'onglet Apparence.
+                Binding {
+                    target: glassBlurCheckBox
+                    property: "checked"
+                    value: configPage.cfg_wallpaperBlur > 0.001
+                }
+
+                QQC2.CheckBox {
+                    id: glassManageCheckBox
+
+                    Kirigami.FormData.label: i18n("Glass effect:")
+                    text: i18n("Control the KWin Glass effect from the Dock")
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("These settings drive the KWin “Glass” effect (the liquid-glass-kde project), which must be installed. The effect is global to KWin: panels and menus are affected too. Nothing is written to KWin unless this box is checked, and only when a value changes. The starting values are the defaults of the liquid-glass-kde project.")
+                    opacity: 0.78
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Blur")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Blur strength:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassBlurStrengthSlider
+                        Layout.fillWidth: true
+                        from: 1
+                        to: 10
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassBlurStrengthSlider.value)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Blur fineness:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassBlurFinetuneSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 10
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassBlurFinetuneSlider.value)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Grain:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassNoiseSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 20
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassNoiseSlider.value)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Saturation:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassSaturationSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassSaturationSlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The blur strength, fineness and grain apply to docks only. The saturation applies to everything the effect blurs.")
+                    opacity: 0.78
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Glass")
+                }
+
+                QQC2.CheckBox {
+                    id: glassRefractionCheckBox
+
+                    Kirigami.FormData.label: i18n("Refraction:")
+                    text: i18n("Bend what is behind the edges, like a lens")
+                    enabled: glassManageCheckBox.checked
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge thickness:")
+                    enabled: glassManageCheckBox.checked
+                        && glassRefractionCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassThicknessSlider
+                        Layout.fillWidth: true
+                        from: 4
+                        to: 120
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassThicknessSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Refraction index:")
+                    enabled: glassManageCheckBox.checked
+                        && glassRefractionCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassIorSlider
+                        Layout.fillWidth: true
+                        from: 1
+                        to: 2.5
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: glassIorSlider.value.toFixed(2)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Lens strength:")
+                    enabled: glassManageCheckBox.checked
+                        && glassRefractionCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassBevelSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 10
+                        stepSize: 0.1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: glassBevelSlider.value.toFixed(1)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge profile:")
+                    enabled: glassManageCheckBox.checked
+                        && glassRefractionCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassNormalPowerSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 4
+                        stepSize: 0.1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: glassNormalPowerSlider.value.toFixed(1)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Colored fringes:")
+                    enabled: glassManageCheckBox.checked
+                        && glassRefractionCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassDispersionSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassDispersionSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge blur:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassEdgeBlurSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 60
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassEdgeBlurSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge highlight:")
+                    enabled: glassManageCheckBox.checked
+
+                    QQC2.Slider {
+                        id: glassRimStrengthSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(glassRimStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The edge blur needs the patched Glass effect of the liquid-glass-kde project. The light that follows the mouse around the Dock border is the Dock's own (Appearance tab).")
+                    opacity: 0.78
                 }
             }
 

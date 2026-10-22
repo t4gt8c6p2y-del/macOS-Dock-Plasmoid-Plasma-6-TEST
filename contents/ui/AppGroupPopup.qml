@@ -21,6 +21,7 @@ Window {
     property color customColor: "#20242b"
     property real requestedRadius: 18
     property real borderStrength: 0.44
+    property real borderWidth: 1.0
     property real borderOpacity: 0.22
     property real shadowOpacity: 0.42
     property bool showHighlight: true
@@ -445,6 +446,7 @@ Window {
             requestedRadius: root.requestedRadius
             borderOpacity: root.borderOpacity
             borderStrength: root.borderStrength
+            borderWidth: root.borderWidth
             shadowOpacity: root.shadowOpacity
             showHighlight: root.showHighlight
             highlightStrength: root.highlightStrength

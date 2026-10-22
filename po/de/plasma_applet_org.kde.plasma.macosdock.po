@@ -690,8 +690,8 @@ msgid "All settings of every tab will return to their default values. The icons 
 msgstr "Alle Einstellungen aller Reiter werden auf ihre Standardwerte zurückgesetzt. Die im Dock gehaltenen Symbole bleiben unverändert."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Border:"
-msgstr "Rahmen:"
+msgid "Border intensity:"
+msgstr "Rahmenintensität:"
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Background blur:"
@@ -727,8 +727,8 @@ msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 msgstr "Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it."
-msgstr "Anteil des beleuchteten Rahmens: 100 % beleuchtet die gesamte Kontur, 0 % entfernt den Rahmen."
+msgid "Brightness of the border: 100 % is a solid outline, 0 % removes it."
+msgstr "Helligkeit des Rahmens: 100 % ergibt eine durchgehende Kontur, 0 % entfernt den Rahmen."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "The border light follows the mouse"
@@ -781,3 +781,91 @@ msgstr "Farbe der Anzeige:"
 #: contents/ui/ConfigGeneral.qml
 msgid "Choose the Active App Indicator Color"
 msgstr "Farbe der Anzeige der aktiven Anwendung wählen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border width:"
+msgstr "Rahmenbreite:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass"
+msgstr "Glas"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Behind the Dock:"
+msgstr "Hinter dem Dock:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass effect:"
+msgstr "Glas-Effekt:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Control the KWin Glass effect from the Dock"
+msgstr "KWin-Glass-Effekt vom Dock aus steuern"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "These settings drive the KWin “Glass” effect (the liquid-glass-kde project), which must be installed. The effect is global to KWin: panels and menus are affected too. Nothing is written to KWin unless this box is checked, and only when a value changes. The starting values are the defaults of the liquid-glass-kde project."
+msgstr "Diese Einstellungen steuern den KWin-Effekt „Glass“ (Projekt liquid-glass-kde), der installiert sein muss. Der Effekt gilt global in KWin: Leisten und Menüs sind ebenfalls betroffen. Nichts wird in KWin geschrieben, solange dieses Feld nicht aktiviert ist, und nur wenn sich ein Wert ändert. Die Startwerte entsprechen den Standardwerten des Projekts liquid-glass-kde."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur"
+msgstr "Unschärfe"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur strength:"
+msgstr "Stärke der Unschärfe:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur fineness:"
+msgstr "Feinheit der Unschärfe:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Grain:"
+msgstr "Körnung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Saturation:"
+msgstr "Sättigung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The blur strength, fineness and grain apply to docks only. The saturation applies to everything the effect blurs."
+msgstr "Stärke, Feinheit und Körnung der Unschärfe gelten nur für Docks. Die Sättigung gilt für alles, was der Effekt unscharf macht."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Refraction:"
+msgstr "Brechung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Bend what is behind the edges, like a lens"
+msgstr "Das Dahinterliegende an den Rändern wie durch eine Linse verzerren"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge thickness:"
+msgstr "Randdicke:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Refraction index:"
+msgstr "Brechungsindex:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Lens strength:"
+msgstr "Linsenstärke:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge profile:"
+msgstr "Randprofil:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Colored fringes:"
+msgstr "Farbsäume:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge blur:"
+msgstr "Randunschärfe:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge highlight:"
+msgstr "Randreflex:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The edge blur needs the patched Glass effect of the liquid-glass-kde project. The light that follows the mouse around the Dock border is the Dock's own (Appearance tab)."
+msgstr "Die Randunschärfe benötigt den angepassten Glass-Effekt des Projekts liquid-glass-kde. Das Licht, das der Maus am Dock-Rahmen folgt, ist das des Docks selbst (Reiter Darstellung)."

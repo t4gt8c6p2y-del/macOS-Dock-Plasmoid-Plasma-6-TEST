@@ -692,8 +692,8 @@ msgid "All settings of every tab will return to their default values. The icons 
 msgstr "Tous les réglages de tous les onglets reviendront à leurs valeurs par défaut. Les icônes conservées dans le Dock ne sont pas modifiées."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Border:"
-msgstr "Bordure :"
+msgid "Border intensity:"
+msgstr "Intensité de la bordure :"
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Background blur:"
@@ -729,8 +729,8 @@ msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 msgstr "Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Share of the border that is lit: 100 % lights the whole outline, 0 % removes it."
-msgstr "Part de la bordure qui est éclairée : 100 % éclaire tout le contour, 0 % supprime la bordure."
+msgid "Brightness of the border: 100 % is a solid outline, 0 % removes it."
+msgstr "Luminosité de la bordure : 100 % donne un contour plein, 0 % supprime la bordure."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "The border light follows the mouse"
@@ -783,3 +783,91 @@ msgstr "Couleur du voyant :"
 #: contents/ui/ConfigGeneral.qml
 msgid "Choose the Active App Indicator Color"
 msgstr "Choisir la couleur du voyant de l’application active"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Border width:"
+msgstr "Largeur de la bordure :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass"
+msgstr "Glass"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Behind the Dock:"
+msgstr "Derrière le Dock :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Glass effect:"
+msgstr "Effet Glass :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Control the KWin Glass effect from the Dock"
+msgstr "Régler l’effet KWin Glass depuis le Dock"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "These settings drive the KWin “Glass” effect (the liquid-glass-kde project), which must be installed. The effect is global to KWin: panels and menus are affected too. Nothing is written to KWin unless this box is checked, and only when a value changes. The starting values are the defaults of the liquid-glass-kde project."
+msgstr "Ces réglages pilotent l’effet KWin « Glass » (le projet liquid-glass-kde), qui doit être installé. L’effet est global à KWin : les panneaux et les menus sont aussi concernés. Rien n’est écrit dans KWin tant que cette case n’est pas cochée, et seulement quand une valeur change. Les valeurs de départ sont celles par défaut du projet liquid-glass-kde."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur"
+msgstr "Flou"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur strength:"
+msgstr "Force du flou :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blur fineness:"
+msgstr "Finesse du flou :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Grain:"
+msgstr "Grain :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Saturation:"
+msgstr "Saturation :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The blur strength, fineness and grain apply to docks only. The saturation applies to everything the effect blurs."
+msgstr "La force, la finesse et le grain du flou ne concernent que les docks. La saturation s’applique à tout ce que l’effet floute."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Refraction:"
+msgstr "Réfraction :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Bend what is behind the edges, like a lens"
+msgstr "Déformer ce qui est derrière les bords, comme une lentille"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge thickness:"
+msgstr "Épaisseur du bord :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Refraction index:"
+msgstr "Indice de réfraction :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Lens strength:"
+msgstr "Force de la lentille :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge profile:"
+msgstr "Profil du bord :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Colored fringes:"
+msgstr "Franges colorées :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge blur:"
+msgstr "Flou des bords :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Edge highlight:"
+msgstr "Reflet des bords :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The edge blur needs the patched Glass effect of the liquid-glass-kde project. The light that follows the mouse around the Dock border is the Dock's own (Appearance tab)."
+msgstr "Le flou des bords nécessite l’effet Glass modifié du projet liquid-glass-kde. La lumière qui suit la souris le long de la bordure du Dock est celle du Dock lui-même (onglet Apparence)."

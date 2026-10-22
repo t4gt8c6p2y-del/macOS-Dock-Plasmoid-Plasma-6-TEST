@@ -20,6 +20,8 @@ add_library(macosdockeffectsplugin MODULE
     blurregion.cpp
     blurregion.h
     desktopidutils.h
+    glasseffectsettings.cpp
+    glasseffectsettings.h
     kdeconnectsharemonitor.cpp
     kdeconnectsharemonitor.h
     launcherprogressmonitor.cpp

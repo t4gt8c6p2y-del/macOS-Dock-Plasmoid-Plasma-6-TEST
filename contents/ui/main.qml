@@ -92,6 +92,77 @@ PlasmoidItem {
         return Plasmoid.configuration.borderFollowMouse === undefined
             || Boolean(Plasmoid.configuration.borderFollowMouse) ? 1.0 : 0.0;
     }
+    // Largeur de la bordure du Dock (pixels).
+    readonly property real borderWidth: boundedNumber(
+        Plasmoid.configuration.borderWidth, 1.0, 0.5, 4)
+
+    // --- Onglet « Glass » : réglages de l'effet KWin Glass ------------------
+    // Ils ne sont écrits dans kwinrc que si la case « Régler l'effet Glass
+    // depuis le Dock » est cochée, et seulement quand une valeur CHANGE (pas au
+    // démarrage) : les réglages faits ailleurs ne sont jamais écrasés par
+    // surprise.
+    readonly property bool glassManaged:
+        Boolean(Plasmoid.configuration.glassManage)
+
+    function glassKeys() {
+        var cfg = Plasmoid.configuration;
+        var refraction = cfg.glassRefraction === undefined
+            ? true : Boolean(cfg.glassRefraction);
+        var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
+        var thickness = Math.round(boundedNumber(cfg.glassThickness, 14, 4, 120));
+        var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
+        var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
+        var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
+        var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
+        // Les échelles sont celles de l'effet (voir docs/DESIGN.md du projet
+        // liquid-glass-kde) : force = (IOR - 1) x 20, épaisseur en dizaines de
+        // pixels, franges = dispersion x 20, profil x 2, biseau x 10.
+        return {
+            "BlurDocks": true,
+            "DockBlurStrength": Math.round(boundedNumber(
+                cfg.glassBlurStrength, 1, 1, 10)),
+            "DockBlurFinetune": Math.round(boundedNumber(
+                cfg.glassBlurFinetune, 5, 0, 10)),
+            "DockNoiseStrength": Math.round(boundedNumber(
+                cfg.glassNoise, 0, 0, 20)),
+            "Saturation": Math.round(boundedNumber(
+                cfg.glassSaturation, 1.0, 0.5, 2.0) * 100) / 100,
+            "PhysicallyBasedRefraction": true,
+            "RefractionStrength": refraction
+                ? Math.round((ior - 1) * 2000) / 100 : 0,
+            "RefractionEdgeSize": thickness / 10,
+            "RefractionBevelIntensity": Math.round(bevel * 10),
+            "RefractionRGBFringing": Math.round(dispersion * 2000) / 100,
+            "RefractionNormalPow": Math.round(normalPower * 200) / 100,
+            "RefractionEdgeBlur": Math.round(boundedNumber(
+                cfg.glassEdgeBlur, 10, 0, 60)),
+            "RimSpecularScale": Math.round(rim * 10)
+        };
+    }
+
+    // Change dès qu'un réglage Glass change : déclenche l'écriture (regroupée).
+    readonly property string glassSignature:
+        JSON.stringify([glassManaged, glassKeys()])
+    onGlassSignatureChanged: glassSyncTimer.restart()
+
+    function syncGlassEffect() {
+        if (glassManaged) {
+            glassEffectSettings.apply(glassKeys(), true);
+        }
+    }
+
+    Timer {
+        id: glassSyncTimer
+
+        interval: 400
+        repeat: false
+        onTriggered: root.syncGlassEffect()
+    }
+
+    DockEffects.GlassEffectSettings {
+        id: glassEffectSettings
+    }
+
     // Voyant de l'application active : couleur du thème ou couleur choisie.
     readonly property bool useThemeIndicatorColor:
         Plasmoid.configuration.useThemeIndicatorColor === undefined
@@ -4120,6 +4191,7 @@ PlasmoidItem {
         showHighlight: root.showHighlight
         highlightStrength: root.highlightStrength
         borderStrength: root.borderStrength
+        borderWidth: root.borderWidth
         openDuration: root.appGroupPopupDuration
         openOvershoot: root.appGroupPopupOvershoot
         viewMode: root.appGroupViewMode
@@ -4244,6 +4316,7 @@ PlasmoidItem {
                 anchors.fill: parent
                 anchors.margins: root.surfaceInset
                 borderStrength: root.borderStrength
+                borderWidth: root.borderWidth
                 lightIntensity: root.borderLightIntensity
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
@@ -4816,6 +4889,7 @@ PlasmoidItem {
 
                 z: 0
                 borderStrength: root.borderStrength
+                borderWidth: root.borderWidth
                 wallpaperBlur: root.wallpaperBlur
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator

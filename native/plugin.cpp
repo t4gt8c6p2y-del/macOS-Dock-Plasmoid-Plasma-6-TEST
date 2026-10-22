@@ -1,4 +1,5 @@
 #include "blurregion.h"
+#include "glasseffectsettings.h"
 #include "windowactions.h"
 #include "launcherprogressmonitor.h"
 #include "kdeconnectsharemonitor.h"
@@ -24,6 +25,7 @@ public:
         qmlRegisterType<RemovableVolumesModel>(uri, 1, 0, "RemovableVolumesModel");
         qmlRegisterType<OpenDocumentLocator>(uri, 1, 0, "OpenDocumentLocator");
         qmlRegisterType<WallpaperLocator>(uri, 1, 0, "WallpaperLocator");
+        qmlRegisterType<GlassEffectSettings>(uri, 1, 0, "GlassEffectSettings");
     }
 };
 

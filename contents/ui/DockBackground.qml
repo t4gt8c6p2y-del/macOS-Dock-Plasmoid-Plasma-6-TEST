@@ -1,8 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Shapes
-import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 
 Kirigami.ShadowedRectangle {
@@ -15,8 +13,8 @@ Kirigami.ShadowedRectangle {
     // Ancien réglage de bordure (opacité). Il ne sert plus qu'à déduire la
     // part éclairée tant que borderStrength n'a pas été réglé.
     property real borderOpacity: 0.22
-    // Part de la bordure qui est éclairée : 0 = aucune bordure, 1 = bordure
-    // éclairée sur tout le tour.
+    // Intensité de la bordure : 0 = aucune bordure, 1 = bordure pleine.
+    // (Le nom borderStrength est conservé pour la compatibilité.)
     property real borderStrength: Math.min(1, Math.max(0, borderOpacity / 0.5))
     property real shadowOpacity: 0.42
     // L'ombre portée de ShadowedRectangle est dessinée sous le fond : comme
@@ -112,35 +110,38 @@ Kirigami.ShadowedRectangle {
         }
     }
 
-    // --- Contour éclairé ---------------------------------------------------
-    // Un filet d'un pixel, continu sur tout le tour, comme le bord d'une vitre.
-    // Il est modulé par un masque : un niveau de base (litFloor) partout, plus
-    // une lumière qui suit le pointeur et une seconde, au point opposé, aussi
-    // vive. borderStrength règle la PART du tour qui est éclairée : à 0 il n'y
-    // a plus de bordure, à 1 tout le tour est éclairé uniformément.
+    // --- Bordure ---------------------------------------------------------
+    // La bordure est un simple Rectangle à contour : son opacité est
+    // l'intensité réglée et son épaisseur la largeur réglée. Aucun effet,
+    // aucun masque : le rendu est identique sur toutes les configurations
+    // graphiques et chaque réglage se voit immédiatement.
     //
-    // Le filet est dessiné une fois (géométrie fixe) ; seul le masque bouge,
-    // ce qui est très léger pour le GPU : la lumière suit la souris en
-    // continu, sans attendre qu'elle s'arrête. Sa couleur est celle du fond
-    // d'écran derrière le Dock (voir tintColor).
+    // La lumière qui suit le pointeur est dessinée à part (lightCanvas) par-
+    // dessus ; si elle ne pouvait pas s'afficher, la bordure resterait visible.
+    //
     // Intensité de la lumière qui suit le pointeur : 0 = aucune lumière,
-    // 1 = rendu d'origine, 2 = le double. À 0 les reflets ne sont pas dessinés.
+    // 1 = rendu d'origine, 2 = le double.
     property real lightIntensity: 1.0
+    // Largeur de la bordure en pixels.
+    property real borderWidth: 1.0
 
-    readonly property real ringThickness: 1.0
-    readonly property real litShare: Math.min(1, Math.max(0, borderStrength))
-    readonly property real perimeter: 2 * (width + height)
-    // Étalement de la lumière : plus la part éclairée est grande, plus elle
-    // couvre de bordure.
-    readonly property real taper: Math.max(1, litShare * perimeter / 5.5)
-    readonly property real lightRadius: Math.max(8, 3 * taper)
-    // Niveau de base de la bordure : très discret, puis il monte jusqu'à 1
-    // (bordure uniforme) quand la part éclairée approche 100 %.
-    readonly property real litFloor: 0.15 * litShare
-        + 0.85 * Math.pow(litShare, 8)
-    // Les reflets dépassent le niveau de base : 0,7 à 100 % d'intensité.
+    readonly property real borderIntensity:
+        Math.min(1, Math.max(0, borderStrength))
+    readonly property real ringWidth: Math.min(6, Math.max(0.25, borderWidth))
+    readonly property bool ringVisible:
+        borderIntensity > 0.001 && borderWidth > 0.01
+    // 100 % = bordure presque opaque ; 0 % = aucune bordure.
+    readonly property real ringAlpha: 0.9 * borderIntensity
+    readonly property color ringColor: tintKnown ? tintColor : "white"
+
+    // La lumière : un halo qui glisse le long de la bordure.
+    readonly property real lightRadius:
+        Math.max(80, Math.min(0.4 * width, 300))
     readonly property bool lightEnabled: lightIntensity > 0.001
-    readonly property real lightGain: 0.7 * lightIntensity
+    // Opacité maximale de la lumière : elle suit aussi l'intensité de la
+    // bordure pour qu'une bordure très discrète le reste.
+    readonly property real lightGain:
+        0.7 * lightIntensity * (0.3 + 0.7 * borderIntensity)
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
 
@@ -158,35 +159,6 @@ Kirigami.ShadowedRectangle {
     readonly property real primaryY: restY + (lightY - restY) * fadeValue
     readonly property real secondaryX: width - primaryX
     readonly property real secondaryY: height - primaryY
-
-    function roundedRectPath(x, y, w, h, r) {
-        r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-        if (r < 0.01) {
-            return "M" + x + "," + y + " H" + (x + w) + " V" + (y + h)
-                + " H" + x + " Z";
-        }
-        return "M" + (x + r) + "," + y
-            + " H" + (x + w - r)
-            + " A" + r + "," + r + " 0 0 1 " + (x + w) + "," + (y + r)
-            + " V" + (y + h - r)
-            + " A" + r + "," + r + " 0 0 1 " + (x + w - r) + "," + (y + h)
-            + " H" + (x + r)
-            + " A" + r + "," + r + " 0 0 1 " + x + "," + (y + h - r)
-            + " V" + (y + r)
-            + " A" + r + "," + r + " 0 0 1 " + (x + r) + "," + y + " Z";
-    }
-
-    readonly property string ringPath: width > 4 && height > 4
-        ? roundedRectPath(0, 0, width, height, radius) + " "
-            + roundedRectPath(ringThickness, ringThickness,
-                width - 2 * ringThickness, height - 2 * ringThickness,
-                radius - ringThickness)
-        : ""
-
-    // Chute de la lumière : exp(-3 d), d allant de 0 (centre) à 1 (bord).
-    function lightAlpha(position, strength) {
-        return Math.min(1, strength * Math.exp(-3 * position));
-    }
 
     // --- Teinte de la bordure -------------------------------------------------
     // Couleur moyenne du fond d'écran derrière le Dock, ramenée à pleine
@@ -239,173 +211,108 @@ Kirigami.ShadowedRectangle {
     onBackdropOriginChanged: tintTimer.restart()
     Component.onCompleted: tintTimer.restart()
 
-    Item {
-        id: glow
+    Rectangle {
+        id: ringRectangle
 
         anchors.fill: parent
-        visible: background.litShare > 0.001
+        visible: background.ringVisible
+        color: "transparent"
+        radius: background.radius
+        border.width: background.ringWidth
+        border.color: Qt.rgba(background.ringColor.r, background.ringColor.g,
+            background.ringColor.b, background.ringAlpha)
+    }
 
-        // Le filet : blanc, opaque, jamais affiché tel quel.
-        Item {
-            id: ringSource
+    Canvas {
+        id: lightCanvas
 
-            anchors.fill: parent
-            layer.enabled: true
-            visible: false
+        anchors.fill: parent
+        visible: background.ringVisible && background.lightEnabled
+        renderTarget: Canvas.Image
+        renderStrategy: Canvas.Cooperative
 
-            Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
+        readonly property real pixelRatio: Math.max(1, Screen.devicePixelRatio)
+        canvasSize: Qt.size(Math.max(1, Math.round(width * pixelRatio)),
+            Math.max(1, Math.round(height * pixelRatio)))
 
-                ShapePath {
-                    fillRule: ShapePath.OddEvenFill
-                    fillColor: "white"
-                    strokeWidth: -1
-                    strokeColor: "transparent"
+        // Tout ce qui change l'aspect de la lumière : un seul signal pour
+        // redessiner.
+        readonly property string paintKey: [
+            background.primaryX.toFixed(1), background.primaryY.toFixed(1),
+            background.lightGain.toFixed(3), background.ringWidth.toFixed(2),
+            background.radius.toFixed(1), background.lightRadius.toFixed(1),
+            String(background.ringColor)
+        ].join("|")
 
-                    PathSvg {
-                        path: background.ringPath
-                    }
-                }
+        onPaintKeyChanged: requestPaint()
+        onCanvasSizeChanged: requestPaint()
+        onVisibleChanged: {
+            if (visible) {
+                requestPaint();
             }
         }
+        Component.onCompleted: requestPaint()
 
-        // Le masque : niveau de base + deux lumières.
-        Item {
-            id: lightMask
-
-            anchors.fill: parent
-            layer.enabled: true
-            visible: false
-
-            Rectangle {
-                anchors.fill: parent
-                color: Qt.rgba(1, 1, 1, background.litFloor)
+        function roundedPath(ctx, x, y, w, h, r) {
+            r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+            ctx.beginPath();
+            if (r < 0.01) {
+                ctx.rect(x, y, w, h);
+                return;
             }
-
-            Shape {
-                visible: background.lightEnabled
-                x: background.primaryX - background.lightRadius
-                y: background.primaryY - background.lightRadius
-                width: 2 * background.lightRadius
-                height: 2 * background.lightRadius
-
-                ShapePath {
-                    strokeWidth: -1
-                    strokeColor: "transparent"
-
-                    fillGradient: RadialGradient {
-                        centerX: background.lightRadius
-                        centerY: background.lightRadius
-                        centerRadius: background.lightRadius
-                        focalX: background.lightRadius
-                        focalY: background.lightRadius
-
-                        GradientStop {
-                            position: 0.0
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.0, background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.1
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.1, background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.22
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.22, background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.4
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.4, background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.65
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.65, background.lightGain))
-                        }
-                        GradientStop {
-                            position: 1.0
-                            color: Qt.rgba(1, 1, 1, 0)
-                        }
-                    }
-
-                    PathSvg {
-                        path: "M0,0 H" + (2 * background.lightRadius)
-                            + " V" + (2 * background.lightRadius) + " H0 Z"
-                    }
-                }
-            }
-
-            Shape {
-                visible: background.lightEnabled
-                x: background.secondaryX - background.lightRadius
-                y: background.secondaryY - background.lightRadius
-                width: 2 * background.lightRadius
-                height: 2 * background.lightRadius
-
-                ShapePath {
-                    strokeWidth: -1
-                    strokeColor: "transparent"
-
-                    fillGradient: RadialGradient {
-                        centerX: background.lightRadius
-                        centerY: background.lightRadius
-                        centerRadius: background.lightRadius
-                        focalX: background.lightRadius
-                        focalY: background.lightRadius
-
-                        GradientStop {
-                            position: 0.0
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.0, 0.9 * background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.1
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.1, 0.9 * background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.22
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.22, 0.9 * background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.4
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.4, 0.9 * background.lightGain))
-                        }
-                        GradientStop {
-                            position: 0.65
-                            color: Qt.rgba(1, 1, 1, background.lightAlpha(
-                                0.65, 0.9 * background.lightGain))
-                        }
-                        GradientStop {
-                            position: 1.0
-                            color: Qt.rgba(1, 1, 1, 0)
-                        }
-                    }
-
-                    PathSvg {
-                        path: "M0,0 H" + (2 * background.lightRadius)
-                            + " V" + (2 * background.lightRadius) + " H0 Z"
-                    }
-                }
-            }
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
+            ctx.lineTo(x + r, y + h);
+            ctx.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
+            ctx.lineTo(x, y + r);
+            ctx.arc(x + r, y + r, r, Math.PI, 1.5 * Math.PI, false);
+            ctx.closePath();
         }
 
-        MultiEffect {
-            anchors.fill: parent
-            source: ringSource
-            autoPaddingEnabled: false
-            maskEnabled: true
-            maskSource: lightMask
-            maskThresholdMin: 0.0
-            maskSpreadAtMin: 1.0
-            colorization: background.tintKnown ? 1.0 : 0.0
-            colorizationColor: background.tintColor
+        function strokeLight(ctx, cx, cy, peak) {
+            var color = background.ringColor;
+            var red = Math.round(color.r * 255);
+            var green = Math.round(color.g * 255);
+            var blue = Math.round(color.b * 255);
+            var radius = background.lightRadius;
+            var gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+            var positions = [0, 0.1, 0.22, 0.4, 0.65, 1];
+            for (var i = 0; i < positions.length; ++i) {
+                var p = positions[i];
+                // Chute de la lumière : exp(-3 d), d allant de 0 (centre)
+                // à 1 (bord du halo, où elle s'éteint).
+                var alpha = p >= 1 ? 0 : Math.min(1, peak * Math.exp(-3 * p));
+                gradient.addColorStop(p, "rgba(" + red + "," + green + ","
+                    + blue + "," + alpha.toFixed(3) + ")");
+            }
+            var half = background.ringWidth / 2;
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = background.ringWidth;
+            roundedPath(ctx, half, half, background.width - 2 * half,
+                background.height - 2 * half, background.radius - half);
+            ctx.stroke();
+        }
+
+        onPaint: {
+            var ctx = getContext("2d");
+            if (!ctx) {
+                return;
+            }
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
+            if (!background.ringVisible || !background.lightEnabled
+                    || width < 4 || height < 4) {
+                return;
+            }
+            var scale = canvasSize.width / width;
+            ctx.scale(scale, scale);
+            strokeLight(ctx, background.primaryX, background.primaryY,
+                background.lightGain);
+            strokeLight(ctx, background.secondaryX, background.secondaryY,
+                0.9 * background.lightGain);
         }
     }
 }
