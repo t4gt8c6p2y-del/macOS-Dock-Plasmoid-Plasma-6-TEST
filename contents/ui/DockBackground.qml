@@ -145,8 +145,12 @@ Kirigami.ShadowedRectangle {
     readonly property real lightRadius:
         Math.max(80, Math.min(0.4 * width, 300))
     readonly property bool lightEnabled: lightIntensity > 0.001
-    readonly property real lightPeak: lightEnabled
-        ? Math.min(1, 0.8 * lightIntensity) : 0
+    // La lumière appartient à la bordure : à 0 % d'intensité, plus rien
+    // n'est dessiné (ni côtés, ni angles).
+    readonly property real lightPeak: lightEnabled && borderIntensity > 0.001
+        ? Math.min(1, 0.8 * lightIntensity
+            * Math.min(1, 0.35 + 0.65 * borderIntensity))
+        : 0
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
 
@@ -218,8 +222,8 @@ Kirigami.ShadowedRectangle {
                 result.push(Qt.rgba(1, 1, 1, 1));
             } else {
                 var k = 1 / peak;
-                result.push(Qt.rgba(c.r * k * 0.72 + 0.28,
-                    c.g * k * 0.72 + 0.28, c.b * k * 0.72 + 0.28, 1));
+                result.push(Qt.rgba(c.r * k * 0.85 + 0.15,
+                    c.g * k * 0.85 + 0.15, c.b * k * 0.85 + 0.15, 1));
             }
         }
         edgeColors = result;
@@ -237,6 +241,10 @@ Kirigami.ShadowedRectangle {
     onWallpaperInfoChanged: tintTimer.restart()
     onColorSamplerChanged: tintTimer.restart()
     onBackdropOriginChanged: tintTimer.restart()
+    // Le Dock grandit quand on ajoute des icônes : les zones de couleur
+    // doivent suivre sa largeur actuelle, pas celle du démarrage.
+    onWidthChanged: tintTimer.restart()
+    onHeightChanged: tintTimer.restart()
     onColorFromWallpaperChanged: refreshTint()
     Component.onCompleted: tintTimer.restart()
 

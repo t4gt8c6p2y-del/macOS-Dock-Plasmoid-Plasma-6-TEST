@@ -921,3 +921,11 @@ msgstr "Der Glass-Effekt ist in KWin nicht geladen. Installieren Sie den Effekt 
 #: contents/ui/GlassStatus.qml
 msgid "Check again"
 msgstr "Erneut prüfen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, and follows what moves behind it. 0 % turns the blur off. KWin has a single blur strength for the whole desktop: with the standard blur it also changes panels and other blurred windows; with Liquid Glass it applies to docks only."
+msgstr "Macht alles hinter dem Dock unscharf, auch Fenster, und folgt dem, was sich dahinter bewegt. 0 % schaltet die Unschärfe aus. KWin hat nur eine Unschärfestärke für den ganzen Desktop: Beim Standard-Weichzeichner ändert sie auch Leisten und andere unscharfe Fenster; mit Liquid Glass gilt sie nur für Docks."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, which must be installed) and the Dock bends what is behind it like glass, without any tint. Unchecked: KWin uses its standard blur, a plain blur. The effect is chosen for the whole desktop. The blur intensity is set in the Appearance tab. The settings below are applied when a value changes; they are global to the effect (panels and menus too) and start from the defaults of the liquid-glass-kde project."
+msgstr "Aktiviert: KWin verwendet den Effekt „Glass“ (Projekt liquid-glass-kde, muss installiert sein) und das Dock verzerrt das Dahinterliegende wie Glas, ohne Tönung. Deaktiviert: KWin verwendet seinen Standard-Weichzeichner, eine einfache Unschärfe. Der Effekt gilt für den ganzen Desktop. Die Stärke der Unschärfe wird im Reiter Darstellung eingestellt. Die Einstellungen unten werden angewendet, sobald sich ein Wert ändert; sie gelten global für den Effekt (auch für Leisten und Menüs) und beginnen mit den Standardwerten des Projekts liquid-glass-kde."

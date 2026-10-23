@@ -42,6 +42,21 @@ bool isLoaded(QDBusInterface &effects, const QString &name)
     return reply.isValid() && reply.value();
 }
 
+// Mémorise dans kwinrc quel effet est activé (pris en compte au prochain
+// démarrage de KWin).
+void writePluginState(const QString &effect)
+{
+    const QString other = effect == glassEffect ? blurEffect : glassEffect;
+    const auto write = [](const QString &key, const QString &value) {
+        QProcess::startDetached(QStringLiteral("kwriteconfig6"),
+                                {QStringLiteral("--file"), QStringLiteral("kwinrc"),
+                                 QStringLiteral("--group"), QStringLiteral("Plugins"),
+                                 QStringLiteral("--key"), key, value});
+    };
+    write(effect + QStringLiteral("Enabled"), QStringLiteral("true"));
+    write(other + QStringLiteral("Enabled"), QStringLiteral("false"));
+}
+
 } // namespace
 
 GlassEffectSettings::GlassEffectSettings(QObject *parent)
@@ -56,30 +71,37 @@ bool GlassEffectSettings::glassLoaded() const
     return effects.isValid() && isLoaded(effects, glassEffect);
 }
 
-void GlassEffectSettings::apply(const QVariantMap &keys, bool ensureGlassLoaded)
+void GlassEffectSettings::apply(const QString &effect, const QVariantMap &keys)
 {
+    if (effect != glassEffect && effect != blurEffect) {
+        return;
+    }
     if (m_process) {
         // Une écriture est en cours : on ne garde que la dernière demande.
+        m_pendingEffect = effect;
         m_pendingKeys = keys;
-        m_pendingEnsure = ensureGlassLoaded;
         m_hasPending = true;
         return;
     }
-    start(keys, ensureGlassLoaded);
+    start(effect, keys);
 }
 
-void GlassEffectSettings::start(const QVariantMap &keys, bool ensureGlassLoaded)
+void GlassEffectSettings::start(const QString &effect, const QVariantMap &keys)
 {
     static const QRegularExpression validKey(QStringLiteral("^[A-Za-z0-9]+$"));
 
-    // Les paires clé/valeur sont passées comme arguments au script : rien
-    // n'est interprété par le shell, aucun échappement n'est nécessaire.
+    const QString group = effect == glassEffect ? QStringLiteral("Effect-blurplus")
+                                                : QStringLiteral("Effect-blur");
+
+    // Le groupe puis les paires clé/valeur sont passés comme arguments au
+    // script : rien n'est interprété par le shell, aucun échappement n'est
+    // nécessaire.
     QStringList arguments;
     arguments << QStringLiteral("-c")
-              << QStringLiteral("while [ $# -ge 2 ]; do "
-                                "kwriteconfig6 --file kwinrc --group Effect-blurplus "
+              << QStringLiteral("group=\"$1\"; shift; while [ $# -ge 2 ]; do "
+                                "kwriteconfig6 --file kwinrc --group \"$group\" "
                                 "--key \"$1\" \"$2\"; shift 2; done")
-              << QStringLiteral("sh");
+              << QStringLiteral("sh") << group;
     for (auto it = keys.cbegin(); it != keys.cend(); ++it) {
         const QString value = configValue(it.value());
         if (!validKey.match(it.key()).hasMatch() || value.isEmpty()) {
@@ -90,17 +112,17 @@ void GlassEffectSettings::start(const QVariantMap &keys, bool ensureGlassLoaded)
 
     m_process = new QProcess(this);
     connect(m_process, &QProcess::finished, this,
-            [this, ensureGlassLoaded](int exitCode, QProcess::ExitStatus) {
+            [this, effect](int exitCode, QProcess::ExitStatus) {
                 if (exitCode != 0) {
                     qWarning() << "GlassEffectSettings : kwriteconfig6 a échoué, code" << exitCode
                                << m_process->readAllStandardError();
                 }
                 m_process->deleteLater();
                 m_process = nullptr;
-                finish(ensureGlassLoaded);
+                finish(effect);
                 if (m_hasPending) {
                     m_hasPending = false;
-                    start(m_pendingKeys, m_pendingEnsure);
+                    start(m_pendingEffect, m_pendingKeys);
                 }
             });
     connect(m_process, &QProcess::errorOccurred, this,
@@ -117,7 +139,7 @@ void GlassEffectSettings::start(const QVariantMap &keys, bool ensureGlassLoaded)
     m_process->start(QStringLiteral("sh"), arguments);
 }
 
-void GlassEffectSettings::finish(bool ensureGlassLoaded)
+void GlassEffectSettings::finish(const QString &effect)
 {
     QDBusInterface effects(kwinService, effectsPath, effectsInterface,
                            QDBusConnection::sessionBus());
@@ -126,28 +148,21 @@ void GlassEffectSettings::finish(bool ensureGlassLoaded)
         return;
     }
 
-    if (ensureGlassLoaded && !isLoaded(effects, glassEffect)) {
-        // L'effet Glass remplace le flou standard (les deux ne vont pas
-        // ensemble). S'il n'est pas installé, on rétablit le flou standard.
-        effects.call(QStringLiteral("unloadEffect"), blurEffect);
-        const QDBusReply<bool> loaded = effects.call(QStringLiteral("loadEffect"), glassEffect);
+    if (!isLoaded(effects, effect)) {
+        // Un seul des deux effets de flou doit être chargé : l'autre est
+        // déchargé. Si le nouveau ne peut pas être chargé (Glass pas
+        // installé, par exemple), on rétablit l'autre.
+        const QString other = effect == glassEffect ? blurEffect : glassEffect;
+        effects.call(QStringLiteral("unloadEffect"), other);
+        const QDBusReply<bool> loaded = effects.call(QStringLiteral("loadEffect"), effect);
         if (!loaded.isValid() || !loaded.value()) {
-            qWarning() << "GlassEffectSettings : l'effet Glass n'a pas pu être chargé "
-                          "(installé ? compatible avec cette version de KWin ?), flou standard rétabli";
-            effects.call(QStringLiteral("loadEffect"), blurEffect);
+            qWarning() << "GlassEffectSettings : l'effet" << effect
+                       << "n'a pas pu être chargé (installé ? compatible avec cette version de KWin ?)";
+            effects.call(QStringLiteral("loadEffect"), other);
             return;
         }
-        QProcess::startDetached(QStringLiteral("kwriteconfig6"),
-                                {QStringLiteral("--file"), QStringLiteral("kwinrc"),
-                                 QStringLiteral("--group"), QStringLiteral("Plugins"),
-                                 QStringLiteral("--key"), QStringLiteral("glassEnabled"),
-                                 QStringLiteral("true")});
-        QProcess::startDetached(QStringLiteral("kwriteconfig6"),
-                                {QStringLiteral("--file"), QStringLiteral("kwinrc"),
-                                 QStringLiteral("--group"), QStringLiteral("Plugins"),
-                                 QStringLiteral("--key"), QStringLiteral("blurEnabled"),
-                                 QStringLiteral("false")});
+        writePluginState(effect);
     }
 
-    effects.call(QDBus::NoBlock, QStringLiteral("reconfigureEffect"), glassEffect);
+    effects.call(QDBus::NoBlock, QStringLiteral("reconfigureEffect"), effect);
 }

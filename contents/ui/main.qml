@@ -96,19 +96,21 @@ PlasmoidItem {
     readonly property real borderWidth: boundedNumber(
         Plasmoid.configuration.borderWidth, 1.0, 0.5, 4)
 
-    // --- Flou et Liquid Glass (effet KWin « Glass ») -----------------------
-    // Le flou derrière le Dock est fait par KWin. L'effet « Glass » (projet
-    // liquid-glass-kde) a des réglages propres aux docks : la force du flou
-    // (DockBlurStrength, 1 à 15) suit le curseur « Intensité du flou », et la
-    // réfraction du verre sur les docks (RefractionExcludeDocks) suit la case
-    // « Liquid Glass ». Sans elle, le Dock a un flou simple.
-    //
-    // Les valeurs sont écrites dans kwinrc quand un réglage change, et une
-    // fois au premier lancement après la mise à jour (glassMigrated).
+    // --- Flou et Liquid Glass (effets KWin) -----------------------------------
+    // Seul KWin peut flouter ce qui est derrière le Dock (les fenêtres qui
+    // bougent comprises) : un composant graphique ne voit pas les autres
+    // fenêtres. Deux effets KWin sont possibles :
+    //  - Liquid Glass décoché : le flou standard de KWin, un vrai flou.
+    //  - Liquid Glass coché : l'effet « Glass » (projet liquid-glass-kde), avec
+    //    la réfraction du verre sur le Dock et sans teinte (ExcludeDocks).
+    // Le curseur « Flou de l'arrière-plan » règle la force (1 à 15). Les
+    // valeurs sont écrites dans kwinrc quand un réglage change, jamais au
+    // démarrage.
     readonly property bool liquidGlass:
         Boolean(Plasmoid.configuration.glassManage)
     readonly property bool blurEnabled:
         wallpaperBlur > 0.001 || liquidGlass
+    readonly property string blurEffectName: liquidGlass ? "glass" : "blur"
     readonly property bool borderColorFromWallpaper:
         Plasmoid.configuration.borderColorFromWallpaper === undefined
             ? true : Boolean(Plasmoid.configuration.borderColorFromWallpaper)
@@ -119,50 +121,45 @@ PlasmoidItem {
         // 0 %) -> force 1, quasi net comme dans le projet liquid-glass-kde.
         var strength = wallpaperBlur > 0.001
             ? Math.round(1 + wallpaperBlur * 14) : 1;
-        var keys = {
+        if (!liquidGlass) {
+            return { "BlurStrength": strength };
+        }
+        var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
+        var thickness = Math.round(boundedNumber(
+            cfg.glassThickness, 14, 4, 120));
+        var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
+        var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
+        var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
+        var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
+        // Échelles de l'effet (voir docs/DESIGN.md du projet liquid-glass-kde) :
+        // force = (IOR - 1) x 20, épaisseur en dizaines de pixels, franges =
+        // dispersion x 20, profil x 2, biseau x 10.
+        return {
             "BlurDocks": true,
             "DockBlurStrength": strength,
-            "DockBlurFinetune": Math.round(boundedNumber(
-                cfg.glassBlurFinetune, 5, 0, 10)),
-            "DockNoiseStrength": Math.round(boundedNumber(
-                cfg.glassNoise, 0, 0, 20)),
-            "RefractionExcludeDocks": !liquidGlass
+            // Pas de teinte (ni d'opacité colorée) sur le Dock.
+            "ExcludeDocks": true,
+            "RefractionExcludeDocks": false,
+            "PhysicallyBasedRefraction": true,
+            "RefractionStrength": Math.round((ior - 1) * 2000) / 100,
+            "RefractionEdgeSize": thickness / 10,
+            "RefractionBevelIntensity": Math.round(bevel * 10),
+            "RefractionRGBFringing": Math.round(dispersion * 2000) / 100,
+            "RefractionNormalPow": Math.round(normalPower * 200) / 100,
+            "RefractionEdgeBlur": Math.round(boundedNumber(
+                cfg.glassEdgeBlur, 10, 0, 60)),
+            "RimSpecularScale": Math.round(rim * 10)
         };
-        if (liquidGlass) {
-            var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
-            var thickness = Math.round(boundedNumber(
-                cfg.glassThickness, 14, 4, 120));
-            var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
-            var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
-            var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
-            var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
-            // Échelles de l'effet (voir docs/DESIGN.md du projet
-            // liquid-glass-kde) : force = (IOR - 1) x 20, épaisseur en
-            // dizaines de pixels, franges = dispersion x 20, profil x 2,
-            // biseau x 10.
-            keys["PhysicallyBasedRefraction"] = true;
-            keys["RefractionStrength"] = Math.round((ior - 1) * 2000) / 100;
-            keys["RefractionEdgeSize"] = thickness / 10;
-            keys["RefractionBevelIntensity"] = Math.round(bevel * 10);
-            keys["RefractionRGBFringing"] = Math.round(dispersion * 2000) / 100;
-            keys["RefractionNormalPow"] = Math.round(normalPower * 200) / 100;
-            keys["RefractionEdgeBlur"] = Math.round(boundedNumber(
-                cfg.glassEdgeBlur, 10, 0, 60));
-            keys["RimSpecularScale"] = Math.round(rim * 10);
-        }
-        return keys;
     }
 
     // Change dès qu'un réglage de flou ou de verre change.
     readonly property string glassSignature:
-        JSON.stringify([blurEnabled, liquidGlass, glassKeys()])
+        JSON.stringify([blurEnabled, blurEffectName, glassKeys()])
     onGlassSignatureChanged: glassSyncTimer.restart()
 
     function syncGlassEffect() {
         if (blurEnabled) {
-            // L'effet Glass n'est chargé à la place du flou standard que si
-            // le Liquid Glass est demandé.
-            glassEffectSettings.apply(glassKeys(), liquidGlass);
+            glassEffectSettings.apply(blurEffectName, glassKeys());
         }
     }
 
@@ -172,21 +169,6 @@ PlasmoidItem {
         interval: 400
         repeat: false
         onTriggered: root.syncGlassEffect()
-    }
-
-    // Première application après la mise à jour : le flou du Dock prend tout
-    // de suite la force réglée (et perd la réfraction si le Liquid Glass n'est
-    // pas coché), sans attendre un changement de réglage.
-    Timer {
-        interval: 6000
-        repeat: false
-        running: true
-        onTriggered: {
-            if (!Plasmoid.configuration.glassMigrated) {
-                Plasmoid.configuration.glassMigrated = true;
-                root.syncGlassEffect();
-            }
-        }
     }
 
     DockEffects.GlassEffectSettings {

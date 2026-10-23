@@ -923,3 +923,11 @@ msgstr "L’effet Glass n’est pas chargé dans KWin. Installez l’effet liqui
 #: contents/ui/GlassStatus.qml
 msgid "Check again"
 msgstr "Vérifier à nouveau"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Blurs everything behind the Dock, windows included, and follows what moves behind it. 0 % turns the blur off. KWin has a single blur strength for the whole desktop: with the standard blur it also changes panels and other blurred windows; with Liquid Glass it applies to docks only."
+msgstr "Floute tout ce qui se trouve derrière le Dock, fenêtres comprises, et suit ce qui bouge derrière. 0 % désactive le flou. KWin n’a qu’une seule force de flou pour tout le bureau : avec le flou standard, elle change aussi les panneaux et les autres fenêtres floutées ; avec Liquid Glass, elle ne concerne que les docks."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, which must be installed) and the Dock bends what is behind it like glass, without any tint. Unchecked: KWin uses its standard blur, a plain blur. The effect is chosen for the whole desktop. The blur intensity is set in the Appearance tab. The settings below are applied when a value changes; they are global to the effect (panels and menus too) and start from the defaults of the liquid-glass-kde project."
+msgstr "Cochée : KWin utilise l’effet « Glass » (le projet liquid-glass-kde, qui doit être installé) et le Dock déforme ce qui est derrière lui comme du verre, sans aucune teinte. Décochée : KWin utilise son flou standard, un flou simple. L’effet est choisi pour tout le bureau. L’intensité du flou se règle dans l’onglet Apparence. Les réglages ci-dessous sont appliqués quand une valeur change ; ils sont globaux à l’effet (panneaux et menus compris) et partent des valeurs par défaut du projet liquid-glass-kde."

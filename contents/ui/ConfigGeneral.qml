@@ -31,8 +31,6 @@ KCM.SimpleKCM {
     property alias cfg_borderWidth: borderWidthSlider.value
     // Onglet Glass (effet KWin Glass).
     property alias cfg_glassManage: glassManageCheckBox.checked
-    property alias cfg_glassBlurFinetune: glassBlurFinetuneSlider.value
-    property alias cfg_glassNoise: glassNoiseSlider.value
     property alias cfg_glassThickness: glassThicknessSlider.value
     property alias cfg_glassIor: glassIorSlider.value
     property alias cfg_glassBevel: glassBevelSlider.value
@@ -124,8 +122,6 @@ KCM.SimpleKCM {
     property real cfg_borderWidthDefault: 1.0
     property bool cfg_glassManageDefault: false
     property bool cfg_borderColorFromWallpaperDefault: true
-    property int cfg_glassBlurFinetuneDefault: 5
-    property int cfg_glassNoiseDefault: 0
     property int cfg_glassThicknessDefault: 14
     property real cfg_glassIorDefault: 2.0
     property real cfg_glassBevelDefault: 3.4
@@ -189,7 +185,6 @@ KCM.SimpleKCM {
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
         "borderStrength": [0, 1], "borderLightIntensity": [0, 2],
         "borderWidth": [0.5, 4],
-        "glassBlurFinetune": [0, 10], "glassNoise": [0, 20],
         "glassThickness": [4, 120], "glassIor": [1, 2.5],
         "glassBevel": [0.5, 10], "glassDispersion": [0, 1],
         "glassNormalPower": [0.5, 4], "glassEdgeBlur": [0, 60],
@@ -680,7 +675,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Blurs everything behind the Dock, windows included. 0 % turns the blur off. The strength is set through the KWin “Glass” effect (liquid-glass-kde), for docks only; with KWin's standard blur it is only on or off.")
+                    text: i18n("Blurs everything behind the Dock, windows included, and follows what moves behind it. 0 % turns the blur off. KWin has a single blur strength for the whole desktop: with the standard blur it also changes panels and other blurred windows; with Liquid Glass it applies to docks only.")
                     opacity: 0.78
                 }
 
@@ -803,7 +798,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Uses the KWin “Glass” effect (the liquid-glass-kde project), which must be installed. When this box is unchecked the Dock has a plain blur, without refraction. The blur intensity is set in the Appearance tab. The settings below are applied to KWin when a value changes; they are global to the effect (panels and menus too), and start from the defaults of the liquid-glass-kde project.")
+                    text: i18n("Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, which must be installed) and the Dock bends what is behind it like glass, without any tint. Unchecked: KWin uses its standard blur, a plain blur. The effect is chosen for the whole desktop. The blur intensity is set in the Appearance tab. The settings below are applied when a value changes; they are global to the effect (panels and menus too) and start from the defaults of the liquid-glass-kde project.")
                     opacity: 0.78
                 }
 
@@ -811,54 +806,6 @@ KCM.SimpleKCM {
                     Kirigami.FormData.label: i18n("KWin effect:")
                     Layout.fillWidth: true
                     source: "GlassStatus.qml"
-                }
-
-                Kirigami.Separator {
-                    Kirigami.FormData.isSection: true
-                    Kirigami.FormData.label: i18n("Blur")
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Blur fineness:")
-                    enabled: true
-
-                    QQC2.Slider {
-                        id: glassBlurFinetuneSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 10
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(glassBlurFinetuneSlider.value)
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Grain:")
-                    enabled: true
-
-                    QQC2.Slider {
-                        id: glassNoiseSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 20
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(glassNoiseSlider.value)
-                    }
-                }
-
-                QQC2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    text: i18n("The fineness and the grain apply to docks only.")
-                    opacity: 0.78
                 }
 
                 Kirigami.Separator {
