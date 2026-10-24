@@ -29,14 +29,12 @@ KCM.SimpleKCM {
     property real cfg_borderOpacity: 0.22
     property real cfg_borderStrength: -1
     property alias cfg_borderWidth: borderWidthSlider.value
-    // Onglet Glass (effet KWin Glass).
+    // Onglet Glass (Liquid Glass dessiné par le Dock).
     property alias cfg_glassManage: glassManageCheckBox.checked
     property alias cfg_glassThickness: glassThicknessSlider.value
-    property alias cfg_glassIor: glassIorSlider.value
-    property alias cfg_glassBevel: glassBevelSlider.value
+    property alias cfg_glassStrength: glassStrengthSlider.value
+    property alias cfg_glassProfile: glassProfileSlider.value
     property alias cfg_glassDispersion: glassDispersionSlider.value
-    property alias cfg_glassNormalPower: glassNormalPowerSlider.value
-    property alias cfg_glassEdgeBlur: glassEdgeBlurSlider.value
     property alias cfg_glassRimStrength: glassRimStrengthSlider.value
     // Intensité du flou de l'arrière-plan : 0 = désactivé, 1 = maximum.
     property alias cfg_wallpaperBlur: wallpaperBlurSlider.value
@@ -122,12 +120,10 @@ KCM.SimpleKCM {
     property real cfg_borderWidthDefault: 1.0
     property bool cfg_glassManageDefault: false
     property bool cfg_borderColorFromWallpaperDefault: true
-    property int cfg_glassThicknessDefault: 14
-    property real cfg_glassIorDefault: 2.0
-    property real cfg_glassBevelDefault: 3.4
+    property int cfg_glassThicknessDefault: 16
+    property real cfg_glassStrengthDefault: 1.0
+    property real cfg_glassProfileDefault: 1.0
     property real cfg_glassDispersionDefault: 0.25
-    property real cfg_glassNormalPowerDefault: 1.0
-    property int cfg_glassEdgeBlurDefault: 10
     property real cfg_glassRimStrengthDefault: 1.0
     property real cfg_wallpaperBlurDefault: 0
     property string cfg_wallpaperBlurImageDefault: ""
@@ -185,9 +181,8 @@ KCM.SimpleKCM {
         "backgroundOpacity": [0.15, 1], "cornerRadius": [0, 48],
         "borderStrength": [0, 1], "borderLightIntensity": [0, 2],
         "borderWidth": [0.5, 4],
-        "glassThickness": [4, 120], "glassIor": [1, 2.5],
-        "glassBevel": [0.5, 10], "glassDispersion": [0, 1],
-        "glassNormalPower": [0.5, 4], "glassEdgeBlur": [0, 60],
+        "glassThickness": [4, 60], "glassStrength": [0, 2],
+        "glassProfile": [0.5, 3], "glassDispersion": [0, 1],
         "glassRimStrength": [0, 2],
         "wallpaperBlur": [0, 1],
         "shadowOpacity": [0, 0.7],
@@ -675,7 +670,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Blurs everything behind the Dock, windows included, and follows what moves behind it. 0 % turns the blur off. KWin has a single blur strength for the whole desktop: with the standard blur it also changes panels and other blurred windows; with Liquid Glass it applies to docks only.")
+                    text: i18n("Blurs the wallpaper behind the Dock; the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used. Windows placed behind the Dock are not shown through it.")
                     opacity: 0.78
                 }
 
@@ -689,7 +684,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("If the border stays white, choose the wallpaper image yourself below.")
+                    text: i18n("If the border stays white, check the detected wallpaper below or choose the image yourself.")
                     opacity: 0.78
                 }
 
@@ -725,6 +720,15 @@ KCM.SimpleKCM {
                     nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.avif)")]
                     onAccepted: wallpaperBlurImageField.text =
                         String(selectedFile)
+                }
+
+                Loader {
+                    Kirigami.FormData.label: i18n("Detected wallpaper:")
+                    Layout.fillWidth: true
+                    source: "WallpaperStatus.qml"
+                    onLoaded: item.manualImage = Qt.binding(function() {
+                        return wallpaperBlurImageField.text;
+                    })
                 }
 
                 RowLayout {
@@ -785,27 +789,21 @@ KCM.SimpleKCM {
             }
 
             // ---------------------------------------------------------------
-            // Onglet Glass : Liquid Glass sur le Dock et réglages du flou
+            // Onglet Glass : Liquid Glass dessiné par le Dock
             // ---------------------------------------------------------------
             Kirigami.FormLayout {
                 QQC2.CheckBox {
                     id: glassManageCheckBox
 
                     Kirigami.FormData.label: i18n("Liquid Glass:")
-                    text: i18n("Bend what is behind the Dock edges, like glass")
+                    text: i18n("Bend the wallpaper at the Dock edges, like glass")
                 }
 
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, which must be installed) and the Dock bends what is behind it like glass, without any tint. Unchecked: KWin uses its standard blur, a plain blur. The effect is chosen for the whole desktop. The blur intensity is set in the Appearance tab. The settings below are applied when a value changes; they are global to the effect (panels and menus too) and start from the defaults of the liquid-glass-kde project.")
+                    text: i18n("The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity. Only the wallpaper is visible through the glass, not the windows behind the Dock.")
                     opacity: 0.78
-                }
-
-                Loader {
-                    Kirigami.FormData.label: i18n("KWin effect:")
-                    Layout.fillWidth: true
-                    source: "GlassStatus.qml"
                 }
 
                 Kirigami.Separator {
@@ -821,7 +819,7 @@ KCM.SimpleKCM {
                         id: glassThicknessSlider
                         Layout.fillWidth: true
                         from: 4
-                        to: 120
+                        to: 60
                         stepSize: 1
                         live: true
                     }
@@ -832,38 +830,20 @@ KCM.SimpleKCM {
                 }
 
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Refraction index:")
+                    Kirigami.FormData.label: i18n("Lens strength:")
                     enabled: glassManageCheckBox.checked
 
                     QQC2.Slider {
-                        id: glassIorSlider
+                        id: glassStrengthSlider
                         Layout.fillWidth: true
-                        from: 1
-                        to: 2.5
+                        from: 0
+                        to: 2
                         stepSize: 0.05
                         live: true
                     }
 
                     QQC2.Label {
-                        text: glassIorSlider.value.toFixed(2)
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Lens strength:")
-                    enabled: glassManageCheckBox.checked
-
-                    QQC2.Slider {
-                        id: glassBevelSlider
-                        Layout.fillWidth: true
-                        from: 0.5
-                        to: 10
-                        stepSize: 0.1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: glassBevelSlider.value.toFixed(1)
+                        text: Math.round(glassStrengthSlider.value * 100) + "%"
                     }
                 }
 
@@ -872,16 +852,16 @@ KCM.SimpleKCM {
                     enabled: glassManageCheckBox.checked
 
                     QQC2.Slider {
-                        id: glassNormalPowerSlider
+                        id: glassProfileSlider
                         Layout.fillWidth: true
                         from: 0.5
-                        to: 4
+                        to: 3
                         stepSize: 0.1
                         live: true
                     }
 
                     QQC2.Label {
-                        text: glassNormalPowerSlider.value.toFixed(1)
+                        text: glassProfileSlider.value.toFixed(1)
                     }
                 }
 
@@ -900,24 +880,6 @@ KCM.SimpleKCM {
 
                     QQC2.Label {
                         text: Math.round(glassDispersionSlider.value * 100) + "%"
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Edge blur:")
-                    enabled: glassManageCheckBox.checked
-
-                    QQC2.Slider {
-                        id: glassEdgeBlurSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 60
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(glassEdgeBlurSlider.value) + i18n(" px")
                     }
                 }
 
@@ -942,7 +904,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("The edge blur needs the patched Glass effect of the liquid-glass-kde project. The light that follows the mouse around the Dock border is the Dock's own (Appearance tab).")
+                    text: i18n("The light that follows the mouse around the Dock border is set in the Appearance tab.")
                     opacity: 0.78
                 }
             }

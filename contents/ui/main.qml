@@ -96,84 +96,31 @@ PlasmoidItem {
     readonly property real borderWidth: boundedNumber(
         Plasmoid.configuration.borderWidth, 1.0, 0.5, 4)
 
-    // --- Flou et Liquid Glass (effets KWin) -----------------------------------
-    // Seul KWin peut flouter ce qui est derrière le Dock (les fenêtres qui
-    // bougent comprises) : un composant graphique ne voit pas les autres
-    // fenêtres. Deux effets KWin sont possibles :
-    //  - Liquid Glass décoché : le flou standard de KWin, un vrai flou.
-    //  - Liquid Glass coché : l'effet « Glass » (projet liquid-glass-kde), avec
-    //    la réfraction du verre sur le Dock et sans teinte (ExcludeDocks).
-    // Le curseur « Flou de l'arrière-plan » règle la force (1 à 15). Les
-    // valeurs sont écrites dans kwinrc quand un réglage change, jamais au
-    // démarrage.
+    // --- Flou et Liquid Glass ------------------------------------------------
+    // Le Dock dessine lui-même son fond en verre (voir DockBackground et
+    // GlassPane) : le fond d'écran qui se trouve derrière lui, flouté, et pour
+    // le Liquid Glass déformé sur les bords comme par une lentille. KWin n'est
+    // pas utilisé et ses réglages ne sont jamais modifiés. Seul le fond d'écran
+    // est visible à travers le verre, pas les fenêtres placées derrière le Dock.
     readonly property bool liquidGlass:
         Boolean(Plasmoid.configuration.glassManage)
-    readonly property bool blurEnabled:
+    readonly property bool glassEnabled:
         wallpaperBlur > 0.001 || liquidGlass
-    readonly property string blurEffectName: liquidGlass ? "glass" : "blur"
+    // Curseur de flou 2 % .. 100 % -> rayon de 1 à 60 pixels.
+    readonly property real glassBlurRadius: wallpaperBlur * 60
+    readonly property real glassThickness: boundedNumber(
+        Plasmoid.configuration.glassThickness, 16, 4, 60)
+    readonly property real glassStrength: boundedNumber(
+        Plasmoid.configuration.glassStrength, 1.0, 0, 2)
+    readonly property real glassDispersion: boundedNumber(
+        Plasmoid.configuration.glassDispersion, 0.25, 0, 1)
+    readonly property real glassProfile: boundedNumber(
+        Plasmoid.configuration.glassProfile, 1.0, 0.5, 3)
+    readonly property real glassRim: boundedNumber(
+        Plasmoid.configuration.glassRimStrength, 1.0, 0, 2)
     readonly property bool borderColorFromWallpaper:
         Plasmoid.configuration.borderColorFromWallpaper === undefined
             ? true : Boolean(Plasmoid.configuration.borderColorFromWallpaper)
-
-    function glassKeys() {
-        var cfg = Plasmoid.configuration;
-        // Intensité 2 % .. 100 % -> force 1 .. 15 ; Liquid Glass seul (flou à
-        // 0 %) -> force 1, quasi net comme dans le projet liquid-glass-kde.
-        var strength = wallpaperBlur > 0.001
-            ? Math.round(1 + wallpaperBlur * 14) : 1;
-        if (!liquidGlass) {
-            return { "BlurStrength": strength };
-        }
-        var ior = boundedNumber(cfg.glassIor, 2.0, 1.0, 2.5);
-        var thickness = Math.round(boundedNumber(
-            cfg.glassThickness, 14, 4, 120));
-        var bevel = boundedNumber(cfg.glassBevel, 3.4, 0.5, 10);
-        var dispersion = boundedNumber(cfg.glassDispersion, 0.25, 0, 1);
-        var normalPower = boundedNumber(cfg.glassNormalPower, 1.0, 0.5, 4);
-        var rim = boundedNumber(cfg.glassRimStrength, 1.0, 0, 2);
-        // Échelles de l'effet (voir docs/DESIGN.md du projet liquid-glass-kde) :
-        // force = (IOR - 1) x 20, épaisseur en dizaines de pixels, franges =
-        // dispersion x 20, profil x 2, biseau x 10.
-        return {
-            "BlurDocks": true,
-            "DockBlurStrength": strength,
-            // Pas de teinte (ni d'opacité colorée) sur le Dock.
-            "ExcludeDocks": true,
-            "RefractionExcludeDocks": false,
-            "PhysicallyBasedRefraction": true,
-            "RefractionStrength": Math.round((ior - 1) * 2000) / 100,
-            "RefractionEdgeSize": thickness / 10,
-            "RefractionBevelIntensity": Math.round(bevel * 10),
-            "RefractionRGBFringing": Math.round(dispersion * 2000) / 100,
-            "RefractionNormalPow": Math.round(normalPower * 200) / 100,
-            "RefractionEdgeBlur": Math.round(boundedNumber(
-                cfg.glassEdgeBlur, 10, 0, 60)),
-            "RimSpecularScale": Math.round(rim * 10)
-        };
-    }
-
-    // Change dès qu'un réglage de flou ou de verre change.
-    readonly property string glassSignature:
-        JSON.stringify([blurEnabled, blurEffectName, glassKeys()])
-    onGlassSignatureChanged: glassSyncTimer.restart()
-
-    function syncGlassEffect() {
-        if (blurEnabled) {
-            glassEffectSettings.apply(blurEffectName, glassKeys());
-        }
-    }
-
-    Timer {
-        id: glassSyncTimer
-
-        interval: 400
-        repeat: false
-        onTriggered: root.syncGlassEffect()
-    }
-
-    DockEffects.GlassEffectSettings {
-        id: glassEffectSettings
-    }
 
     // Voyant de l'application active : couleur du thème ou couleur choisie.
     readonly property bool useThemeIndicatorColor:
@@ -670,9 +617,10 @@ PlasmoidItem {
         // lecture de la configuration de Plasma se fait sur le fil de l'interface.
         interval: root.wallpaperInfo.source.length > 0 ? 20000 : 4000
         repeat: true
-        running: root.borderColorFromWallpaper
-            && (root.borderStrength > 0.001
-                || root.borderLightIntensity > 0.001)
+        running: root.glassEnabled
+            || (root.borderColorFromWallpaper
+                && (root.borderStrength > 0.001
+                    || root.borderLightIntensity > 0.001))
         triggeredOnStart: true
         onTriggered: root.refreshWallpaperInfo()
     }
@@ -704,33 +652,6 @@ PlasmoidItem {
 
         font.pixelSize: 13
         font.weight: Font.DemiBold
-    }
-
-    // Flou de l'arrière-plan : c'est KWin qui floute ce qui se trouve derrière
-    // le Dock, fenêtres comprises (une fenêtre déplacée derrière le Dock reste
-    // visible, floutée). BlurRegion redemande le flou à chaque affichage de la
-    // fenêtre et force une image pour que le compositeur le prenne en compte
-    // tout de suite, sans attendre un survol.
-    DockEffects.BlurRegion {
-        window: baseWindow
-        region: Qt.rect(baseSurface.x
-                + root.dockSlideX(baseWindow.width),
-            baseSurface.y + root.dockSlideY(baseWindow.height),
-            baseSurface.width, baseSurface.height)
-        radius: baseSurface.radius
-        enabled: root.blurEnabled
-    }
-
-    DockEffects.BlurRegion {
-        window: overlayWindow
-        region: Qt.rect(overlayBackgroundSurface.x
-                + root.dockSlideX(overlayWindow.width),
-            overlayBackgroundSurface.y
-                + root.dockSlideY(overlayWindow.height),
-            overlayBackgroundSurface.width,
-            overlayBackgroundSurface.height)
-        radius: overlayBackgroundSurface.radius
-        enabled: root.blurEnabled
     }
 
     DockEffects.WindowActions {
@@ -4333,7 +4254,14 @@ PlasmoidItem {
                 borderWidth: root.borderWidth
                 colorFromWallpaper: root.borderColorFromWallpaper
                 lightIntensity: root.borderLightIntensity
-                wallpaperBlur: root.wallpaperBlur
+                glassEnabled: root.glassEnabled
+                glassBlur: root.glassBlurRadius
+                glassRefraction: root.liquidGlass
+                glassThickness: root.glassThickness
+                glassStrength: root.glassStrength
+                glassDispersion: root.glassDispersion
+                glassProfile: root.glassProfile
+                glassRim: root.glassRim
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(
@@ -4906,7 +4834,14 @@ PlasmoidItem {
                 borderStrength: root.borderStrength
                 borderWidth: root.borderWidth
                 colorFromWallpaper: root.borderColorFromWallpaper
-                wallpaperBlur: root.wallpaperBlur
+                glassEnabled: root.glassEnabled
+                glassBlur: root.glassBlurRadius
+                glassRefraction: root.liquidGlass
+                glassThickness: root.glassThickness
+                glassStrength: root.glassStrength
+                glassDispersion: root.glassDispersion
+                glassProfile: root.glassProfile
+                glassRim: root.glassRim
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(

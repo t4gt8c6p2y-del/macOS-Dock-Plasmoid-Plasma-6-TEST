@@ -33,13 +33,8 @@ Kirigami.ShadowedRectangle {
     property real lightX: width / 2
     property real lightY: height / 2
 
-    // Réglage de flou (0 = désactivé). Le flou lui-même est fait par KWin
-    // (voir BlurRegion dans main.qml) : il floute tout ce qui se trouve
-    // derrière le Dock, fenêtres comprises. Cette propriété n'est conservée
-    // que pour que les fenêtres qui l'utilisent n'aient rien à changer.
-    property real wallpaperBlur: 0
     // Image du fond d'écran (voir main.qml) : { source, fillMode, width, height }.
-    // Elle ne sert plus qu'à teinter la bordure.
+    // Elle sert au fond en verre (flou, réfraction) et à teinter la bordure.
     property var wallpaperInfo: ({ "source": "", "fillMode": 2,
         "width": 0, "height": 0 })
     // WallpaperLocator (module natif) : sert à lire la couleur du fond d'écran
@@ -47,6 +42,52 @@ Kirigami.ShadowedRectangle {
     property var colorSampler: null
     // Position (en pixels écran) du coin supérieur gauche de ce fond.
     property point backdropOrigin: Qt.point(0, 0)
+
+    // --- Fond en verre -------------------------------------------------------
+    // Le Dock dessine lui-même son fond : le fond d'écran qui se trouve derrière
+    // lui, flouté (glassBlur) et, pour le Liquid Glass, déformé sur les bords
+    // comme par une lentille. Rien ne passe par KWin. Seul le fond d'écran est
+    // visible à travers le verre (pas les fenêtres derrière le Dock).
+    property bool glassEnabled: false
+    // Rayon du flou en pixels (0 = net).
+    property real glassBlur: 0
+    // Liquid Glass : déformation des bords, franges de couleur, reflet.
+    property bool glassRefraction: false
+    property real glassThickness: 16
+    property real glassStrength: 1.0
+    property real glassDispersion: 0.25
+    property real glassProfile: 1.0
+    property real glassRim: 1.0
+
+    // Vrai quand le verre est prêt à être affiché (fond d'écran trouvé et lu) ;
+    // sinon le fond reste la simple teinte translucide.
+    readonly property bool glassVisible: Boolean(glassEnabled
+        && glassLoader.item && glassLoader.item.ready)
+
+    readonly property var glassConfig: ({
+        "source": wallpaperInfo ? String(wallpaperInfo.source || "") : "",
+        "fillMode": wallpaperInfo ? Number(wallpaperInfo.fillMode) : 2,
+        "screenWidth": wallpaperInfo ? Number(wallpaperInfo.width) : 0,
+        "screenHeight": wallpaperInfo ? Number(wallpaperInfo.height) : 0,
+        "originX": backdropOrigin.x,
+        "originY": backdropOrigin.y,
+        "radius": radius,
+        "blur": glassBlur,
+        "refraction": glassRefraction,
+        "thickness": glassThickness,
+        "strength": glassStrength,
+        "dispersion": glassDispersion,
+        "profile": glassProfile,
+        "rim": glassRim
+    })
+    onGlassConfigChanged: applyGlass()
+
+    function applyGlass() {
+        if (glassLoader.item) {
+            glassLoader.item.configure(glassEnabled ? glassConfig : ({}));
+        }
+    }
+    onGlassEnabledChanged: applyGlass()
 
     readonly property color themeBackground: qtPalette.window
     readonly property color themeText: qtPalette.windowText
@@ -67,9 +108,11 @@ Kirigami.ShadowedRectangle {
 
     radius: Math.min(Math.max(0, requestedRadius),
         Math.min(width, height) / 2)
-    color: Qt.rgba(effectiveColor.r, effectiveColor.g,
-        effectiveColor.b, Math.min(1, Math.max(0,
+    readonly property color tintColor: Qt.rgba(effectiveColor.r,
+        effectiveColor.g, effectiveColor.b, Math.min(1, Math.max(0,
             surfaceOpacity * effectiveColor.a)))
+    // Avec le verre, la teinte passe au-dessus de l'image du fond d'écran.
+    color: glassVisible ? "transparent" : tintColor
 
     // La bordure est dessinée par le contour éclairé plus bas, pas par la
     // bordure unie de ShadowedRectangle.
@@ -81,6 +124,26 @@ Kirigami.ShadowedRectangle {
     shadow.color: showShadow
         ? Qt.rgba(0, 0, 0, Math.min(1, Math.max(0, shadowOpacity)))
         : "transparent"
+
+    // Le verre : le fond d'écran flouté et déformé (voir glassEnabled).
+    // Chargé à part : si le module natif manquait, le Dock garderait sa teinte.
+    Loader {
+        id: glassLoader
+
+        anchors.fill: parent
+        active: background.glassEnabled
+        visible: background.glassVisible
+        source: "GlassLayer.qml"
+        onLoaded: background.applyGlass()
+    }
+
+    // La teinte du Dock (réglage « Opacité du fond ») sur le verre.
+    Rectangle {
+        anchors.fill: parent
+        radius: background.radius
+        color: background.tintColor
+        visible: background.glassVisible
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -134,22 +197,25 @@ Kirigami.ShadowedRectangle {
     readonly property real ringWidth: Math.min(6, Math.max(0.25, borderWidth))
     // Un trait de moins d'un pixel est dessiné à un pixel, moins opaque.
     readonly property real drawnWidth: Math.max(1, ringWidth)
+    // Le trait de base reste discret : la lumière doit s'en détacher.
     readonly property real ringAlpha:
-        0.75 * borderIntensity * Math.min(1, ringWidth)
+        0.5 * borderIntensity * Math.min(1, ringWidth)
     // Largeur des extrémités arrondies ; les côtés droits sont entre elles.
     readonly property real capWidth:
         Math.ceil(Math.max(radius, drawnWidth))
     readonly property real edgeWidth: Math.max(0, width - 2 * capWidth)
 
-    // La lumière.
+    // La lumière : une tache blanche qui glisse le long de la bordure.
+    // L'intensité règle à la fois sa force et son étendue.
     readonly property real lightRadius:
-        Math.max(80, Math.min(0.4 * width, 300))
+        Math.max(70, Math.min(0.2 * width, 170))
+        * (0.6 + 0.4 * Math.min(2, lightIntensity))
     readonly property bool lightEnabled: lightIntensity > 0.001
     // La lumière appartient à la bordure : à 0 % d'intensité, plus rien
     // n'est dessiné (ni côtés, ni angles).
     readonly property real lightPeak: lightEnabled && borderIntensity > 0.001
-        ? Math.min(1, 0.8 * lightIntensity
-            * Math.min(1, 0.35 + 0.65 * borderIntensity))
+        ? Math.min(1, 0.8 * lightIntensity)
+            * Math.min(1, 0.35 + 0.65 * borderIntensity)
         : 0
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
@@ -175,16 +241,7 @@ Kirigami.ShadowedRectangle {
     // (en hauteur), plus la lumière est faible.
     function edgeLight(pointerY, edgeY, scale) {
         return lightPeak * scale
-            * Math.exp(-2.5 * Math.abs(pointerY - edgeY) / lightRadius);
-    }
-
-    // Force de la lumière sur une extrémité, selon sa distance au pointeur.
-    function capLight(pointerX, pointerY, centerX, centerY, scale) {
-        var dx = pointerX - centerX;
-        var dy = pointerY - centerY;
-        var distance = Math.sqrt(dx * dx + dy * dy);
-        return lightPeak * scale
-            * Math.exp(-3 * Math.min(1, distance / lightRadius));
+            * Math.exp(-1.5 * Math.abs(pointerY - edgeY) / lightRadius);
     }
 
     // --- Couleurs de la bordure ----------------------------------------------
@@ -195,6 +252,7 @@ Kirigami.ShadowedRectangle {
     // blanche.
     readonly property int colorColumns: 16
     property var edgeColors: []
+    property bool samplingWarned: false
 
     function refreshTint() {
         var colors = [];
@@ -211,19 +269,27 @@ Kirigami.ShadowedRectangle {
             }
         }
         if (!colors || colors.length < colorColumns) {
+            if (colorFromWallpaper && wallpaperInfo && wallpaperInfo.source
+                    && !samplingWarned) {
+                samplingWarned = true;
+                console.warn("macOS Dock: could not read the colours of "
+                    + wallpaperInfo.source);
+            }
             edgeColors = [];
             return;
         }
         var result = [];
         for (var i = 0; i < colorColumns; ++i) {
             var c = colors[i];
-            var peak = Math.max(c.r, c.g, c.b);
-            if (peak < 0.02) {
+            var saturation = c.hsvSaturation;
+            if (saturation < 0.08 || c.hsvHue < 0) {
+                // Gris, noir ou blanc : pas de teinte à reprendre.
                 result.push(Qt.rgba(1, 1, 1, 1));
             } else {
-                var k = 1 / peak;
-                result.push(Qt.rgba(c.r * k * 0.85 + 0.15,
-                    c.g * k * 0.85 + 0.15, c.b * k * 0.85 + 0.15, 1));
+                // Même teinte que le fond d'écran, en plus vif et plus clair
+                // pour qu'elle se voie sur un trait fin.
+                result.push(Qt.hsva(c.hsvHue, Math.min(1, saturation * 1.4),
+                    0.95, 1));
             }
         }
         edgeColors = result;
@@ -294,12 +360,13 @@ Kirigami.ShadowedRectangle {
         ringColor: background.edgeColors.length > 0
             ? background.edgeColors[0] : "white"
         baseOpacity: background.ringAlpha
-        lightStrength: background.capLight(background.primaryX,
-                background.primaryY, background.capWidth / 2,
-                background.height / 2, 1)
-            + background.capLight(background.secondaryX,
-                background.secondaryY, background.capWidth / 2,
-                background.height / 2, background.secondaryScale)
+        lightPeak: background.lightPeak
+        lightRadius: background.lightRadius
+        lightX1: background.primaryX
+        lightY1: background.primaryY
+        lightX2: background.secondaryX
+        lightY2: background.secondaryY
+        secondaryScale: background.secondaryScale
     }
 
     // Extrémité droite.
@@ -316,12 +383,12 @@ Kirigami.ShadowedRectangle {
             ? background.edgeColors[background.edgeColors.length - 1]
             : "white"
         baseOpacity: background.ringAlpha
-        lightStrength: background.capLight(background.primaryX,
-                background.primaryY, background.width - background.capWidth / 2,
-                background.height / 2, 1)
-            + background.capLight(background.secondaryX,
-                background.secondaryY,
-                background.width - background.capWidth / 2,
-                background.height / 2, background.secondaryScale)
+        lightPeak: background.lightPeak
+        lightRadius: background.lightRadius
+        lightX1: background.primaryX
+        lightY1: background.primaryY
+        lightX2: background.secondaryX
+        lightY2: background.secondaryY
+        secondaryScale: background.secondaryScale
     }
 }

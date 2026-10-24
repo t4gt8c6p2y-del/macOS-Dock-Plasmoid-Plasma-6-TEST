@@ -93,30 +93,23 @@
       <default>true</default>
     </entry>
     <!--
-      Onglet « Glass » : Liquid Glass sur le Dock (effet KWin « Glass » à la
-      place du flou standard) et ses réglages. Les valeurs par défaut sont
-      celles du projet liquid-glass-kde.
+      Onglet « Glass » : Liquid Glass dessiné par le Dock lui-même (le fond
+      d'écran flouté et déformé sur les bords). KWin n'est pas utilisé.
     -->
     <entry name="glassManage" type="Bool">
       <default>false</default>
     </entry>
     <entry name="glassThickness" type="Int">
-      <default>14</default>
+      <default>16</default>
     </entry>
-    <entry name="glassIor" type="Double">
-      <default>2.0</default>
+    <entry name="glassStrength" type="Double">
+      <default>1.0</default>
     </entry>
-    <entry name="glassBevel" type="Double">
-      <default>3.4</default>
+    <entry name="glassProfile" type="Double">
+      <default>1.0</default>
     </entry>
     <entry name="glassDispersion" type="Double">
       <default>0.25</default>
-    </entry>
-    <entry name="glassNormalPower" type="Double">
-      <default>1.0</default>
-    </entry>
-    <entry name="glassEdgeBlur" type="Int">
-      <default>10</default>
     </entry>
     <entry name="glassRimStrength" type="Double">
       <default>1.0</default>
