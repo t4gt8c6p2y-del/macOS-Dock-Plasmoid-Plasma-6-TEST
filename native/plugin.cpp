@@ -1,4 +1,3 @@
-#include "blurregion.h"
 #include "borderlight.h"
 #include "glasspane.h"
 #include "windowactions.h"
@@ -19,7 +18,6 @@ class MacOSDockEffectsPlugin : public QQmlExtensionPlugin
 public:
     void registerTypes(const char *uri) override
     {
-        qmlRegisterType<BlurRegion>(uri, 1, 0, "BlurRegion");
         qmlRegisterType<WindowActions>(uri, 1, 0, "WindowActions");
         qmlRegisterType<LauncherProgressMonitor>(uri, 1, 0, "LauncherProgressMonitor");
         qmlRegisterType<KdeConnectShareMonitor>(uri, 1, 0, "KdeConnectShareMonitor");

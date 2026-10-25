@@ -411,8 +411,18 @@ PlasmoidItem {
         && (dockRequestedVisible || dockRevealProgress > 0.001)
     // Nombre d'icônes dont l'application est en cours de démarrage (rebond).
     property int startupBounceCount: 0
+    // Vrai pendant que les icônes reviennent à leur taille de repos après que
+    // le pointeur a quitté le Dock : la fenêtre agrandie reste affichée jusqu'à
+    // la fin du mouvement, au lieu de disparaître d'un coup (voir
+    // closeOverlayAnimated).
+    property bool overlayCollapsing: false
+    // Durée du retour : le ressort de relâchement (DockItem.releaseResponse)
+    // met environ 11 / omega secondes à se poser, plus une petite marge.
+    readonly property int overlayCollapseDuration:
+        Math.round(11000 / Math.min(magnificationSpring, 18)) + 80
     readonly property bool overlayVisible:
-        (overlayOpen || startupBounceCount > 0) && dockWindowVisible
+        (overlayOpen || overlayCollapsing || startupBounceCount > 0)
+            && dockWindowVisible
     property Item representationItem: null
     property bool baseHovered: false
     property bool overlayHovered: false
@@ -1159,6 +1169,25 @@ PlasmoidItem {
         overlayCloseTimer.restart();
     }
 
+    // Ferme la fenêtre agrandie quand le pointeur a quitté le Dock : les icônes
+    // et les côtés du fond reviennent à leur place en douceur (ressort lent),
+    // puis la fenêtre agrandie est cachée une fois le mouvement terminé.
+    function closeOverlayAnimated() {
+        if (overlayOpen && dockWindowVisible) {
+            overlayCollapsing = true;
+            overlayCollapseTimer.restart();
+        }
+        overlayOpen = false;
+    }
+
+    // Le pointeur revient : plus rien à replier.
+    onOverlayOpenChanged: {
+        if (overlayOpen) {
+            overlayCollapseTimer.stop();
+            overlayCollapsing = false;
+        }
+    }
+
     function revealDock() {
         dockHideTimer.stop();
         revealedForMaximized = true;
@@ -1355,6 +1384,7 @@ PlasmoidItem {
     // change la propriété que si le résultat est différent.
     property var backdropWindows: []
     property string backdropWindowsKey: ""
+    property int backdropWindowCount: -1
     property bool backdropUpdatePending: false
 
     function scheduleBackdropUpdate() {
@@ -1451,6 +1481,12 @@ PlasmoidItem {
         if (key !== backdropWindowsKey) {
             backdropWindowsKey = key;
             backdropWindows = result;
+            // Diagnostic : visible dans le journal (journalctl --user -b).
+            if (result.length !== backdropWindowCount) {
+                backdropWindowCount = result.length;
+                console.log("macOS Dock: windows on this screen for the glass:",
+                    result.length);
+            }
         }
     }
 
@@ -2629,9 +2665,17 @@ PlasmoidItem {
             if (!root.baseHovered && !root.overlayHovered
                     && root.openMenuCount === 0
                     && root.openPreviewCount === 0) {
-                root.overlayOpen = false;
+                root.closeOverlayAnimated();
             }
         }
+    }
+
+    Timer {
+        id: overlayCollapseTimer
+
+        interval: root.overlayCollapseDuration
+        repeat: false
+        onTriggered: root.overlayCollapsing = false
     }
 
     Timer {
@@ -2644,7 +2688,7 @@ PlasmoidItem {
                     && !root.overlayHovered && !root.edgeHovered
                     && root.openMenuCount === 0
                     && root.openPreviewCount === 0) {
-                root.overlayOpen = false;
+                root.closeOverlayAnimated();
                 root.revealedForMaximized = false;
             }
         }
@@ -3051,6 +3095,7 @@ PlasmoidItem {
         targetScale: displayScale
         scaleResponse: root.magnificationSpring
         scaleDamping: root.magnificationDamping
+        releasing: !root.overlayOpen
         crossIconExtent: displayCrossExtent
         isVertical: root.isVertical
         location: root.dockLocation
@@ -3735,6 +3780,7 @@ PlasmoidItem {
         targetScale: displayScale
         scaleResponse: root.magnificationSpring
         scaleDamping: root.magnificationDamping
+        releasing: !root.overlayOpen
         crossIconExtent: displayCrossExtent
         isVertical: root.isVertical
         location: root.dockLocation

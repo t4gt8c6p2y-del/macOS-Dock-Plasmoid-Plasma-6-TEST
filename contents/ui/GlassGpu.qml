@@ -65,17 +65,20 @@ Item {
     }
 
     // --- La scène : le fond d'écran et les fenêtres ---------------------------
+    // La scène doit rester « visible » pour Qt : un flux de capture PipeWire
+    // s'éteint dès que son élément est invisible, et les fenêtres ne seraient
+    // alors jamais mises à jour. On la range donc très loin hors de la fenêtre
+    // du Dock (on ne voit jamais cette copie, seulement son image floutée).
     Item {
         id: sceneContent
 
-        x: -gpu.pad
+        x: -gpu.pad - 100000
         y: -gpu.pad
         width: gpu.width + 2 * gpu.pad
         height: gpu.height + 2 * gpu.pad
         // MultiEffect exige une source « en couche » (layer).
         layer.enabled: true
         layer.smooth: true
-        visible: false
 
         Image {
             id: wallpaper

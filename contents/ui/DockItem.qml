@@ -21,6 +21,12 @@ Item {
     // darunter federt es sichtbar nach).
     property real scaleResponse: 50.0
     property real scaleDamping: 1.0
+    // Quand le pointeur a quitté le Dock (releasing), l'icône revient à sa
+    // taille de repos avec un ressort plus lent (releaseResponse, rad/s, au
+    // plus scaleResponse) : le retour est doux au lieu d'être sec. Le ressort
+    // démarre à vitesse nulle, donc sans à-coup au début non plus.
+    property real releaseResponse: 18.0
+    property bool releasing: false
     property real crossIconExtent: scaledSize
     property bool isVertical: false
     property int location: PlasmaCore.Types.Floating
@@ -100,7 +106,9 @@ Item {
     }
 
     function advanceScale(frameSeconds) {
-        var omega = Math.max(1.0, root.scaleResponse);
+        var omega = Math.max(1.0, root.releasing
+            ? Math.min(root.scaleResponse, root.releaseResponse)
+            : root.scaleResponse);
         var zeta = Math.max(0.05, Math.min(2.0, root.scaleDamping));
         // Verschluckte Bilder oder eine Ruhephase duerfen nicht in einem
         // einzigen Riesenschritt nachgeholt werden.

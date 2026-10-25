@@ -22,6 +22,9 @@ Item {
 
     // Nombre de fenêtres qui touchent réellement la zone.
     readonly property int activeCount: running ? countTouching() : 0
+    // Diagnostic : visible dans le journal (journalctl --user -b).
+    onActiveCountChanged: console.log("macOS Dock: live windows behind the Dock:",
+        activeCount)
 
     function touches(entry) {
         return entry !== undefined && entry !== null
