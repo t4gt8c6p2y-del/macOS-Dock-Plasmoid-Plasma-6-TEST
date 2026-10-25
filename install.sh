@@ -16,6 +16,9 @@ case "$LOCALE_NAME" in
         MSG_INSTALL="==> Installiere/Aktualisiere Plasmoid '$PLASMOID_ID' für KDE Plasma 6 ..."
         MSG_SUCCESS='==> Plasmoid erfolgreich installiert.'
         MSG_ADD="    Füge es über 'Miniprogramme hinzufügen' direkt zur Arbeitsfläche hinzu, nicht zu einer Plasma-Leiste."
+        MSG_SHADER='==> Kompiliere den Liquid-Glass-Shader ...'
+        MSG_NO_QSB='HINWEIS: qsb wurde nicht gefunden (Paket qt6-shadertools). Liquid Glass läuft dann über den langsameren Prozessor-Pfad; die Hintergrundunschärfe ist nicht betroffen.'
+        MSG_QSB_FAILED='HINWEIS: Der Liquid-Glass-Shader konnte nicht kompiliert werden. Liquid Glass läuft über den langsameren Prozessor-Pfad.'
         MSG_NO_VIEWER='FEHLER: plasmoidviewer wurde nicht gefunden (Paket plasma-sdk).'
         MSG_PREVIEW='==> Starte Vorschau in plasmoidviewer ...'
         ;;
@@ -28,6 +31,9 @@ case "$LOCALE_NAME" in
         MSG_INSTALL="==> Installation/mise à jour du composant graphique '$PLASMOID_ID' pour KDE Plasma 6..."
         MSG_SUCCESS='==> Composant graphique installé avec succès.'
         MSG_ADD="    Ajoutez-le directement au bureau via « Ajouter des composants graphiques », pas à un panneau Plasma."
+        MSG_SHADER='==> Compilation du shader Liquid Glass...'
+        MSG_NO_QSB='INFO : qsb est introuvable (paquet qt6-shadertools). Le Liquid Glass utilisera le calcul par le processeur, plus lent ; le flou de l’arrière-plan n’est pas concerné.'
+        MSG_QSB_FAILED='INFO : le shader Liquid Glass n’a pas pu être compilé. Le Liquid Glass utilisera le calcul par le processeur, plus lent.'
         MSG_NO_VIEWER='ERREUR : plasmoidviewer est introuvable (paquet plasma-sdk).'
         MSG_PREVIEW='==> Lancement de l’aperçu dans plasmoidviewer...'
         ;;
@@ -40,6 +46,9 @@ case "$LOCALE_NAME" in
         MSG_INSTALL="==> Installing/updating plasmoid '$PLASMOID_ID' for KDE Plasma 6..."
         MSG_SUCCESS='==> Plasmoid installed successfully.'
         MSG_ADD="    Add it directly to the desktop through 'Add Widgets', not to a Plasma panel."
+        MSG_SHADER='==> Compiling the Liquid Glass shader...'
+        MSG_NO_QSB='NOTE: qsb was not found (qt6-shadertools package). Liquid Glass will use the slower CPU path; the background blur is not affected.'
+        MSG_QSB_FAILED='NOTE: the Liquid Glass shader could not be compiled. Liquid Glass will use the slower CPU path.'
         MSG_NO_VIEWER='ERROR: plasmoidviewer was not found (plasma-sdk package).'
         MSG_PREVIEW='==> Starting preview in plasmoidviewer...'
         ;;
@@ -80,6 +89,28 @@ cmake -S "$SCRIPT_DIR/native" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD_DIR" --parallel
 install -Dm755 "$BUILD_DIR/libmacosdockeffectsplugin.so" \
     "$SCRIPT_DIR/contents/ui/effects/libmacosdockeffectsplugin.so"
+
+# Shader du Liquid Glass (calculé par la carte graphique). qsb fait partie de
+# qt6-shadertools ; s'il manque, l'installation continue : le Liquid Glass
+# retombe alors sur le calcul par le processeur.
+printf '%s\n' "$MSG_SHADER"
+QSB_BIN=""
+for candidate in qsb qsb6 qsb-qt6 /usr/lib/qt6/bin/qsb /usr/lib64/qt6/bin/qsb \
+        /usr/lib/qt6/libexec/qsb; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        QSB_BIN="$(command -v "$candidate")"
+        break
+    fi
+done
+SHADER_OUT="$SCRIPT_DIR/contents/ui/effects/glassrefract.frag.qsb"
+rm -f -- "$SHADER_OUT"
+if [[ -z "$QSB_BIN" ]]; then
+    printf '%s\n' "$MSG_NO_QSB" >&2
+elif ! "$QSB_BIN" --qt6 -o "$SHADER_OUT" \
+        "$SCRIPT_DIR/native/shaders/glassrefract.frag"; then
+    rm -f -- "$SHADER_OUT"
+    printf '%s\n' "$MSG_QSB_FAILED" >&2
+fi
 
 # KPackage receives a minimal staging tree. Passing the repository root would
 # also install compiler output, source files, documentation, and Git metadata.

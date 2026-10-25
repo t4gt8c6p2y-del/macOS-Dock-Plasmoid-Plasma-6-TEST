@@ -271,13 +271,6 @@ Kirigami.ShadowedRectangle {
     readonly property real secondaryY: height - primaryY
     readonly property real secondaryScale: 0.6
 
-    // Force d'un halo sur un côté droit : plus le pointeur est loin du côté
-    // (en hauteur), plus la lumière est faible.
-    function edgeLight(pointerY, edgeY, scale) {
-        return activePeak * scale
-            * Math.exp(-1.5 * Math.abs(pointerY - edgeY) / lightRadius);
-    }
-
     // --- Couleurs de la bordure ----------------------------------------------
     // Le fond d'écran derrière le Dock est découpé en colorColumns zones, de
     // gauche à droite ; chaque zone donne la couleur de la bordure à cet
@@ -348,43 +341,24 @@ Kirigami.ShadowedRectangle {
     onColorFromWallpaperChanged: refreshTint()
     Component.onCompleted: tintTimer.restart()
 
-    // Côté haut : le trait est en haut, la lueur descend.
+    // Côté haut.
     BorderEdge {
         x: background.capWidth
         y: 0
         width: background.edgeWidth
-        height: background.drawnWidth + background.glowDepth
-        lineHeight: background.drawnWidth
-        glowDepth: background.glowDepth
-        inwardDown: true
+        height: background.drawnWidth
         colors: background.edgeColors
         baseOpacity: background.ringAlpha
-        lightRadius: background.lightRadius
-        lightX1: background.primaryX - background.capWidth
-        lightStrength1: background.edgeLight(background.primaryY, 0, 1)
-        lightX2: background.secondaryX - background.capWidth
-        lightStrength2: background.edgeLight(background.secondaryY, 0,
-            background.secondaryScale)
     }
 
-    // Côté bas : le trait est en bas, la lueur monte.
+    // Côté bas.
     BorderEdge {
         x: background.capWidth
-        y: background.height - background.drawnWidth - background.glowDepth
+        y: background.height - background.drawnWidth
         width: background.edgeWidth
-        height: background.drawnWidth + background.glowDepth
-        lineHeight: background.drawnWidth
-        glowDepth: background.glowDepth
-        inwardDown: false
+        height: background.drawnWidth
         colors: background.edgeColors
         baseOpacity: background.ringAlpha
-        lightRadius: background.lightRadius
-        lightX1: background.primaryX - background.capWidth
-        lightStrength1: background.edgeLight(background.primaryY,
-            background.height, 1)
-        lightX2: background.secondaryX - background.capWidth
-        lightStrength2: background.edgeLight(background.secondaryY,
-            background.height, background.secondaryScale)
     }
 
     // Extrémité gauche.
@@ -400,14 +374,6 @@ Kirigami.ShadowedRectangle {
         ringColor: background.edgeColors.length > 0
             ? background.edgeColors[0] : "white"
         baseOpacity: background.ringAlpha
-        lightPeak: background.activePeak
-        glowDepth: background.glowDepth
-        lightRadius: background.lightRadius
-        lightX1: background.primaryX
-        lightY1: background.primaryY
-        lightX2: background.secondaryX
-        lightY2: background.secondaryY
-        secondaryScale: background.secondaryScale
     }
 
     // Extrémité droite.
@@ -424,13 +390,27 @@ Kirigami.ShadowedRectangle {
             ? background.edgeColors[background.edgeColors.length - 1]
             : "white"
         baseOpacity: background.ringAlpha
-        lightPeak: background.activePeak
-        glowDepth: background.glowDepth
-        lightRadius: background.lightRadius
-        lightX1: background.primaryX
-        lightY1: background.primaryY
-        lightX2: background.secondaryX
-        lightY2: background.secondaryY
-        secondaryScale: background.secondaryScale
+    }
+
+    // La lumière qui suit le pointeur : un seul composant natif pour tout le
+    // contour (côtés, angles, extrémités), avec la même formule partout. Chargé
+    // à part : si le module natif manquait, seule la lumière disparaîtrait.
+    Loader {
+        anchors.fill: parent
+        active: background.lightEnabled
+        visible: background.activePeak > 0.003
+        source: "BorderLightLayer.qml"
+        onLoaded: {
+            item.peak = Qt.binding(function() { return background.activePeak; });
+            item.lightRadius = Qt.binding(function() { return background.lightRadius; });
+            item.lightX1 = Qt.binding(function() { return background.primaryX; });
+            item.lightY1 = Qt.binding(function() { return background.primaryY; });
+            item.lightX2 = Qt.binding(function() { return background.secondaryX; });
+            item.lightY2 = Qt.binding(function() { return background.secondaryY; });
+            item.secondaryScale = Qt.binding(function() { return background.secondaryScale; });
+            item.cornerRadius = Qt.binding(function() { return background.radius; });
+            item.lineWidth = Qt.binding(function() { return background.drawnWidth; });
+            item.depth = Qt.binding(function() { return background.glowDepth; });
+        }
     }
 }

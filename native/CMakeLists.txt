@@ -19,6 +19,8 @@ find_package(KF6KIO REQUIRED)
 add_library(macosdockeffectsplugin MODULE
     blurregion.cpp
     blurregion.h
+    borderlight.cpp
+    borderlight.h
     desktopidutils.h
     glasspane.cpp
     glasspane.h

@@ -61,7 +61,7 @@ l’intégration des partages récents reste inactive sans affecter le Dock.
 Sous Arch Linux, installez les dépendances de compilation avec :
 
 ```bash
-sudo pacman -S --needed base-devel cmake gettext qt6-declarative kservice kwindowsystem solid ki18n kio
+sudo pacman -S --needed base-devel cmake gettext qt6-declarative qt6-shadertools kservice kwindowsystem solid ki18n kio
 ```
 
 ## Installation

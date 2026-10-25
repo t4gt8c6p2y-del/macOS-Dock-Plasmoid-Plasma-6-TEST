@@ -1,4 +1,5 @@
 #include "blurregion.h"
+#include "borderlight.h"
 #include "glasspane.h"
 #include "windowactions.h"
 #include "launcherprogressmonitor.h"
@@ -26,6 +27,7 @@ public:
         qmlRegisterType<OpenDocumentLocator>(uri, 1, 0, "OpenDocumentLocator");
         qmlRegisterType<WallpaperLocator>(uri, 1, 0, "WallpaperLocator");
         qmlRegisterType<GlassPane>(uri, 1, 0, "GlassPane");
+        qmlRegisterType<BorderLight>(uri, 1, 0, "BorderLight");
     }
 };
 
