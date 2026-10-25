@@ -114,6 +114,14 @@
     <entry name="glassRimStrength" type="Double">
       <default>1.0</default>
     </entry>
+    <!--
+      Le verre (flou de l'arrière-plan, Liquid Glass) montre en direct les
+      fenêtres qui passent derrière le Dock (capture PipeWire, sans KWin).
+      Décoché : seul le fond d'écran est visible à travers le verre.
+    -->
+    <entry name="liveBackdrop" type="Bool">
+      <default>true</default>
+    </entry>
     <!-- Voyant de l'application active : couleur du thème ou couleur choisie. -->
     <entry name="useThemeIndicatorColor" type="Bool">
       <default>true</default>

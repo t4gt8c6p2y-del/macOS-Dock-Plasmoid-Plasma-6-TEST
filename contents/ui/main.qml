@@ -98,12 +98,18 @@ PlasmoidItem {
 
     // --- Flou et Liquid Glass ------------------------------------------------
     // Le Dock dessine lui-même son fond en verre (voir DockBackground et
-    // GlassPane) : le fond d'écran qui se trouve derrière lui, flouté, et pour
-    // le Liquid Glass déformé sur les bords comme par une lentille. KWin n'est
-    // pas utilisé et ses réglages ne sont jamais modifiés. Seul le fond d'écran
-    // est visible à travers le verre, pas les fenêtres placées derrière le Dock.
+    // GlassPane) : ce qui se trouve derrière lui, flouté, et pour le Liquid
+    // Glass déformé sur les bords comme par une lentille. KWin n'est pas utilisé
+    // et ses réglages ne sont jamais modifiés. Le fond d'écran est lu dans son
+    // fichier ; les fenêtres qui passent derrière le Dock sont capturées en
+    // direct (flux PipeWire, comme les aperçus des icônes), donc le verre suit
+    // une fenêtre que l'on déplace. Voir updateBackdropWindows().
     readonly property bool liquidGlass:
         Boolean(Plasmoid.configuration.glassManage)
+    // Faux : le verre n'affiche que le fond d'écran (aucune capture).
+    readonly property bool liveBackdrop:
+        Plasmoid.configuration.liveBackdrop === undefined
+            ? true : Boolean(Plasmoid.configuration.liveBackdrop)
     readonly property bool glassEnabled:
         wallpaperBlur > 0.001 || liquidGlass
     // Curseur de flou 2 % .. 100 % -> rayon de 1 à 60 pixels.
@@ -1340,6 +1346,116 @@ PlasmoidItem {
         windowStateUpdatePending = true;
         Qt.callLater(updateScreenWindowState);
     }
+
+    // --- Fenêtres derrière le Dock (verre en temps réel) ---------------------
+    // Liste des fenêtres visibles de cet écran, du dessous au dessus, en
+    // coordonnées de l'écran : [{ id, x, y, w, h }]. Le verre (DockBackground)
+    // ne capture que celles qui touchent le Dock. Recalculée à chaque
+    // changement d'une fenêtre (déplacement, ouverture, fermeture…), mais ne
+    // change la propriété que si le résultat est différent.
+    property var backdropWindows: []
+    property string backdropWindowsKey: ""
+    property bool backdropUpdatePending: false
+
+    function scheduleBackdropUpdate() {
+        if (backdropUpdatePending) {
+            return;
+        }
+        backdropUpdatePending = true;
+        Qt.callLater(updateBackdropWindows);
+    }
+
+    function updateBackdropWindows() {
+        backdropUpdatePending = false;
+        var screen = baseWindow ? baseWindow.screen : null;
+        if (!glassEnabled || !liveBackdrop || !screen) {
+            if (backdropWindowsKey !== "") {
+                backdropWindows = [];
+                backdropWindowsKey = "";
+            }
+            return;
+        }
+
+        var entries = [];
+        var distinctStacking = {};
+        var distinctCount = 0;
+        for (var row = 0; row < screenWindowsModel.count; ++row) {
+            var index = screenWindowsModel.makeModelIndex(row);
+            var ids = screenWindowsModel.data(index,
+                TaskManager.AbstractTasksModel.WinIdList);
+            var rect = screenWindowsModel.data(index,
+                TaskManager.AbstractTasksModel.Geometry);
+            if (!ids || ids.length < 1 || !rect
+                    || rect.width < 2 || rect.height < 2) {
+                continue;
+            }
+            if (Boolean(screenWindowsModel.data(index,
+                    TaskManager.AbstractTasksModel.SkipTaskbar))) {
+                continue;
+            }
+            var stacking = Number(screenWindowsModel.data(index,
+                TaskManager.AbstractTasksModel.StackingOrder));
+            var activated = Number(screenWindowsModel.data(index,
+                TaskManager.AbstractTasksModel.LastActivated));
+            if (!isFinite(stacking)) {
+                stacking = 0;
+            }
+            if (!isFinite(activated)) {
+                activated = 0;
+            }
+            if (!distinctStacking[stacking]) {
+                distinctStacking[stacking] = true;
+                ++distinctCount;
+            }
+            entries.push({
+                // Identifiant brut (comme pour les aperçus des icônes).
+                "id": ids[0],
+                "x": rect.x - screen.virtualX,
+                "y": rect.y - screen.virtualY,
+                "w": rect.width,
+                "h": rect.height,
+                "stacking": stacking,
+                "activated": activated,
+                "above": Boolean(screenWindowsModel.data(index,
+                    TaskManager.AbstractTasksModel.IsKeepAbove))
+            });
+        }
+
+        // L'ordre d'empilement du bureau si on l'a ; sinon la dernière
+        // activation (la fenêtre utilisée en dernier est au-dessus).
+        var useStacking = distinctCount > 1;
+        entries.sort(function(a, b) {
+            if (a.above !== b.above) {
+                return a.above ? 1 : -1;
+            }
+            return useStacking ? a.stacking - b.stacking
+                : a.activated - b.activated;
+        });
+
+        var result = [];
+        for (var i = 0; i < entries.length; ++i) {
+            result.push({
+                "id": entries[i].id,
+                "x": entries[i].x,
+                "y": entries[i].y,
+                "w": entries[i].w,
+                "h": entries[i].h
+            });
+        }
+        var keyParts = [];
+        for (var k = 0; k < result.length; ++k) {
+            keyParts.push(String(result[k].id) + ":" + result[k].x + ","
+                + result[k].y + "," + result[k].w + "," + result[k].h);
+        }
+        var key = keyParts.join("|");
+        if (key !== backdropWindowsKey) {
+            backdropWindowsKey = key;
+            backdropWindows = result;
+        }
+    }
+
+    onGlassEnabledChanged: scheduleBackdropUpdate()
+    onLiveBackdropChanged: scheduleBackdropUpdate()
 
     function isGroup(row) {
         return Boolean(taskRole(modelIndex(row),
@@ -2799,9 +2915,14 @@ PlasmoidItem {
         filterMinimized: true
         filterHidden: true
 
-        onCountChanged: root.scheduleScreenWindowStateUpdate()
-        Component.onCompleted:
-            root.scheduleScreenWindowStateUpdate()
+        onCountChanged: {
+            root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
+        }
+        Component.onCompleted: {
+            root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
+        }
     }
 
     Connections {
@@ -2809,18 +2930,22 @@ PlasmoidItem {
 
         function onDataChanged() {
             root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
         }
 
         function onModelReset() {
             root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
         }
 
         function onRowsInserted() {
             root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
         }
 
         function onRowsRemoved() {
             root.scheduleScreenWindowStateUpdate();
+            root.scheduleBackdropUpdate();
         }
     }
 
@@ -4255,6 +4380,8 @@ PlasmoidItem {
                 colorFromWallpaper: root.borderColorFromWallpaper
                 lightIntensity: root.borderLightIntensity
                 glassEnabled: root.glassEnabled
+                backdropWindows: root.backdropWindows
+                liveBackdrop: root.liveBackdrop
                 glassBlur: root.glassBlurRadius
                 glassRefraction: root.liquidGlass
                 glassThickness: root.glassThickness
@@ -4835,6 +4962,8 @@ PlasmoidItem {
                 borderWidth: root.borderWidth
                 colorFromWallpaper: root.borderColorFromWallpaper
                 glassEnabled: root.glassEnabled
+                backdropWindows: root.backdropWindows
+                liveBackdrop: root.liveBackdrop
                 glassBlur: root.glassBlurRadius
                 glassRefraction: root.liquidGlass
                 glassThickness: root.glassThickness

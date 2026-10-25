@@ -931,12 +931,12 @@ msgid "Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, 
 msgstr "Aktiviert: KWin verwendet den Effekt „Glass“ (Projekt liquid-glass-kde, muss installiert sein) und das Dock verzerrt das Dahinterliegende wie Glas, ohne Tönung. Deaktiviert: KWin verwendet seinen Standard-Weichzeichner, eine einfache Unschärfe. Der Effekt gilt für den ganzen Desktop. Die Stärke der Unschärfe wird im Reiter Darstellung eingestellt. Die Einstellungen unten werden angewendet, sobald sich ein Wert ändert; sie gelten global für den Effekt (auch für Leisten und Menüs) und beginnen mit den Standardwerten des Projekts liquid-glass-kde."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Bend the wallpaper at the Dock edges, like glass"
-msgstr "Den Hintergrund an den Dock-Rändern wie Glas verzerren"
+msgid "Bend what is behind the Dock at its edges, like glass"
+msgstr "Das, was hinter dem Dock liegt, an seinen Rändern wie Glas verzerren"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Blurs the wallpaper behind the Dock; the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used. Windows placed behind the Dock are not shown through it."
-msgstr "Verwischt den Hintergrund hinter dem Dock: je höher der Wert, desto unschärfer. 0 % schaltet die Unschärfe aus. Das Dock zeichnet sie selbst, KWin wird nicht verwendet. Fenster hinter dem Dock scheinen nicht durch."
+msgid "Blurs what is behind the Dock (the wallpaper and, in real time, the windows that pass behind it); the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used."
+msgstr "Verwischt, was hinter dem Dock liegt (den Hintergrund und in Echtzeit die Fenster, die dahinter vorbeiziehen): je höher der Wert, desto unschärfer. 0 % schaltet die Unschärfe aus. Das Dock zeichnet sie selbst, KWin wird nicht verwendet."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Detected wallpaper:"
@@ -951,8 +951,8 @@ msgid "No wallpaper detected: choose the image yourself."
 msgstr "Kein Hintergrund erkannt: Wählen Sie das Bild selbst."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity. Only the wallpaper is visible through the glass, not the windows behind the Dock."
-msgstr "Das Dock zeichnet das Glas selbst, ohne KWin: Die Desktop-Effekte werden nie verändert. Die Unschärfe stellen Sie im Reiter Darstellung ein (Hintergrundunschärfe); die Tönung ist die Hintergrund-Deckkraft. Durch das Glas ist nur der Hintergrund sichtbar, nicht die Fenster hinter dem Dock."
+msgid "The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity."
+msgstr "Das Dock zeichnet das Glas selbst, ohne KWin: Die Desktop-Effekte werden nie verändert. Die Unschärfe stellen Sie im Reiter Darstellung ein (Hintergrundunschärfe); die Tönung ist die Hintergrund-Deckkraft."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "The light that follows the mouse around the Dock border is set in the Appearance tab."
@@ -961,3 +961,15 @@ msgstr "Das Licht, das der Maus am Dock-Rand folgt, stellen Sie im Reiter Darste
 #: contents/ui/ConfigGeneral.qml
 msgid "Wallpaper found but unreadable: %1"
 msgstr "Hintergrund gefunden, aber nicht lesbar: %1"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Live background:"
+msgstr "Live-Hintergrund:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Show the windows behind the Dock through the glass, in real time"
+msgstr "Fenster hinter dem Dock in Echtzeit durch das Glas zeigen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Applies to the background blur and to Liquid Glass. The windows are captured through PipeWire, like the window previews (Wayland only), so moving a window behind the Dock is visible through the glass. Untick it to show only the wallpaper."
+msgstr "Gilt für die Hintergrundunschärfe und für Liquid Glass. Die Fenster werden wie die Fenstervorschauen über PipeWire erfasst (nur Wayland); ein Fenster hinter dem Dock zu verschieben ist also durch das Glas sichtbar. Abwählen, um nur den Hintergrund zu zeigen."

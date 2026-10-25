@@ -44,11 +44,17 @@ Kirigami.ShadowedRectangle {
     property point backdropOrigin: Qt.point(0, 0)
 
     // --- Fond en verre -------------------------------------------------------
-    // Le Dock dessine lui-même son fond : le fond d'écran qui se trouve derrière
-    // lui, flouté (glassBlur) et, pour le Liquid Glass, déformé sur les bords
-    // comme par une lentille. Rien ne passe par KWin. Seul le fond d'écran est
-    // visible à travers le verre (pas les fenêtres derrière le Dock).
+    // Le Dock dessine lui-même son fond : ce qui se trouve derrière lui (le
+    // fond d'écran et, en direct, les fenêtres qui passent derrière), flouté
+    // (glassBlur) et, pour le Liquid Glass, déformé sur les bords comme par une
+    // lentille. Rien ne passe par KWin : aucun effet du bureau n'est touché.
     property bool glassEnabled: false
+    // Les fenêtres placées derrière le Dock, du dessous au dessus, en
+    // coordonnées écran : [{ id, x, y, w, h }] (voir main.qml). Vide = seul le
+    // fond d'écran est visible à travers le verre.
+    property var backdropWindows: []
+    // Faux : le verre n'affiche que le fond d'écran (réglage « temps réel »).
+    property bool liveBackdrop: true
     // Rayon du flou en pixels (0 = net).
     property real glassBlur: 0
     // Liquid Glass : déformation des bords, franges de couleur, reflet.
@@ -88,6 +94,10 @@ Kirigami.ShadowedRectangle {
         }
     }
     onGlassEnabledChanged: applyGlass()
+
+    // Les fenêtres transmises au verre : aucune si le temps réel est coupé.
+    readonly property var liveWindows:
+        glassEnabled && liveBackdrop ? backdropWindows : []
 
     readonly property color themeBackground: qtPalette.window
     readonly property color themeText: qtPalette.windowText
@@ -134,7 +144,19 @@ Kirigami.ShadowedRectangle {
         active: background.glassEnabled
         visible: background.glassVisible
         source: "GlassLayer.qml"
-        onLoaded: background.applyGlass()
+        onLoaded: {
+            background.applyGlass();
+            // Le verre suit les fenêtres qui passent derrière le Dock.
+            item.windows = Qt.binding(function() {
+                return background.liveWindows;
+            });
+            item.originX = Qt.binding(function() {
+                return background.backdropOrigin.x;
+            });
+            item.originY = Qt.binding(function() {
+                return background.backdropOrigin.y;
+            });
+        }
     }
 
     // La teinte du Dock (réglage « Opacité du fond ») sur le verre.
@@ -206,7 +228,8 @@ Kirigami.ShadowedRectangle {
     readonly property real edgeWidth: Math.max(0, width - 2 * capWidth)
 
     // La lumière : une tache blanche qui glisse le long de la bordure.
-    // L'intensité règle à la fois sa force et son étendue.
+    // L'intensité règle à la fois sa force, son étendue et la profondeur de la
+    // lueur qui s'étend vers l'intérieur du Dock.
     readonly property real lightRadius:
         Math.max(70, Math.min(0.2 * width, 170))
         * (0.6 + 0.4 * Math.min(2, lightIntensity))
@@ -214,14 +237,25 @@ Kirigami.ShadowedRectangle {
     // La lumière appartient à la bordure : à 0 % d'intensité, plus rien
     // n'est dessiné (ni côtés, ni angles).
     readonly property real lightPeak: lightEnabled && borderIntensity > 0.001
-        ? Math.min(1, 0.8 * lightIntensity)
-            * Math.min(1, 0.35 + 0.65 * borderIntensity)
+        ? Math.min(1, 0.85 * lightIntensity)
+            * (0.75 + 0.25 * borderIntensity)
+        : 0
+    // Profondeur de la lueur intérieure (pixels), bornée pour ne jamais
+    // dépasser la moitié de la hauteur du Dock.
+    readonly property int glowDepth: lightPeak > 0.001
+        ? Math.max(0, Math.min(10,
+            Math.round(3 + 3 * Math.min(2, lightIntensity)),
+            Math.floor((height - 2 * drawnWidth) / 2) - 1))
         : 0
     readonly property real restX: -0.1 * width
     readonly property real restY: -0.3 * height
 
     readonly property bool lightFollows: lightEnabled && lightActive
     property real fadeValue: lightFollows ? 1.0 : 0.0
+    // Force réellement utilisée : la lumière n'existe que lorsque le pointeur
+    // est sur le Dock. Dès qu'il en sort, elle s'éteint et toute la bordure
+    // retrouve la même intensité (aucun côté ni angle plus clair qu'un autre).
+    readonly property real activePeak: lightPeak * fadeValue
 
     Behavior on fadeValue {
         NumberAnimation {
@@ -240,7 +274,7 @@ Kirigami.ShadowedRectangle {
     // Force d'un halo sur un côté droit : plus le pointeur est loin du côté
     // (en hauteur), plus la lumière est faible.
     function edgeLight(pointerY, edgeY, scale) {
-        return lightPeak * scale
+        return activePeak * scale
             * Math.exp(-1.5 * Math.abs(pointerY - edgeY) / lightRadius);
     }
 
@@ -314,12 +348,15 @@ Kirigami.ShadowedRectangle {
     onColorFromWallpaperChanged: refreshTint()
     Component.onCompleted: tintTimer.restart()
 
-    // Côté haut.
+    // Côté haut : le trait est en haut, la lueur descend.
     BorderEdge {
         x: background.capWidth
         y: 0
         width: background.edgeWidth
-        height: background.drawnWidth
+        height: background.drawnWidth + background.glowDepth
+        lineHeight: background.drawnWidth
+        glowDepth: background.glowDepth
+        inwardDown: true
         colors: background.edgeColors
         baseOpacity: background.ringAlpha
         lightRadius: background.lightRadius
@@ -330,12 +367,15 @@ Kirigami.ShadowedRectangle {
             background.secondaryScale)
     }
 
-    // Côté bas.
+    // Côté bas : le trait est en bas, la lueur monte.
     BorderEdge {
         x: background.capWidth
-        y: background.height - background.drawnWidth
+        y: background.height - background.drawnWidth - background.glowDepth
         width: background.edgeWidth
-        height: background.drawnWidth
+        height: background.drawnWidth + background.glowDepth
+        lineHeight: background.drawnWidth
+        glowDepth: background.glowDepth
+        inwardDown: false
         colors: background.edgeColors
         baseOpacity: background.ringAlpha
         lightRadius: background.lightRadius
@@ -360,7 +400,8 @@ Kirigami.ShadowedRectangle {
         ringColor: background.edgeColors.length > 0
             ? background.edgeColors[0] : "white"
         baseOpacity: background.ringAlpha
-        lightPeak: background.lightPeak
+        lightPeak: background.activePeak
+        glowDepth: background.glowDepth
         lightRadius: background.lightRadius
         lightX1: background.primaryX
         lightY1: background.primaryY
@@ -383,7 +424,8 @@ Kirigami.ShadowedRectangle {
             ? background.edgeColors[background.edgeColors.length - 1]
             : "white"
         baseOpacity: background.ringAlpha
-        lightPeak: background.lightPeak
+        lightPeak: background.activePeak
+        glowDepth: background.glowDepth
         lightRadius: background.lightRadius
         lightX1: background.primaryX
         lightY1: background.primaryY

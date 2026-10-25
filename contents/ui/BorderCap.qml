@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 
 // Une extrémité arrondie (gauche ou droite) de la bordure du Dock : le bout
@@ -6,7 +8,9 @@ import QtQuick
 // L'extrémité est coupée en morceaux (coin du haut, côté droit en plusieurs
 // parties, coin du bas). Chaque morceau reçoit sa propre lumière selon sa
 // distance au pointeur : la lumière reste donc localisée, elle n'élargit pas
-// tout le côté ni les angles.
+// tout le côté ni les angles. Comme sur les côtés droits (BorderEdge), une
+// lueur plus douce s'étend vers l'intérieur : des contours concentriques de
+// 1 pixel, de plus en plus transparents.
 Item {
     id: cap
 
@@ -27,6 +31,10 @@ Item {
     property real lightX2: 0
     property real lightY2: 0
     property real secondaryScale: 0.6
+    // Profondeur (en pixels) de la lueur intérieure et force de sa première
+    // rangée, par rapport au trait (comme BorderEdge).
+    property int glowDepth: 0
+    property real glowScale: 0.55
 
     readonly property real cornerHeight: Math.min(ringRadius, height / 2)
     readonly property real middleHeight: Math.max(0, height - 2 * cornerHeight)
@@ -55,6 +63,12 @@ Item {
         var dy = sourceY - centerY;
         return lightPeak * scale
             * Math.exp(-2.2 * (dx * dx + dy * dy) / (lightRadius * lightRadius));
+    }
+
+    // Force de la rangée « index » de la lueur intérieure.
+    function rowFactor(index) {
+        var t = 1 - index / Math.max(1, glowDepth);
+        return glowScale * t * t;
     }
 
     Repeater {
@@ -100,6 +114,33 @@ Item {
                 opacity: piece.strength
                 border.width: cap.ringWidth
                 border.color: "white"
+            }
+
+            // La lueur vers l'intérieur : un contour de 1 pixel par pas de
+            // profondeur, chacun un peu plus petit et plus transparent.
+            Repeater {
+                model: cap.glowDepth
+
+                delegate: Rectangle {
+                    id: glowRing
+
+                    required property int index
+
+                    // Distance entre ce contour et le bord extérieur du Dock.
+                    readonly property real inset: cap.ringWidth + index
+
+                    x: (cap.leftSide ? 0 : cap.width - cap.fullWidth) + inset
+                    y: -piece.y + inset
+                    width: Math.max(0, cap.fullWidth - 2 * inset)
+                    height: Math.max(0, cap.height - 2 * inset)
+                    radius: Math.max(0, cap.ringRadius - inset)
+                    color: "transparent"
+                    visible: width > 2 && height > 2
+                        && opacity > 0.01
+                    opacity: piece.strength * cap.rowFactor(index)
+                    border.width: 1
+                    border.color: "white"
+                }
             }
         }
     }

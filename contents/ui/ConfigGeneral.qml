@@ -36,6 +36,7 @@ KCM.SimpleKCM {
     property alias cfg_glassProfile: glassProfileSlider.value
     property alias cfg_glassDispersion: glassDispersionSlider.value
     property alias cfg_glassRimStrength: glassRimStrengthSlider.value
+    property alias cfg_liveBackdrop: liveBackdropCheckBox.checked
     // Intensité du flou de l'arrière-plan : 0 = désactivé, 1 = maximum.
     property alias cfg_wallpaperBlur: wallpaperBlurSlider.value
     property alias cfg_borderColorFromWallpaper: borderColorCheckBox.checked
@@ -125,6 +126,7 @@ KCM.SimpleKCM {
     property real cfg_glassProfileDefault: 1.0
     property real cfg_glassDispersionDefault: 0.25
     property real cfg_glassRimStrengthDefault: 1.0
+    property bool cfg_liveBackdropDefault: true
     property real cfg_wallpaperBlurDefault: 0
     property string cfg_wallpaperBlurImageDefault: ""
     property real cfg_shadowOpacityDefault: 0.42
@@ -202,7 +204,8 @@ KCM.SimpleKCM {
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
         "showKdeConnectRecentShares", "perDesktopDock",
-        "useThemeIndicatorColor", "borderColorFromWallpaper"
+        "useThemeIndicatorColor", "borderColorFromWallpaper",
+        "liveBackdrop"
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -670,7 +673,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("Blurs the wallpaper behind the Dock; the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used. Windows placed behind the Dock are not shown through it.")
+                    text: i18n("Blurs what is behind the Dock (the wallpaper and, in real time, the windows that pass behind it); the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used.")
                     opacity: 0.78
                 }
 
@@ -796,13 +799,27 @@ KCM.SimpleKCM {
                     id: glassManageCheckBox
 
                     Kirigami.FormData.label: i18n("Liquid Glass:")
-                    text: i18n("Bend the wallpaper at the Dock edges, like glass")
+                    text: i18n("Bend what is behind the Dock at its edges, like glass")
                 }
 
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity. Only the wallpaper is visible through the glass, not the windows behind the Dock.")
+                    text: i18n("The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity.")
+                    opacity: 0.78
+                }
+
+                QQC2.CheckBox {
+                    id: liveBackdropCheckBox
+
+                    Kirigami.FormData.label: i18n("Live background:")
+                    text: i18n("Show the windows behind the Dock through the glass, in real time")
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Applies to the background blur and to Liquid Glass. The windows are captured through PipeWire, like the window previews (Wayland only), so moving a window behind the Dock is visible through the glass. Untick it to show only the wallpaper.")
                     opacity: 0.78
                 }
 

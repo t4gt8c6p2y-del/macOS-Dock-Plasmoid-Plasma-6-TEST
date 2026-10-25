@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 REQUIRED COMPONENTS Core DBus Gui Qml Quick)
+find_package(Qt6 REQUIRED COMPONENTS Core Concurrent DBus Gui Qml Quick)
 find_package(KF6Service REQUIRED)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6Solid REQUIRED)
@@ -39,6 +39,7 @@ add_library(macosdockeffectsplugin MODULE
 
 target_link_libraries(macosdockeffectsplugin PRIVATE
     Qt6::Core
+    Qt6::Concurrent
     Qt6::DBus
     Qt6::Gui
     Qt6::Qml

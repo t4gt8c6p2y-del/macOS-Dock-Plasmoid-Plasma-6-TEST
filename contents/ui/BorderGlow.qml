@@ -3,6 +3,9 @@ import QtQuick
 // Un halo de lumière posé sur un côté de la bordure : un dégradé horizontal
 // blanc, plus vif au centre. Seule sa position (centerX) et son opacité
 // (strength) changent quand la souris bouge, le dégradé lui-même est fixe.
+//
+// Sa position verticale (y) et sa hauteur sont réglées par BorderEdge : une
+// instance pour le trait, une par rangée de la lueur intérieure.
 Rectangle {
     id: glow
 

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 
 // Un côté droit (haut ou bas) de la bordure du Dock.
@@ -5,7 +7,9 @@ import QtQuick
 // Sa couleur est un dégradé horizontal construit à partir des couleurs du
 // fond d'écran derrière chaque zone du Dock (colors) : chaque partie de la
 // bordure a donc sa propre couleur. Deux halos de lumière (BorderGlow) sont
-// posés par-dessus.
+// posés par-dessus le trait, puis une lueur plus douce s'étend de quelques
+// pixels vers l'intérieur du Dock (rangées de 1 pixel de plus en plus
+// transparentes) : c'est elle qui rend la lumière bien visible.
 Item {
     id: edge
 
@@ -18,6 +22,18 @@ Item {
     property real lightStrength2: 0
     property real lightRadius: 140
 
+    // Épaisseur du trait de bordure.
+    property real lineHeight: 1
+    // Profondeur (en pixels) de la lueur qui s'étend vers l'intérieur.
+    property int glowDepth: 0
+    // Vrai : le trait est en haut de l'élément et la lueur descend. Faux : le
+    // trait est en bas et la lueur monte.
+    property bool inwardDown: true
+    // Force de la première rangée de la lueur, par rapport au trait (0..1).
+    property real glowScale: 0.55
+
+    readonly property real lineY: inwardDown ? 0 : glowDepth
+
     // Le halo dépasse du côté : on le découpe aux limites du côté.
     clip: true
 
@@ -25,8 +41,17 @@ Item {
         return colors && colors.length > index ? colors[index] : "white";
     }
 
+    // Force de la rangée « index » de la lueur : elle s'estompe vers l'intérieur.
+    function rowFactor(index) {
+        var t = 1 - index / Math.max(1, glowDepth);
+        return glowScale * t * t;
+    }
+
     Rectangle {
-        anchors.fill: parent
+        x: 0
+        y: edge.lineY
+        width: edge.width
+        height: edge.lineHeight
         visible: edge.baseOpacity > 0.003
         opacity: edge.baseOpacity
 
@@ -53,15 +78,54 @@ Item {
         }
     }
 
+    // Le trait lui-même, éclairé par les deux halos.
     BorderGlow {
         centerX: edge.lightX1
         strength: edge.lightStrength1
         radius: edge.lightRadius
+        y: edge.lineY
+        height: edge.lineHeight
     }
 
     BorderGlow {
         centerX: edge.lightX2
         strength: edge.lightStrength2
         radius: edge.lightRadius
+        y: edge.lineY
+        height: edge.lineHeight
+    }
+
+    // La lueur vers l'intérieur : une rangée de 1 pixel par halo et par pas de
+    // profondeur.
+    Repeater {
+        model: edge.glowDepth
+
+        delegate: BorderGlow {
+            required property int index
+
+            centerX: edge.lightX1
+            strength: edge.lightStrength1 * edge.rowFactor(index)
+            radius: edge.lightRadius
+            y: edge.inwardDown
+                ? edge.lineHeight + index
+                : edge.glowDepth - 1 - index
+            height: 1
+        }
+    }
+
+    Repeater {
+        model: edge.glowDepth
+
+        delegate: BorderGlow {
+            required property int index
+
+            centerX: edge.lightX2
+            strength: edge.lightStrength2 * edge.rowFactor(index)
+            radius: edge.lightRadius
+            y: edge.inwardDown
+                ? edge.lineHeight + index
+                : edge.glowDepth - 1 - index
+            height: 1
+        }
     }
 }

@@ -1,8 +1,13 @@
 #pragma once
 
 #include <QDateTime>
+#include <QFutureWatcher>
 #include <QImage>
+#include <QPointer>
+#include <QQuickItem>
+#include <QQuickItemGrabResult>
 #include <QQuickPaintedItem>
+#include <QSharedPointer>
 #include <QString>
 #include <QTimer>
 #include <QVariantMap>
@@ -10,18 +15,28 @@
 /**
  * Fond en verre du Dock, dessiné par le Dock lui-même (sans KWin).
  *
- * À partir de l'image du fond d'écran, la zone qui se trouve derrière le Dock
- * est découpée, floutée, puis déformée sur les bords comme par une lentille
- * (réfraction, franges colorées) et éclairée (reflet des bords). Le résultat
- * est une simple image : rien n'est recalculé à chaque image affichée.
+ * La zone qui se trouve derrière le Dock est découpée, floutée, puis déformée
+ * sur les bords comme par une lentille (réfraction, franges colorées) et
+ * éclairée (reflet des bords). Le calcul se fait dans un fil de calcul à part :
+ * l'interface ne ralentit jamais.
  *
- * Seul le fond d'écran est visible dans ce verre : un composant graphique ne
- * peut pas lire le contenu des autres fenêtres.
+ * Ce qui est visible à travers le verre :
+ *  - le fond d'écran, lu dans son fichier ;
+ *  - en direct, les fenêtres qui passent derrière le Dock. Elles sont
+ *    dessinées par QML dans « scene » (un élément transparent de la taille de
+ *    la zone de calcul, voir regionWidth/regionHeight/margin) ; tant que
+ *    « live » est vrai, la scène est relue une trentaine de fois par seconde
+ *    et le verre est recalculé dès qu'elle a changé.
  */
 class GlassPane : public QQuickPaintedItem
 {
     Q_OBJECT
     Q_PROPERTY(bool ready READ ready NOTIFY readyChanged)
+    Q_PROPERTY(QQuickItem *scene READ scene WRITE setScene NOTIFY sceneChanged)
+    Q_PROPERTY(bool live READ live WRITE setLive NOTIFY liveChanged)
+    Q_PROPERTY(int margin READ margin NOTIFY regionChanged)
+    Q_PROPERTY(int regionWidth READ regionWidth NOTIFY regionChanged)
+    Q_PROPERTY(int regionHeight READ regionHeight NOTIFY regionChanged)
 
 public:
     explicit GlassPane(QQuickItem *parent = nullptr);
@@ -41,8 +56,21 @@ public:
 
     bool ready() const;
 
+    QQuickItem *scene() const;
+    void setScene(QQuickItem *scene);
+
+    bool live() const;
+    void setLive(bool live);
+
+    int margin() const;
+    int regionWidth() const;
+    int regionHeight() const;
+
 Q_SIGNALS:
     void readyChanged();
+    void sceneChanged();
+    void liveChanged();
+    void regionChanged();
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -51,9 +79,16 @@ private:
     void scheduleRender();
     void render();
     bool loadWallpaper();
+    bool ensureBase();
+    void updateRegion();
+    void startJob();
+    void jobFinished();
+    void pollScene();
+    void sceneGrabbed();
     void setReady(bool ready);
 
     QTimer m_timer;
+    QTimer m_liveTimer;
     QVariantMap m_rawSettings;
     QImage m_image;
     bool m_ready = false;
@@ -73,8 +108,29 @@ private:
     qreal m_profile = 1.0;
     qreal m_rim = 1.0;
 
+    // Zone de calcul : le Dock plus une marge de chaque côté.
+    int m_margin = 6;
+    int m_regionWidth = 0;
+    int m_regionHeight = 0;
+
     QImage m_wall;
     QString m_wallPath;
     QDateTime m_wallStamp;
     QString m_failedPath;
+
+    // Le fond d'écran découpé à l'emplacement de la zone de calcul.
+    QImage m_base;
+    QString m_baseKey;
+
+    // Fenêtres en direct.
+    QPointer<QQuickItem> m_scene;
+    bool m_live = false;
+    QImage m_snapshot;
+    QSharedPointer<QQuickItemGrabResult> m_grab;
+    qint64 m_grabStarted = 0;
+    int m_unchangedFrames = 0;
+
+    // Calcul dans un fil à part.
+    QFutureWatcher<QImage> m_watcher;
+    bool m_jobQueued = false;
 };

@@ -933,12 +933,12 @@ msgid "Checked: KWin uses the “Glass” effect (the liquid-glass-kde project, 
 msgstr "Cochée : KWin utilise l’effet « Glass » (le projet liquid-glass-kde, qui doit être installé) et le Dock déforme ce qui est derrière lui comme du verre, sans aucune teinte. Décochée : KWin utilise son flou standard, un flou simple. L’effet est choisi pour tout le bureau. L’intensité du flou se règle dans l’onglet Apparence. Les réglages ci-dessous sont appliqués quand une valeur change ; ils sont globaux à l’effet (panneaux et menus compris) et partent des valeurs par défaut du projet liquid-glass-kde."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Bend the wallpaper at the Dock edges, like glass"
-msgstr "Déformer le fond d’écran sur les bords du Dock, comme du verre"
+msgid "Bend what is behind the Dock at its edges, like glass"
+msgstr "Déformer ce qui est derrière le Dock sur ses bords, comme du verre"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "Blurs the wallpaper behind the Dock; the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used. Windows placed behind the Dock are not shown through it."
-msgstr "Floute le fond d’écran derrière le Dock : plus la valeur est élevée, plus il est flou. 0 % désactive le flou. Le Dock le dessine lui-même : KWin n’est pas utilisé. Les fenêtres placées derrière le Dock n’apparaissent pas à travers."
+msgid "Blurs what is behind the Dock (the wallpaper and, in real time, the windows that pass behind it); the higher the value, the blurrier. 0 % turns the blur off. The Dock draws this itself: KWin is not used."
+msgstr "Floute ce qui se trouve derrière le Dock (le fond d’écran et, en temps réel, les fenêtres qui passent derrière) : plus la valeur est élevée, plus c’est flou. 0 % désactive le flou. Le Dock le dessine lui-même : KWin n’est pas utilisé."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "Detected wallpaper:"
@@ -953,8 +953,8 @@ msgid "No wallpaper detected: choose the image yourself."
 msgstr "Aucun fond d’écran détecté : choisissez l’image vous-même."
 
 #: contents/ui/ConfigGeneral.qml
-msgid "The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity. Only the wallpaper is visible through the glass, not the windows behind the Dock."
-msgstr "Le Dock dessine lui-même le verre, sans KWin : il ne modifie jamais les effets du bureau. Le flou se règle dans l’onglet Apparence (Flou de l’arrière-plan) ; la teinte est l’opacité du fond. Seul le fond d’écran est visible à travers le verre, pas les fenêtres derrière le Dock."
+msgid "The Dock draws the glass itself, without KWin: it never changes the desktop effects. The blur is set in the Appearance tab (Background blur); the tint is the Background opacity."
+msgstr "Le Dock dessine lui-même le verre, sans KWin : il ne modifie jamais les effets du bureau. Le flou se règle dans l’onglet Apparence (Flou de l’arrière-plan) ; la teinte est l’opacité du fond."
 
 #: contents/ui/ConfigGeneral.qml
 msgid "The light that follows the mouse around the Dock border is set in the Appearance tab."
@@ -963,3 +963,15 @@ msgstr "La lumière qui suit la souris autour de la bordure du Dock se règle da
 #: contents/ui/ConfigGeneral.qml
 msgid "Wallpaper found but unreadable: %1"
 msgstr "Fond d’écran trouvé mais illisible : %1"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Live background:"
+msgstr "Arrière-plan en direct :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Show the windows behind the Dock through the glass, in real time"
+msgstr "Voir les fenêtres derrière le Dock à travers le verre, en temps réel"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Applies to the background blur and to Liquid Glass. The windows are captured through PipeWire, like the window previews (Wayland only), so moving a window behind the Dock is visible through the glass. Untick it to show only the wallpaper."
+msgstr "S’applique au flou de l’arrière-plan et au Liquid Glass. Les fenêtres sont capturées via PipeWire, comme les aperçus de fenêtres (Wayland uniquement) : déplacer une fenêtre derrière le Dock se voit donc à travers le verre. Décochez pour ne montrer que le fond d’écran."
