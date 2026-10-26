@@ -43,6 +43,7 @@ KCM.SimpleKCM {
     property alias cfg_useThemeIndicatorColor: useThemeIndicatorCheckBox.checked
     property alias cfg_indicatorColor: indicatorColorButton.color
     property alias cfg_wallpaperBlurImage: wallpaperBlurImageField.text
+    property alias cfg_folderIconImage: folderIconImageField.text
     // Le curseur d'ombre a été retiré de l'interface : la clé reste connue de
     // Plasma (popups) mais n'a plus de contrôle associé.
     property real cfg_shadowOpacity: 0.42
@@ -74,6 +75,7 @@ KCM.SimpleKCM {
     property alias cfg_appGroupViewMode: appGroupViewModeCombo.currentIndex
     property alias cfg_folderUrl: folderUrlField.text
     property var cfg_folderUrls: []
+    property var cfg_userSeparators: []
     property alias cfg_showTrash: showTrashCheckBox.checked
     property alias cfg_showRemovableVolumes: showRemovableVolumesCheckBox.checked
     property alias cfg_openRemovableVolumesInNewTab:
@@ -129,6 +131,7 @@ KCM.SimpleKCM {
     property bool cfg_liveBackdropDefault: true
     property real cfg_wallpaperBlurDefault: 0
     property string cfg_wallpaperBlurImageDefault: ""
+    property string cfg_folderIconImageDefault: ""
     property real cfg_shadowOpacityDefault: 0.42
     property bool cfg_showHighlightDefault: true
     property real cfg_highlightStrengthDefault: -1
@@ -152,6 +155,7 @@ KCM.SimpleKCM {
     property bool cfg_autoOpenAppGroupWithRunningAppDefault: true
     property int cfg_appGroupViewModeDefault: 1
     property var cfg_folderUrlsDefault: []
+    property var cfg_userSeparatorsDefault: []
     property bool cfg_showTrashDefault: true
     property bool cfg_showRemovableVolumesDefault: true
     property bool cfg_openRemovableVolumesInNewTabDefault: false
@@ -209,7 +213,8 @@ KCM.SimpleKCM {
     ]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
-    readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls"]
+    readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls",
+        "userSeparators"]
 
     function effectiveStyleValue(key) {
         if (key === "borderStrength") {
@@ -239,6 +244,7 @@ KCM.SimpleKCM {
         settings["customBackgroundColor"] = String(cfg_customBackgroundColor);
         settings["indicatorColor"] = String(cfg_indicatorColor);
         settings["wallpaperBlurImage"] = String(cfg_wallpaperBlurImage);
+        settings["folderIconImage"] = String(cfg_folderIconImage);
         var contents = {
             "folderUrl": String(cfg_folderUrl)
         };
@@ -304,6 +310,9 @@ KCM.SimpleKCM {
         if (typeof settings["wallpaperBlurImage"] === "string") {
             cfg_wallpaperBlurImage = settings["wallpaperBlurImage"];
         }
+        if (typeof settings["folderIconImage"] === "string") {
+            cfg_folderIconImage = settings["folderIconImage"];
+        }
         // Les anciennes cases restent cohérentes avec les curseurs.
         cfg_showHighlight = effectiveStyleValue("highlightStrength") > 0.001;
         cfg_borderFollowMouse =
@@ -344,7 +353,7 @@ KCM.SimpleKCM {
     function resetSettings() {
         var keys = Object.keys(styleNumberRanges).concat(
             styleBooleanKeys, ["customBackgroundColor", "indicatorColor",
-                "wallpaperBlurImage"]);
+                "wallpaperBlurImage", "folderIconImage"]);
         for (var i = 0; i < keys.length; ++i) {
             var key = keys[i];
             var fallback = configPage["cfg_" + key + "Default"];
@@ -1272,6 +1281,50 @@ KCM.SimpleKCM {
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.text: i18n("Choose folder")
                     }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Downloads folder icon:")
+                    Layout.fillWidth: true
+                    enabled: showFolderViewCheckBox.checked
+
+                    Kirigami.Icon {
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                        source: folderIconImageField.text.length > 0
+                            ? folderIconImageField.text : "folder-download"
+                    }
+
+                    QQC2.TextField {
+                        id: folderIconImageField
+
+                        Layout.fillWidth: true
+                        placeholderText: i18n("Default icon")
+                        selectByMouse: true
+                    }
+
+                    QQC2.Button {
+                        text: i18n("Choose…")
+                        icon.name: "document-open"
+                        onClicked: folderIconDialog.open()
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-clear"
+                        enabled: folderIconImageField.text.length > 0
+                        onClicked: folderIconImageField.text = ""
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Use the default icon")
+                    }
+                }
+
+                FileDialog {
+                    id: folderIconDialog
+
+                    title: i18n("Choose the icon image for the folder")
+                    nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)")]
+                    onAccepted: folderIconImageField.text = String(selectedFile)
                 }
 
                 QQC2.Label {

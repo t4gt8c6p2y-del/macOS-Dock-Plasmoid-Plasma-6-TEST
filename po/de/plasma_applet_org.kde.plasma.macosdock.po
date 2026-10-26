@@ -973,3 +973,31 @@ msgstr "Fenster hinter dem Dock in Echtzeit durch das Glas zeigen"
 #: contents/ui/ConfigGeneral.qml
 msgid "Applies to the background blur and to Liquid Glass. The windows are captured through PipeWire, like the window previews (Wayland only), so moving a window behind the Dock is visible through the glass. Untick it to show only the wallpaper."
 msgstr "Gilt für die Hintergrundunschärfe und für Liquid Glass. Die Fenster werden wie die Fenstervorschauen über PipeWire erfasst (nur Wayland); ein Fenster hinter dem Dock zu verschieben ist also durch das Glas sichtbar. Abwählen, um nur den Hintergrund zu zeigen."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Downloads folder icon:"
+msgstr "Symbol des Downloads-Ordners:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Default icon"
+msgstr "Standardsymbol"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the icon image for the folder"
+msgstr "Bild für das Ordnersymbol wählen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)"
+msgstr "Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Use the default icon"
+msgstr "Standardsymbol verwenden"
+
+#: contents/ui/main.qml
+msgid "Add separator"
+msgstr "Trennlinie hinzufügen"
+
+#: contents/ui/main.qml
+msgid "Remove separator"
+msgstr "Trennlinie entfernen"

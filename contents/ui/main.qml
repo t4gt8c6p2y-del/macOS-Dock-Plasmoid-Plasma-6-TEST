@@ -227,6 +227,9 @@ PlasmoidItem {
     readonly property url configuredFolderUrl:
         String(Plasmoid.configuration.folderUrl || "").length > 0
             ? Plasmoid.configuration.folderUrl : defaultFolderUrl
+    // Image choisie pour l'icône du dossier Téléchargements (vide : icône du thème).
+    readonly property string customFolderIcon:
+        String(Plasmoid.configuration.folderIconImage || "")
     readonly property var additionalFolderUrls:
         Plasmoid.configuration.folderUrls || []
     readonly property real indicatorSize: 3
@@ -257,6 +260,53 @@ PlasmoidItem {
     }
     readonly property int taskVisualCount:
         taskLayout.modelByVisual.length
+
+    // --- Séparateurs ajoutés par l'utilisateur -------------------------------
+    // Chaque séparateur est mémorisé par l'identité de l'icône qui le précède
+    // (lanceur, groupe ou application), pour rester à sa place quand on épingle
+    // ou désépingle d'autres applications.
+    readonly property var userSeparatorKeys:
+        Plasmoid.configuration.userSeparators || []
+    // Pendant le déplacement d'une icône, les séparateurs restent sur leurs
+    // emplacements (puis sont rattachés aux nouvelles icônes à la dépose).
+    property var separatorSlotOverride: null
+    // Séparateur en cours de déplacement (indice dans userSeparatorKeys) et
+    // emplacement visé.
+    property int separatorDragIndex: -1
+    property int separatorDragVisual: -1
+    property int menuSeparatorVisual: -1
+    // Emplacement de chaque séparateur : indice visuel de l'icône qui le
+    // précède, ou -1 s'il n'est pas affichable. Même ordre que userSeparatorKeys.
+    readonly property var userSeparatorVisualSlots: {
+        void taskLayout;
+        var keys = userSeparatorKeys;
+        var visualKeys = [];
+        for (var v = 0; v < taskVisualCount; ++v) {
+            visualKeys.push(taskItemKeyAtVisual(v));
+        }
+        var result = [];
+        var seen = ({});
+        for (var i = 0; i < keys.length; ++i) {
+            var slot;
+            if (i === separatorDragIndex && separatorDragVisual >= 0) {
+                slot = separatorDragVisual;
+            } else if (separatorSlotOverride !== null
+                    && i < separatorSlotOverride.length) {
+                slot = separatorSlotOverride[i];
+            } else {
+                slot = visualKeys.indexOf(String(keys[i]));
+            }
+            // Un séparateur après la dernière icône des applications n'a pas de
+            // sens (la séparation avec les utilitaires existe déjà).
+            if (slot < 0 || slot > taskVisualCount - 2 || seen[slot] === true) {
+                slot = -1;
+            } else {
+                seen[slot] = true;
+            }
+            result.push(slot);
+        }
+        return result;
+    }
     readonly property int desktopCount:
         virtualDesktopInfo.numberOfDesktops
     readonly property bool desktopSwitcherVisible:
@@ -299,7 +349,8 @@ PlasmoidItem {
         powerButtonOnLeft && dockItemCount > 1
     readonly property bool trailingUtilitySeparatorVisible:
         taskVisualCount > 0 && trailingUtilityItemCount > 0
-    readonly property var sectionBreakAfterDockIndices: {
+    // Séparations fixes entre les applications et les utilitaires.
+    readonly property var systemSectionBreakAfterDockIndices: {
         var result = [];
         if (leadingUtilitySeparatorVisible) {
             result.push(powerButtonDockIndex);
@@ -307,6 +358,22 @@ PlasmoidItem {
         if (trailingUtilitySeparatorVisible) {
             result.push(taskDockStartIndex + taskVisualCount - 1);
         }
+        return result;
+    }
+    // Toutes les séparations : fixes + séparateurs de l'utilisateur.
+    readonly property var sectionBreakAfterDockIndices: {
+        var result = systemSectionBreakAfterDockIndices.slice();
+        var slots = userSeparatorVisualSlots;
+        for (var i = 0; i < slots.length; ++i) {
+            if (slots[i] < 0) {
+                continue;
+            }
+            var dockIndex = taskDockStartIndex + slots[i];
+            if (result.indexOf(dockIndex) < 0) {
+                result.push(dockIndex);
+            }
+        }
+        result.sort(function(a, b) { return a - b; });
         return result;
     }
     readonly property real utilitySectionGap:
@@ -810,6 +877,14 @@ PlasmoidItem {
     function folderIconName(folderUrl) {
         var candidate = comparableFolderUrl(folderUrl);
         var downloads = comparableFolderUrl(defaultFolderUrl);
+        // Le dossier principal du Dock (Téléchargements par défaut) peut avoir
+        // une image personnalisée.
+        if (customFolderIcon.length > 0 && candidate.length > 0
+                && (candidate === downloads
+                    || candidate === comparableFolderUrl(configuredFolderUrl))) {
+            return customFolderIcon.indexOf("/") === 0
+                ? "file://" + customFolderIcon : customFolderIcon;
+        }
         return candidate.length > 0 && candidate === downloads
             ? "folder-download" : "folder";
     }
@@ -2424,6 +2499,167 @@ PlasmoidItem {
         return sectionBreakAfterDockIndices.indexOf(index) !== -1;
     }
 
+    // Identité stable de l'élément affiché à l'emplacement visuel donné.
+    function taskItemKeyAtVisual(visualIndex) {
+        if (!taskLayout || visualIndex < 0
+                || visualIndex >= taskLayout.modelByVisual.length) {
+            return "";
+        }
+        var row = taskLayout.modelByVisual[visualIndex];
+        var groupId = String(taskLayout.groupIdByRow[row] || "");
+        if (groupId.length > 0) {
+            return AppGroupStore.groupKey(groupId);
+        }
+        var launcherUrl = launcherUrlAtTaskRow(row);
+        var launcher = AppGroupStore.launcherKey(launcherUrl);
+        if (launcher !== AppGroupStore.launcherKey("")) {
+            return launcher;
+        }
+        return AppGroupStore.identityAppIdKey(launcherUrl,
+            String(taskRole(modelIndex(row),
+                TaskManager.AbstractTasksModel.AppId) || ""));
+    }
+
+    function copyUserSeparatorKeys() {
+        var copy = [];
+        for (var i = 0; i < userSeparatorKeys.length; ++i) {
+            copy.push(String(userSeparatorKeys[i]));
+        }
+        return copy;
+    }
+
+    function writeUserSeparatorKeys(keys) {
+        var unique = [];
+        for (var i = 0; i < keys.length; ++i) {
+            if (String(keys[i]).length > 0
+                    && unique.indexOf(String(keys[i])) < 0) {
+                unique.push(String(keys[i]));
+            }
+        }
+        Plasmoid.configuration.userSeparators = unique;
+    }
+
+    // Frontière (indice de l'icône qui précède) la plus proche d'une position
+    // le long de l'axe du Dock, dans les coordonnées du calque.
+    function separatorBoundaryAtMain(pos) {
+        if (taskVisualCount < 2) {
+            return -1;
+        }
+        var nearest = overlayContent.visualIndexAtMainPosition(pos);
+        if (nearest < 0) {
+            return -1;
+        }
+        var center = overlayContent.centerForVisualIndex(
+            taskDockStartIndex + nearest);
+        var boundary = pos >= center ? nearest : nearest - 1;
+        return Math.max(0, Math.min(taskVisualCount - 2, boundary));
+    }
+
+    function addUserSeparatorAfterVisual(visualIndex) {
+        if (visualIndex < 0 || visualIndex > taskVisualCount - 2
+                || userSeparatorVisualSlots.indexOf(visualIndex) >= 0) {
+            return;
+        }
+        var key = taskItemKeyAtVisual(visualIndex);
+        if (key.length === 0) {
+            return;
+        }
+        var next = copyUserSeparatorKeys();
+        next.push(key);
+        writeUserSeparatorKeys(next);
+        reorderAnimationActive = true;
+        reorderAnimationTimer.restart();
+    }
+
+    function removeUserSeparatorAtVisual(visualIndex) {
+        var position = userSeparatorVisualSlots.indexOf(visualIndex);
+        if (position < 0) {
+            return;
+        }
+        var next = copyUserSeparatorKeys();
+        next.splice(position, 1);
+        writeUserSeparatorKeys(next);
+        reorderAnimationActive = true;
+        reorderAnimationTimer.restart();
+    }
+
+    function beginSeparatorDrag(listIndex) {
+        var slot = userSeparatorVisualSlots[listIndex];
+        if (slot === undefined || slot < 0) {
+            return;
+        }
+        overlayCloseTimer.stop();
+        dockHideTimer.stop();
+        separatorDragVisual = slot;
+        separatorDragIndex = listIndex;
+    }
+
+    function updateSeparatorDrag(pos) {
+        if (separatorDragIndex < 0) {
+            return;
+        }
+        overlayCloseTimer.stop();
+        dockHideTimer.stop();
+        var target = separatorBoundaryAtMain(pos);
+        if (target < 0 || target === separatorDragVisual) {
+            return;
+        }
+        for (var i = 0; i < userSeparatorVisualSlots.length; ++i) {
+            if (i !== separatorDragIndex
+                    && userSeparatorVisualSlots[i] === target) {
+                return;
+            }
+        }
+        separatorDragVisual = target;
+        reorderAnimationActive = true;
+        reorderAnimationTimer.restart();
+    }
+
+    function endSeparatorDrag(commit) {
+        var listIndex = separatorDragIndex;
+        var target = separatorDragVisual;
+        if (commit && listIndex >= 0 && target >= 0) {
+            var key = taskItemKeyAtVisual(target);
+            if (key.length > 0) {
+                var next = copyUserSeparatorKeys();
+                next[listIndex] = key;
+                writeUserSeparatorKeys(next);
+            }
+        }
+        separatorDragIndex = -1;
+        separatorDragVisual = -1;
+        scheduleOverlayClose();
+        scheduleDockHide();
+    }
+
+    // Après le déplacement d'une icône, les séparateurs sont rattachés aux
+    // icônes qui occupent maintenant leurs emplacements.
+    function applySeparatorRekey() {
+        if (separatorSlotOverride === null) {
+            return;
+        }
+        var slots = separatorSlotOverride;
+        var next = copyUserSeparatorKeys();
+        for (var i = 0; i < next.length && i < slots.length; ++i) {
+            if (slots[i] >= 0 && slots[i] <= taskVisualCount - 2) {
+                var key = taskItemKeyAtVisual(slots[i]);
+                if (key.length > 0) {
+                    next[i] = key;
+                }
+            }
+        }
+        separatorSlotOverride = null;
+        writeUserSeparatorKeys(next);
+    }
+
+    Timer {
+        id: separatorRekeyTimer
+
+        interval: 150
+        repeat: false
+        onTriggered: root.applySeparatorRekey()
+    }
+
     function baseCenterForIndex(index) {
         return mainMargin + dockIndexOffset(index) + baseIconSize / 2;
     }
@@ -2498,6 +2734,10 @@ PlasmoidItem {
         groupDropTargetSnapshot = null;
         dragInOverlay = delegate.inOverlay;
         dragStartSceneCross = isVertical ? sceneX : sceneY;
+        separatorRekeyTimer.stop();
+        if (userSeparatorKeys.length > 0 && separatorSlotOverride === null) {
+            separatorSlotOverride = userSeparatorVisualSlots.slice();
+        }
 
         overlayCloseTimer.stop();
         dockHideTimer.stop();
@@ -2613,6 +2853,9 @@ PlasmoidItem {
         groupDropTargetSnapshot = null;
         reorderAnimationActive = true;
         reorderAnimationTimer.restart();
+        if (separatorSlotOverride !== null) {
+            separatorRekeyTimer.restart();
+        }
         scheduleOverlayClose();
         scheduleDockHide();
     }
@@ -4498,7 +4741,7 @@ PlasmoidItem {
             }
 
             Repeater {
-                model: root.sectionBreakAfterDockIndices
+                model: root.systemSectionBreakAfterDockIndices
 
                 delegate: Rectangle {
                     required property int modelData
@@ -4517,6 +4760,36 @@ PlasmoidItem {
                     y: root.isVertical
                         ? root.baseSeparatorPositionAfter(modelData)
                             - height / 2
+                        : root.baseIconCrossCenter() - height / 2
+                }
+            }
+
+            Repeater {
+                model: root.userSeparatorVisualSlots.length
+
+                delegate: Rectangle {
+                    id: baseUserSeparator
+
+                    required property int index
+                    readonly property real slot:
+                        root.userSeparatorVisualSlots[index] === undefined
+                            ? -1 : root.userSeparatorVisualSlots[index]
+
+                    visible: slot >= 0
+                    color: Kirigami.Theme.textColor
+                    opacity: 0.24
+                    radius: 1
+                    width: root.isVertical
+                        ? root.baseIconSize * 0.62 : 1
+                    height: root.isVertical
+                        ? 1 : root.baseIconSize * 0.62
+                    x: root.isVertical
+                        ? root.baseIconCrossCenter() - width / 2
+                        : root.baseSeparatorPositionAfter(
+                            root.taskDockStartIndex + slot) - width / 2
+                    y: root.isVertical
+                        ? root.baseSeparatorPositionAfter(
+                            root.taskDockStartIndex + slot) - height / 2
                         : root.baseIconCrossCenter() - height / 2
                 }
             }
@@ -5151,11 +5424,42 @@ PlasmoidItem {
             TapHandler {
                 acceptedButtons: Qt.RightButton
                 gesturePolicy: TapHandler.ReleaseWithinBounds
-                onTapped: dockMenu.popup()
+                onTapped: (eventPoint) => {
+                    root.menuSeparatorVisual = root.separatorBoundaryAtMain(
+                        root.isVertical ? eventPoint.position.y
+                            : eventPoint.position.x);
+                    dockMenu.popup();
+                }
             }
 
             TrackedMenu {
                 id: dockMenu
+
+                QQC2.MenuItem {
+                    id: addSeparatorItem
+
+                    text: i18n("Add separator")
+                    icon.name: "list-add"
+                    visible: root.menuSeparatorVisual >= 0
+                        && root.userSeparatorVisualSlots.indexOf(
+                            root.menuSeparatorVisual) < 0
+                    height: visible ? implicitHeight : 0
+                    onTriggered: root.addUserSeparatorAfterVisual(
+                        root.menuSeparatorVisual)
+                }
+
+                QQC2.MenuItem {
+                    id: removeSeparatorItem
+
+                    text: i18n("Remove separator")
+                    icon.name: "list-remove"
+                    visible: root.menuSeparatorVisual >= 0
+                        && root.userSeparatorVisualSlots.indexOf(
+                            root.menuSeparatorVisual) >= 0
+                    height: visible ? implicitHeight : 0
+                    onTriggered: root.removeUserSeparatorAtVisual(
+                        root.menuSeparatorVisual)
+                }
 
                 QQC2.MenuItem {
                     text: i18n("Configure Dock…")
@@ -5180,7 +5484,7 @@ PlasmoidItem {
                     : root.maximumIconSize + root.indicatorSpace
 
                 Repeater {
-                    model: root.sectionBreakAfterDockIndices
+                    model: root.systemSectionBreakAfterDockIndices
 
                     delegate: Rectangle {
                         required property int modelData
@@ -5200,6 +5504,69 @@ PlasmoidItem {
                             ? overlayContent.separatorPositionAfter(modelData)
                                 - height / 2
                             : overlayContent.restIconCrossCenter() - height / 2
+                    }
+                }
+
+                // Séparateurs de l'utilisateur : on peut les saisir et les
+                // glisser comme une icône.
+                Repeater {
+                    model: root.userSeparatorVisualSlots.length
+
+                    delegate: Item {
+                        id: userSeparator
+
+                        required property int index
+                        readonly property real slot:
+                            root.userSeparatorVisualSlots[index] === undefined
+                                ? -1 : root.userSeparatorVisualSlots[index]
+                        readonly property bool dragging:
+                            root.separatorDragIndex === index
+                        readonly property real grabMain: Math.max(14,
+                            root.utilitySectionGap + root.itemSpacing)
+
+                        visible: slot >= 0
+                        width: root.isVertical ? root.baseIconSize : grabMain
+                        height: root.isVertical ? grabMain : root.baseIconSize
+                        x: root.isVertical
+                            ? overlayContent.restIconCrossCenter() - width / 2
+                            : overlayContent.separatorPositionAfter(
+                                root.taskDockStartIndex + slot) - width / 2
+                        y: root.isVertical
+                            ? overlayContent.separatorPositionAfter(
+                                root.taskDockStartIndex + slot) - height / 2
+                            : overlayContent.restIconCrossCenter() - height / 2
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            color: Kirigami.Theme.textColor
+                            opacity: userSeparator.dragging ? 0.7 : 0.24
+                            radius: 1
+                            width: root.isVertical
+                                ? root.baseIconSize * 0.62 : 1
+                            height: root.isVertical
+                                ? 1 : root.baseIconSize * 0.62
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton
+                            hoverEnabled: true
+                            preventStealing: true
+                            cursorShape: root.isVertical
+                                ? Qt.SizeVerCursor : Qt.SizeHorCursor
+                            onPressed: root.beginSeparatorDrag(userSeparator.index)
+                            onPositionChanged: (mouse) => {
+                                if (!pressed) {
+                                    return;
+                                }
+                                var point = mapToItem(overlayContent,
+                                    mouse.x, mouse.y);
+                                root.updateSeparatorDrag(root.isVertical
+                                    ? point.y : point.x);
+                            }
+                            onReleased: root.endSeparatorDrag(true)
+                            onCanceled: root.endSeparatorDrag(false)
+                        }
                     }
                 }
 

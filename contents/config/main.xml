@@ -168,6 +168,10 @@
     <entry name="showFolderView" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Image personnalisée pour l'icône du dossier Téléchargements (facultatif). -->
+    <entry name="folderIconImage" type="String">
+      <default></default>
+    </entry>
     <entry name="folderUrl" type="String">
       <default></default>
     </entry>
@@ -181,6 +185,8 @@
       <default>1</default>
     </entry>
     <entry name="folderUrls" type="StringList"/>
+    <!-- Séparateurs ajoutés par l'utilisateur : identité de l'icône qui précède. -->
+    <entry name="userSeparators" type="StringList"/>
     <entry name="showTrash" type="Bool">
       <default>true</default>
     </entry>
