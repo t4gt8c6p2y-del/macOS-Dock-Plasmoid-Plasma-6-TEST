@@ -1177,13 +1177,72 @@ PlasmoidItem {
 
     function dockSlideX(windowWidth) {
         var hiddenFraction = 1.0 - dockRevealProgress;
+        // Glissement avec le bureau (voir onDesktopSwitched).
+        var desktopShift = desktopSlide * windowWidth;
         if (dockLocation === PlasmaCore.Types.LeftEdge) {
-            return -windowWidth * hiddenFraction;
+            return -windowWidth * hiddenFraction + desktopShift;
         }
         if (dockLocation === PlasmaCore.Types.RightEdge) {
-            return windowWidth * hiddenFraction;
+            return windowWidth * hiddenFraction + desktopShift;
         }
-        return 0;
+        return desktopShift;
+    }
+
+    // Chaque bureau a son Dock : au changement de bureau, le Dock du nouveau
+    // bureau entre par le côté d'où arrive le bureau, comme le bureau lui-même
+    // (le Dock est une surface du bureau qui ne suit pas l'animation de KWin :
+    // le glissement est simulé).
+    property real desktopSlide: 0
+    property string lastDesktopId: ""
+
+    function onDesktopSwitched() {
+        var current = String(virtualDesktopInfo.currentDesktop || "");
+        var previous = lastDesktopId;
+        lastDesktopId = current;
+        if (!perDesktopDock || previous.length === 0 || previous === current
+                || !dockWindowVisible) {
+            return;
+        }
+        var ids = virtualDesktopInfo.desktopIds || [];
+        var from = -1;
+        var to = -1;
+        for (var i = 0; i < ids.length; ++i) {
+            if (String(ids[i]) === previous) {
+                from = i;
+            }
+            if (String(ids[i]) === current) {
+                to = i;
+            }
+        }
+        if (from < 0 || to < 0) {
+            return;
+        }
+        desktopSlideAnimation.stop();
+        desktopSlide = to > from ? 1 : -1;
+        desktopSlideAnimation.start();
+    }
+
+    NumberAnimation {
+        id: desktopSlideAnimation
+
+        target: root
+        property: "desktopSlide"
+        to: 0
+        duration: 420
+        easing.type: Easing.OutCubic
+    }
+
+    Connections {
+        target: virtualDesktopInfo
+
+        function onCurrentDesktopChanged() {
+            root.onDesktopSwitched();
+        }
+    }
+
+    QtObject {
+        Component.onCompleted: root.lastDesktopId =
+            String(virtualDesktopInfo.currentDesktop || "")
     }
 
     function dockSlideY(windowHeight) {
@@ -4930,12 +4989,20 @@ PlasmoidItem {
 
         objectName: "macOSDockEdge"
         title: "macOS Dock Edge"
-        width: root.isVertical ? 4 : root.baseWindowMainLength
-        height: root.isVertical ? root.baseWindowMainLength : 4
+        // Quand le Dock est affiché alors qu'il devrait être masqué (réaffiché
+        // par le pointeur), la bande entre le bord de l'écran et le Dock reste
+        // couverte par cette fenêtre : sans elle, le pointeur placé dans cette
+        // bande ne touche ni le Dock ni le bord, le Dock se remasque, la bande
+        // de déclenchement revient, le Dock se réaffiche… en boucle.
+        readonly property real gapThickness: root.dockWindowVisible
+            ? Math.max(4, root.panelEdgeMargin) : 4
+        width: root.isVertical ? gapThickness : root.baseWindowMainLength
+        height: root.isVertical ? root.baseWindowMainLength : gapThickness
         flags: Qt.WindowDoesNotAcceptFocus | Qt.FramelessWindowHint
         color: "transparent"
         visible: root.dockAvailable && root.autoHideRequired
-            && !root.fullscreenWindowPresent && !root.dockWindowVisible
+            && !root.fullscreenWindowPresent
+            && (!root.dockWindowVisible || root.panelEdgeMargin > 0.5)
 
         LayerShell.Window.scope: "macosdock-edge"
         LayerShell.Window.anchors: {
@@ -5008,7 +5075,9 @@ PlasmoidItem {
                     y: root.isVertical ? proxyCenter - height / 2 : 0
 
                     function publishEdgeGeometry() {
-                        if (!edgeWindow.visible) {
+                        // Quand le Dock est affiché, c'est lui qui publie la
+                        // géométrie des icônes.
+                        if (!edgeWindow.visible || root.dockWindowVisible) {
                             return;
                         }
                         root.publishDelegateGeometry(index, edgeGeometryProxy,
@@ -5020,6 +5089,14 @@ PlasmoidItem {
                     onWidthChanged: Qt.callLater(publishEdgeGeometry)
                     onHeightChanged: Qt.callLater(publishEdgeGeometry)
                     Component.onCompleted: Qt.callLater(publishEdgeGeometry)
+
+                    Connections {
+                        target: root
+
+                        function onDockWindowVisibleChanged() {
+                            Qt.callLater(edgeGeometryProxy.publishEdgeGeometry);
+                        }
+                    }
                 }
             }
 

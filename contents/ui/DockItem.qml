@@ -156,7 +156,7 @@ Item {
     readonly property real indicatorSize: 3
     readonly property real indicatorGap: 2
     // Espace laissé entre le voyant et le bord du fond du Dock.
-    readonly property real indicatorEdgeGap: 2
+    readonly property real indicatorEdgeGap: 4
     // Longueur du voyant de l'application active (le voyant d'une application
     // ouverte mais inactive est un point : même longueur que sa hauteur).
     readonly property real activeIndicatorLength: 7
