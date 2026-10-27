@@ -9,6 +9,9 @@
 #include <QDBusServiceWatcher>
 #include <QDebug>
 #include <QFileInfo>
+#include <QGuiApplication>
+#include <QMetaObject>
+#include <QWindow>
 #include <QVariant>
 
 namespace
@@ -154,4 +157,35 @@ void WindowActions::setKWinAvailable(bool available)
 
     m_kwinAvailable = available;
     Q_EMIT interactiveForceQuitAvailableChanged();
+}
+
+int WindowActions::closeForeignPopups()
+{
+    int closed = 0;
+    const QList<QWindow *> windows = QGuiApplication::allWindows();
+    for (QWindow *window : windows) {
+        if (!window || !window->isVisible() || window->type() != Qt::Popup) {
+            continue;
+        }
+        // Only the classic menu windows (QMenu and Qt Quick Controls menus):
+        // popups of Plasma applets are left alone.
+        const QByteArray className = window->metaObject()->className();
+        if (className != "QWidgetWindow" && className != "QQuickPopupWindow") {
+            continue;
+        }
+        bool ours = false;
+        for (const QWindow *parent = window->transientParent(); parent;
+             parent = parent->transientParent()) {
+            if (parent->objectName().startsWith(QLatin1String("macOSDock"))) {
+                ours = true;
+                break;
+            }
+        }
+        if (ours) {
+            continue;
+        }
+        QMetaObject::invokeMethod(window, "close", Qt::QueuedConnection);
+        ++closed;
+    }
+    return closed;
 }

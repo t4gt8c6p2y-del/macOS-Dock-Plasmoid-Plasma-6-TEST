@@ -35,6 +35,41 @@ Item {
     readonly property bool windowShown: Window.window !== null
         && Window.window !== undefined && Window.window.visible
 
+    // Le verre n'apparaît qu'une fois les fenêtres derrière le Dock capturées
+    // (sinon on verrait un instant le fond d'écran seul, par exemple quand le
+    // Dock réapparaît au-dessus d'une fenêtre agrandie). Au bout de 1,5 s, il
+    // s'affiche de toute façon.
+    readonly property bool windowsReady: liveLoader.item
+        ? (liveLoader.item.evaluated && liveLoader.item.pendingCount === 0)
+        : true
+    property bool settleTimedOut: false
+    property bool settled: false
+    readonly property bool glassReady: ready && windowShown
+        && (windowsReady || settleTimedOut)
+    onGlassReadyChanged: {
+        if (glassReady) {
+            settled = true;
+        }
+    }
+    onWindowShownChanged: {
+        if (!windowShown) {
+            settled = false;
+            settleTimedOut = false;
+        }
+    }
+    // Jamais tout à fait 0 : un élément transparent n'est plus dessiné, et la
+    // scène des fenêtres ne se mettrait plus à jour.
+    opacity: settled || glassReady ? 1.0 : 0.01
+    Behavior on opacity {
+        NumberAnimation { duration: 160 }
+    }
+
+    Timer {
+        interval: 1500
+        running: gpu.windowShown && !gpu.settled && !gpu.settleTimedOut
+        onTriggered: gpu.settleTimedOut = true
+    }
+
     readonly property bool refraction: Boolean(cfg.refraction)
     // Flou : 0..1 pour MultiEffect (1 = 64 pixels).
     readonly property real blurAmount:
@@ -100,6 +135,8 @@ Item {
         // à part : si le module PipeWire manquait, le verre garderait le fond
         // d'écran seul.
         Loader {
+            id: liveLoader
+
             anchors.fill: parent
             source: "LiveWindows.qml"
             onLoaded: {

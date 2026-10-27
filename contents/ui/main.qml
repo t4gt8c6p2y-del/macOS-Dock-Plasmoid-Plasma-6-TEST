@@ -1177,72 +1177,13 @@ PlasmoidItem {
 
     function dockSlideX(windowWidth) {
         var hiddenFraction = 1.0 - dockRevealProgress;
-        // Glissement avec le bureau (voir onDesktopSwitched).
-        var desktopShift = desktopSlide * windowWidth;
         if (dockLocation === PlasmaCore.Types.LeftEdge) {
-            return -windowWidth * hiddenFraction + desktopShift;
+            return -windowWidth * hiddenFraction;
         }
         if (dockLocation === PlasmaCore.Types.RightEdge) {
-            return windowWidth * hiddenFraction + desktopShift;
+            return windowWidth * hiddenFraction;
         }
-        return desktopShift;
-    }
-
-    // Chaque bureau a son Dock : au changement de bureau, le Dock du nouveau
-    // bureau entre par le côté d'où arrive le bureau, comme le bureau lui-même
-    // (le Dock est une surface du bureau qui ne suit pas l'animation de KWin :
-    // le glissement est simulé).
-    property real desktopSlide: 0
-    property string lastDesktopId: ""
-
-    function onDesktopSwitched() {
-        var current = String(virtualDesktopInfo.currentDesktop || "");
-        var previous = lastDesktopId;
-        lastDesktopId = current;
-        if (!perDesktopDock || previous.length === 0 || previous === current
-                || !dockWindowVisible) {
-            return;
-        }
-        var ids = virtualDesktopInfo.desktopIds || [];
-        var from = -1;
-        var to = -1;
-        for (var i = 0; i < ids.length; ++i) {
-            if (String(ids[i]) === previous) {
-                from = i;
-            }
-            if (String(ids[i]) === current) {
-                to = i;
-            }
-        }
-        if (from < 0 || to < 0) {
-            return;
-        }
-        desktopSlideAnimation.stop();
-        desktopSlide = to > from ? 1 : -1;
-        desktopSlideAnimation.start();
-    }
-
-    NumberAnimation {
-        id: desktopSlideAnimation
-
-        target: root
-        property: "desktopSlide"
-        to: 0
-        duration: 420
-        easing.type: Easing.OutCubic
-    }
-
-    Connections {
-        target: virtualDesktopInfo
-
-        function onCurrentDesktopChanged() {
-            root.onDesktopSwitched();
-        }
-    }
-
-    QtObject {
-        Component.onCompleted: root.lastDesktopId =
-            String(virtualDesktopInfo.currentDesktop || "")
+        return 0;
     }
 
     function dockSlideY(windowHeight) {
@@ -1325,6 +1266,20 @@ PlasmoidItem {
     function revealDock() {
         dockHideTimer.stop();
         revealedForMaximized = true;
+    }
+
+    // Un menu ouvert dans plasmashell (par exemple le menu du clic droit sur le
+    // bureau) capte tous les mouvements de la souris : le pointeur « entre »
+    // dans le Dock mais ne le survole plus, et l'agrandissement reste figé sur
+    // la première icône. Quand le pointeur arrive sur le Dock, on referme donc
+    // ces menus, comme le ferait un clic à côté d'eux.
+    function dismissForeignPopups() {
+        if (openMenuCount > 0 || openPreviewCount > 0
+                || folderPopup.visible || folderPopupOpenPending
+                || appGroupPopup.visible || appGroupPopupOpenPending) {
+            return;
+        }
+        windowActions.closeForeignPopups();
     }
 
     function scheduleDockHide() {
@@ -4785,6 +4740,7 @@ PlasmoidItem {
                 onHoveredChanged: {
                     root.baseHovered = hovered;
                     if (hovered) {
+                        root.dismissForeignPopups();
                         root.revealDock();
                         var coordinate = root.isVertical
                             ? point.position.y : point.position.x;
@@ -5486,6 +5442,7 @@ PlasmoidItem {
                 onHoveredChanged: {
                     root.overlayHovered = hovered;
                     if (hovered) {
+                        root.dismissForeignPopups();
                         root.revealDock();
                         root.overlayOpen = true;
                         root.lastPointerMain = root.isVertical

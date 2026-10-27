@@ -33,6 +33,14 @@ public:
     /** Returns a canonical file URL for a local directory, or an empty string. */
     Q_INVOKABLE QString canonicalDirectoryUrl(const QUrl &url) const;
 
+    /**
+     * Closes menus that other parts of this process (plasmashell) have open,
+     * such as the desktop context menu. While such a menu holds the pointer
+     * grab, the Dock no longer receives pointer motion. Returns how many menus
+     * were asked to close. The Dock's own windows are never touched.
+     */
+    Q_INVOKABLE int closeForeignPopups();
+
 Q_SIGNALS:
     void interactiveForceQuitAvailableChanged();
     void virtualDesktopCreationFinished(bool succeeded);

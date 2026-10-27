@@ -38,6 +38,26 @@ Item {
     onActiveCountChanged: console.log("macOS Dock: live windows behind the Dock:",
         activeCount)
 
+    // Nombre de fenêtres qui touchent la zone et dont la première image n'est
+    // pas encore arrivée (le flux de capture met un instant à démarrer). Le
+    // verre attend qu'il tombe à zéro pour s'afficher : sinon, au réaffichage
+    // du Dock, on voit un instant le fond d'écran à la place de la fenêtre.
+    property int pendingCount: 0
+    // Faux tant que le décompte n'a pas été fait depuis le dernier affichage.
+    property bool evaluated: false
+
+    function recountPending() {
+        evaluated = running;
+        var count = 0;
+        for (var i = 0; i < repeater.count; ++i) {
+            var slot = repeater.itemAt(i);
+            if (slot && slot.pending) {
+                ++count;
+            }
+        }
+        pendingCount = count;
+    }
+
     // Identifiant brut de chaque fenêtre (clé texte -> identifiant), tel que le
     // fournit le gestionnaire de tâches. Modifié sur place, jamais remplacé :
     // le ListModel ne conserve que la clé et la géométrie.
@@ -134,6 +154,7 @@ Item {
             }
         }
         touchingCount = touching;
+        Qt.callLater(recountPending);
     }
 
     // Le compte des fenêtres qui touchent dépend aussi de la zone lue.
@@ -150,6 +171,12 @@ Item {
     }
 
     onWindowsChanged: syncModel()
+    onRunningChanged: {
+        if (!running) {
+            evaluated = false;
+        }
+        Qt.callLater(recountPending);
+    }
     onRegionXChanged: recount()
     onRegionYChanged: recount()
     onWidthChanged: recount()
@@ -161,6 +188,8 @@ Item {
     }
 
     Repeater {
+        id: repeater
+
         model: rowModel
 
         delegate: Item {
@@ -177,6 +206,13 @@ Item {
             // relancé tant que la fenêtre existe.
             readonly property var windowId: scene.rawIds[slot.key]
 
+            // Vrai tant que la capture de cette fenêtre (qui touche la zone)
+            // n'a pas livré d'image.
+            readonly property bool pending: scene.running
+                && scene.intersects(slot.wx, slot.wy, slot.ww, slot.wh, 0)
+                && !(thumbnailLoader.item && thumbnailLoader.item.hasThumbnail)
+            onPendingChanged: Qt.callLater(scene.recountPending)
+
             x: slot.wx - scene.regionX
             y: slot.wy - scene.regionY
             width: slot.ww
@@ -184,6 +220,8 @@ Item {
             z: slot.index
 
             Loader {
+                id: thumbnailLoader
+
                 anchors.fill: parent
                 active: scene.running && slot.windowId !== undefined
                     && scene.intersects(slot.wx, slot.wy, slot.ww, slot.wh,
