@@ -39,11 +39,34 @@ Item {
     // (sinon on verrait un instant le fond d'écran seul, par exemple quand le
     // Dock réapparaît au-dessus d'une fenêtre agrandie). Au bout de 1,5 s, il
     // s'affiche de toute façon.
-    readonly property bool windowsReady: liveLoader.item
+    // Toutes les captures ont livré une image.
+    readonly property bool captureIdle: liveLoader.item
         ? (liveLoader.item.evaluated && liveLoader.item.pendingCount === 0)
         : true
+    // Aucune fenêtre ne touche le Dock : rien à attendre.
+    readonly property bool nothingToCapture: liveLoader.item
+        ? (liveLoader.item.evaluated && liveLoader.item.activeCount === 0)
+        : true
+    // Une capture annonce « prête » un peu avant que son image soit à l'écran :
+    // on laisse passer un court instant avant d'afficher le verre.
+    property bool captureHeld: false
+    readonly property bool windowsReady: windowShown && captureIdle
+        && (nothingToCapture || captureHeld)
+    onCaptureIdleChanged: {
+        if (!captureIdle) {
+            captureHeld = false;
+        }
+    }
     property bool settleTimedOut: false
     property bool settled: false
+    // Vrai quand ce verre est affiché pour de bon : le fond de l'autre fenêtre
+    // du Dock (Basis / Overlay) peut alors s'effacer sans que l'on voie un trou
+    // (voir DockBackground.glassHandoffReady).
+    readonly property bool handoffReady: settled
+    // Durée du fondu d'apparition (0 : instantané, pour le passage d'une fenêtre
+    // du Dock à l'autre).
+    readonly property int fadeMs: cfg.fadeMs === undefined
+        ? 160 : Number(cfg.fadeMs)
     readonly property bool glassReady: ready && windowShown
         && (windowsReady || settleTimedOut)
     onGlassReadyChanged: {
@@ -55,17 +78,24 @@ Item {
         if (!windowShown) {
             settled = false;
             settleTimedOut = false;
+            captureHeld = false;
         }
     }
     // Jamais tout à fait 0 : un élément transparent n'est plus dessiné, et la
     // scène des fenêtres ne se mettrait plus à jour.
     opacity: settled || glassReady ? 1.0 : 0.01
     Behavior on opacity {
-        NumberAnimation { duration: 160 }
+        NumberAnimation { duration: gpu.fadeMs }
     }
 
     Timer {
-        interval: 1500
+        interval: 300
+        running: gpu.windowShown && gpu.captureIdle && !gpu.nothingToCapture
+        onTriggered: gpu.captureHeld = true
+    }
+
+    Timer {
+        interval: 1800
         running: gpu.windowShown && !gpu.settled && !gpu.settleTimedOut
         onTriggered: gpu.settleTimedOut = true
     }

@@ -167,10 +167,9 @@ int WindowActions::closeForeignPopups()
         if (!window || !window->isVisible() || window->type() != Qt::Popup) {
             continue;
         }
-        // Only the classic menu windows (QMenu and Qt Quick Controls menus):
-        // popups of Plasma applets are left alone.
         const QByteArray className = window->metaObject()->className();
-        if (className != "QWidgetWindow" && className != "QQuickPopupWindow") {
+        // Popups of Plasma applets (launcher, system tray...) are left alone.
+        if (className.startsWith("PlasmaQuick")) {
             continue;
         }
         bool ours = false;
@@ -184,6 +183,8 @@ int WindowActions::closeForeignPopups()
         if (ours) {
             continue;
         }
+        qInfo().noquote() << "macOS Dock: closing a menu of this process:"
+                          << className << window->objectName();
         QMetaObject::invokeMethod(window, "close", Qt::QueuedConnection);
         ++closed;
     }

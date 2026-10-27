@@ -70,7 +70,24 @@ Kirigami.ShadowedRectangle {
     readonly property bool glassVisible: Boolean(glassEnabled
         && glassLoader.item && glassLoader.item.ready)
 
+    // Passage d'une fenêtre du Dock à l'autre (Basis / Overlay) : la nouvelle
+    // fenêtre démarre ses propres captures et ne peut pas afficher le verre
+    // tout de suite. Elle reste donc effacée (holdUntilGlassReady) tant que son
+    // verre n'est pas prêt, pendant que l'autre fenêtre garde le sien.
+    property bool holdUntilGlassReady: false
+    // Durée du fondu d'apparition du verre (0 : instantané).
+    property int glassFadeMs: 160
+    // Multiplicateur d'opacité imposé de l'extérieur (voir main.qml).
+    property real externalOpacity: 1.0
+    readonly property bool glassHandoffReady: !glassVisible
+        || (glassLoader.item ? Boolean(glassLoader.item.handoffReady) : true)
+    // Jamais tout à fait 0 : un élément invisible n'est plus dessiné et ses
+    // captures ne se mettraient plus à jour.
+    opacity: externalOpacity * (holdUntilGlassReady && !glassHandoffReady
+        ? 0.01 : 1.0)
+
     readonly property var glassConfig: ({
+        "fadeMs": glassFadeMs,
         "source": wallpaperInfo ? String(wallpaperInfo.source || "") : "",
         "fillMode": wallpaperInfo ? Number(wallpaperInfo.fillMode) : 2,
         "screenWidth": wallpaperInfo ? Number(wallpaperInfo.width) : 0,

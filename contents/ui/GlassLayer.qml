@@ -26,6 +26,10 @@ Item {
         ? (cpuLoader.item ? Boolean(cpuLoader.item.ready) : false)
         : (gpuLoader.item ? Boolean(gpuLoader.item.ready) : false)
 
+    // Vrai quand le verre est affiché pour de bon (voir GlassGpu.handoffReady).
+    readonly property bool handoffReady: gpuBroken
+        ? true : (gpuLoader.item ? Boolean(gpuLoader.item.handoffReady) : false)
+
     function configure(settings) {
         cfg = settings;
         if (cpuLoader.item) {

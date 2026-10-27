@@ -716,7 +716,31 @@ PlasmoidItem {
         }
     }
 
+    // Vrai pendant et juste après un changement de bureau : le Dock prend
+    // aussitôt l'état du nouveau bureau (affiché ou masqué selon qu'une fenêtre
+    // y est agrandie) au lieu de glisser pendant l'animation du bureau.
+    property bool desktopSwitching: false
+
+    Timer {
+        id: desktopSwitchTimer
+
+        interval: 1000
+        repeat: false
+        onTriggered: root.desktopSwitching = false
+    }
+
+    Connections {
+        target: virtualDesktopInfo
+
+        function onCurrentDesktopChanged() {
+            root.desktopSwitching = true;
+            desktopSwitchTimer.restart();
+            root.updateScreenWindowState();
+        }
+    }
+
     Behavior on dockRevealProgress {
+        enabled: !root.desktopSwitching
         // Beim Aufdecken bewegt sich mit OutQuint der Grossteil des Weges
         // sofort und laeuft dann lange weich aus - dieselbe Dauer wie zuvor,
         // aber deutlich gleitender als OutCubic. Beim Verbergen bleibt es bei
@@ -4629,7 +4653,11 @@ PlasmoidItem {
         height: root.baseWindowHeight
         flags: Qt.WindowDoesNotAcceptFocus | Qt.FramelessWindowHint
         color: "transparent"
-        visible: root.dockWindowVisible && !root.overlayVisible
+        // Reste affichée sous la fenêtre agrandie : ses captures continuent de
+        // tourner, et le verre du Dock est déjà prêt quand on revient à elle
+        // (et, dans l'autre sens, elle garde son fond le temps que le verre de
+        // la fenêtre agrandie démarre).
+        visible: root.dockWindowVisible
 
         LayerShell.Window.scope: "macosdock-base"
         LayerShell.Window.anchors: {
@@ -4692,6 +4720,10 @@ PlasmoidItem {
                 glassDispersion: root.glassDispersion
                 glassProfile: root.glassProfile
                 glassRim: root.glassRim
+                // Effacé (mais toujours dessiné) dès que le fond de la fenêtre
+                // agrandie est prêt à le remplacer.
+                externalOpacity: root.overlayVisible
+                    && overlayBackgroundSurface.glassHandoffReady ? 0.01 : 1.0
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(
@@ -4708,59 +4740,118 @@ PlasmoidItem {
                 showShadow: false
             }
 
-            FolderDropTarget {
+            // Les icônes de la fenêtre de base : cachées dès que la fenêtre
+            // agrandie les remplace.
+            Item {
+                id: baseContentLayer
+
                 anchors.fill: parent
-                z: 1
-                excludedItems: [trashBaseItem, powerBaseItem]
-            }
+                opacity: root.overlayVisible ? 0.0 : 1.0
 
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: root.surfaceInset
-                z: 9998
-                visible: root.folderDropActive
-                color: "transparent"
-                radius: root.cornerRadius
-                border.width: 2
-                border.color: Kirigami.Theme.highlightColor
-            }
+                FolderDropTarget {
+                    anchors.fill: parent
+                    z: 1
+                    excludedItems: [trashBaseItem, powerBaseItem]
+                }
 
-            HoverHandler {
-                cursorShape: Qt.PointingHandCursor
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: root.surfaceInset
+                    z: 9998
+                    visible: root.folderDropActive
+                    color: "transparent"
+                    radius: root.cornerRadius
+                    border.width: 2
+                    border.color: Kirigami.Theme.highlightColor
+                }
 
-                onPointChanged: {
-                    if (hovered) {
-                        var coordinate = root.isVertical
-                            ? point.position.y : point.position.x;
-                        root.lastPointerMain = (root.overlayWindowMainLength
-                            - root.baseWindowMainLength) / 2 + coordinate;
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+
+                    onPointChanged: {
+                        if (hovered) {
+                            var coordinate = root.isVertical
+                                ? point.position.y : point.position.x;
+                            root.lastPointerMain = (root.overlayWindowMainLength
+                                - root.baseWindowMainLength) / 2 + coordinate;
+                        }
+                    }
+
+                    onHoveredChanged: {
+                        root.baseHovered = hovered;
+                        if (hovered) {
+                            root.dismissForeignPopups();
+                            root.revealDock();
+                            var coordinate = root.isVertical
+                                ? point.position.y : point.position.x;
+                            root.lastPointerMain = (root.overlayWindowMainLength
+                                - root.baseWindowMainLength) / 2 + coordinate;
+                            overlayCloseTimer.stop();
+                            root.overlayOpen = true;
+                        } else {
+                            root.scheduleOverlayClose();
+                            root.scheduleDockHide();
+                        }
                     }
                 }
 
-                onHoveredChanged: {
-                    root.baseHovered = hovered;
-                    if (hovered) {
-                        root.dismissForeignPopups();
-                        root.revealDock();
-                        var coordinate = root.isVertical
-                            ? point.position.y : point.position.x;
-                        root.lastPointerMain = (root.overlayWindowMainLength
-                            - root.baseWindowMainLength) / 2 + coordinate;
-                        overlayCloseTimer.stop();
-                        root.overlayOpen = true;
-                    } else {
-                        root.scheduleOverlayClose();
-                        root.scheduleDockHide();
+                Repeater {
+                    model: root.systemSectionBreakAfterDockIndices
+
+                    delegate: Rectangle {
+                        required property int modelData
+
+                        color: Kirigami.Theme.textColor
+                        opacity: 0.24
+                        radius: 1
+                        width: root.isVertical
+                            ? root.baseIconSize * 0.62 : 1
+                        height: root.isVertical
+                            ? 1 : root.baseIconSize * 0.62
+                        x: root.isVertical
+                            ? root.baseIconCrossCenter() - width / 2
+                            : root.baseSeparatorPositionAfter(modelData)
+                                - width / 2
+                        y: root.isVertical
+                            ? root.baseSeparatorPositionAfter(modelData)
+                                - height / 2
+                            : root.baseIconCrossCenter() - height / 2
                     }
                 }
-            }
 
-            Repeater {
-                model: root.systemSectionBreakAfterDockIndices
+                Repeater {
+                    model: root.userSeparatorVisualSlots.length
 
-                delegate: Rectangle {
-                    required property int modelData
+                    delegate: Rectangle {
+                        id: baseUserSeparator
 
+                        required property int index
+                        readonly property real slot:
+                            root.userSeparatorVisualSlots[index] === undefined
+                                ? -1 : root.userSeparatorVisualSlots[index]
+
+                        visible: slot >= 0
+                        color: Kirigami.Theme.textColor
+                        opacity: 0.24
+                        radius: 1
+                        width: root.isVertical
+                            ? root.baseIconSize * 0.62 : 1
+                        height: root.isVertical
+                            ? 1 : root.baseIconSize * 0.62
+                        x: root.isVertical
+                            ? root.baseIconCrossCenter() - width / 2
+                            : root.baseSeparatorPositionAfter(
+                                root.taskDockStartIndex + slot) - width / 2
+                        y: root.isVertical
+                            ? root.baseSeparatorPositionAfter(
+                                root.taskDockStartIndex + slot) - height / 2
+                            : root.baseIconCrossCenter() - height / 2
+                    }
+                }
+
+                Rectangle {
+                    visible: root.desktopSwitcherVisible
+                        && root.dockItemCount > 0
                     color: Kirigami.Theme.textColor
                     opacity: 0.24
                     radius: 1
@@ -4770,172 +4861,122 @@ PlasmoidItem {
                         ? 1 : root.baseIconSize * 0.62
                     x: root.isVertical
                         ? root.baseIconCrossCenter() - width / 2
-                        : root.baseSeparatorPositionAfter(modelData)
-                            - width / 2
+                        : root.baseDesktopSeparatorPosition() - width / 2
                     y: root.isVertical
-                        ? root.baseSeparatorPositionAfter(modelData)
-                            - height / 2
+                        ? root.baseDesktopSeparatorPosition() - height / 2
                         : root.baseIconCrossCenter() - height / 2
                 }
-            }
 
-            Repeater {
-                model: root.userSeparatorVisualSlots.length
-
-                delegate: Rectangle {
-                    id: baseUserSeparator
-
-                    required property int index
-                    readonly property real slot:
-                        root.userSeparatorVisualSlots[index] === undefined
-                            ? -1 : root.userSeparatorVisualSlots[index]
-
-                    visible: slot >= 0
-                    color: Kirigami.Theme.textColor
-                    opacity: 0.24
-                    radius: 1
-                    width: root.isVertical
-                        ? root.baseIconSize * 0.62 : 1
-                    height: root.isVertical
-                        ? 1 : root.baseIconSize * 0.62
-                    x: root.isVertical
-                        ? root.baseIconCrossCenter() - width / 2
-                        : root.baseSeparatorPositionAfter(
-                            root.taskDockStartIndex + slot) - width / 2
-                    y: root.isVertical
-                        ? root.baseSeparatorPositionAfter(
-                            root.taskDockStartIndex + slot) - height / 2
-                        : root.baseIconCrossCenter() - height / 2
-                }
-            }
-
-            Rectangle {
-                visible: root.desktopSwitcherVisible
-                    && root.dockItemCount > 0
-                color: Kirigami.Theme.textColor
-                opacity: 0.24
-                radius: 1
-                width: root.isVertical
-                    ? root.baseIconSize * 0.62 : 1
-                height: root.isVertical
-                    ? 1 : root.baseIconSize * 0.62
-                x: root.isVertical
-                    ? root.baseIconCrossCenter() - width / 2
-                    : root.baseDesktopSeparatorPosition() - width / 2
-                y: root.isVertical
-                    ? root.baseDesktopSeparatorPosition() - height / 2
-                    : root.baseIconCrossCenter() - height / 2
-            }
-
-            DesktopSwitcher {
-                visible: root.desktopSwitcherVisible
-                x: root.isVertical ? root.crossMargin
-                    : root.baseDesktopSwitcherStart()
-                y: root.isVertical
-                    ? root.baseDesktopSwitcherStart() : root.crossMargin
-            }
-
-            Repeater {
-                id: baseRepeater
-
-                model: tasksModel
-
-                delegate: TaskDelegate {
-                    displayScale: 1.0
-                    displayCrossExtent: root.baseIconSize
+                DesktopSwitcher {
+                    visible: root.desktopSwitcherVisible
                     x: root.isVertical ? root.crossMargin
-                        : root.baseCenterForIndex(
-                            root.taskDockStartIndex
-                                + root.visualIndexForModelIndex(index))
-                            - scaledSize / 2
+                        : root.baseDesktopSwitcherStart()
                     y: root.isVertical
-                        ? root.baseCenterForIndex(
-                            root.taskDockStartIndex
-                                + root.visualIndexForModelIndex(index))
-                            - scaledSize / 2
-                        : root.crossMargin
+                        ? root.baseDesktopSwitcherStart() : root.crossMargin
                 }
-            }
 
-            Repeater {
-                model: root.folderItemCount
+                Repeater {
+                    id: baseRepeater
 
-                delegate: UtilityDelegate {
-                    required property int index
+                    model: tasksModel
 
-                    folderIndex: index
-                    folderUrl: root.folderUrlAt(index)
-                    dockIndex: root.folderDockIndex + index
-                    utilityType: "folder"
-                    x: root.isVertical ? root.crossMargin
-                        : root.baseCenterForIndex(dockIndex)
-                            - scaledSize / 2
-                    y: root.isVertical
-                        ? root.baseCenterForIndex(dockIndex)
-                            - scaledSize / 2
-                        : root.crossMargin
+                    delegate: TaskDelegate {
+                        displayScale: 1.0
+                        displayCrossExtent: root.baseIconSize
+                        x: root.isVertical ? root.crossMargin
+                            : root.baseCenterForIndex(
+                                root.taskDockStartIndex
+                                    + root.visualIndexForModelIndex(index))
+                                - scaledSize / 2
+                        y: root.isVertical
+                            ? root.baseCenterForIndex(
+                                root.taskDockStartIndex
+                                    + root.visualIndexForModelIndex(index))
+                                - scaledSize / 2
+                            : root.crossMargin
+                    }
                 }
-            }
 
-            Repeater {
-                model: root.showRemovableVolumes ? removableVolumesModel : 0
+                Repeater {
+                    model: root.folderItemCount
 
-                delegate: RemovableVolumeDelegate {
-                    required property int index
-                    required property string udi
-                    required property string displayName
-                    required property string iconName
-                    required property string kind
-                    required property string errorText
-                    required property bool canOpen
-                    required property bool canRemove
-                    required property bool mounted
-                    required property bool busy
-                    required property string operation
+                    delegate: UtilityDelegate {
+                        required property int index
 
-                    volumeUdi: udi
-                    volumeDisplayName: displayName
-                    volumeIconName: iconName
-                    volumeKind: kind
-                    volumeCanOpen: canOpen
-                    volumeCanRemove: canRemove
-                    volumeErrorText: errorText
-                    volumeMounted: mounted
-                    volumeBusy: busy
-                    volumeOperation: operation
+                        folderIndex: index
+                        folderUrl: root.folderUrlAt(index)
+                        dockIndex: root.folderDockIndex + index
+                        utilityType: "folder"
+                        x: root.isVertical ? root.crossMargin
+                            : root.baseCenterForIndex(dockIndex)
+                                - scaledSize / 2
+                        y: root.isVertical
+                            ? root.baseCenterForIndex(dockIndex)
+                                - scaledSize / 2
+                            : root.crossMargin
+                    }
+                }
 
-                    dockIndex: root.removableVolumeDockStartIndex + index
+                Repeater {
+                    model: root.showRemovableVolumes ? removableVolumesModel : 0
+
+                    delegate: RemovableVolumeDelegate {
+                        required property int index
+                        required property string udi
+                        required property string displayName
+                        required property string iconName
+                        required property string kind
+                        required property string errorText
+                        required property bool canOpen
+                        required property bool canRemove
+                        required property bool mounted
+                        required property bool busy
+                        required property string operation
+
+                        volumeUdi: udi
+                        volumeDisplayName: displayName
+                        volumeIconName: iconName
+                        volumeKind: kind
+                        volumeCanOpen: canOpen
+                        volumeCanRemove: canRemove
+                        volumeErrorText: errorText
+                        volumeMounted: mounted
+                        volumeBusy: busy
+                        volumeOperation: operation
+
+                        dockIndex: root.removableVolumeDockStartIndex + index
+                        x: root.isVertical ? root.crossMargin
+                            : root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                        y: root.isVertical
+                            ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                            : root.crossMargin
+                    }
+                }
+
+                UtilityDelegate {
+                    id: trashBaseItem
+
+                    visible: root.showTrash
+                    dockIndex: root.trashDockIndex
+                    utilityType: "trash"
                     x: root.isVertical ? root.crossMargin
                         : root.baseCenterForIndex(dockIndex) - scaledSize / 2
                     y: root.isVertical
                         ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
                         : root.crossMargin
                 }
-            }
 
-            UtilityDelegate {
-                id: trashBaseItem
+                PowerDelegate {
+                    id: powerBaseItem
 
-                visible: root.showTrash
-                dockIndex: root.trashDockIndex
-                utilityType: "trash"
-                x: root.isVertical ? root.crossMargin
-                    : root.baseCenterForIndex(dockIndex) - scaledSize / 2
-                y: root.isVertical
-                    ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
-                    : root.crossMargin
-            }
-
-            PowerDelegate {
-                id: powerBaseItem
-
-                visible: root.showPowerButton
-                dockIndex: root.powerButtonDockIndex
-                x: root.isVertical ? root.crossMargin
-                    : root.baseCenterForIndex(dockIndex) - scaledSize / 2
-                y: root.isVertical
-                    ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
-                    : root.crossMargin
+                    visible: root.showPowerButton
+                    dockIndex: root.powerButtonDockIndex
+                    x: root.isVertical ? root.crossMargin
+                        : root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                    y: root.isVertical
+                        ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                        : root.crossMargin
+                }
             }
         }
     }
@@ -5310,6 +5351,10 @@ PlasmoidItem {
                 id: overlayBackgroundSurface
 
                 z: 0
+                // Reste effacé tant que son verre n'est pas prêt : la fenêtre de
+                // base, dessous, garde le sien jusque-là (voir DockBackground).
+                holdUntilGlassReady: true
+                glassFadeMs: 0
                 borderStrength: root.borderStrength
                 borderWidth: root.borderWidth
                 colorFromWallpaper: root.borderColorFromWallpaper
