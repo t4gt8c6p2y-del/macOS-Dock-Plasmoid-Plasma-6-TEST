@@ -89,7 +89,11 @@ Item {
     }
 
     Timer {
-        interval: 300
+        // Pour la fenêtre agrandie (fondu à 0), le verre de la fenêtre de base
+        // reste affiché dessous pendant l'attente : la marge de sécurité peut
+        // être plus courte, ce qui raccourcit le délai avant l'agrandissement
+        // des icônes (voir main.qml, overlayZoomReady).
+        interval: gpu.fadeMs === 0 ? 180 : 300
         running: gpu.windowShown && gpu.captureIdle && !gpu.nothingToCapture
         onTriggered: gpu.captureHeld = true
     }

@@ -52,14 +52,6 @@ PlasmoidItem {
     readonly property real itemSpacing:
         fittedItemSpacing(configuredItemSpacing)
     readonly property real windowPadding: 10
-    // Nom (« namespace ») des surfaces layer-shell du Dock. KWin ne reconnaît
-    // comme « Dock » que le nom exact "dock" ; tout autre nom en fait une
-    // fenêtre ordinaire, rattachée au seul bureau virtuel où elle est apparue,
-    // et l'effet Glissement la déplace alors avec ce bureau quand on change de
-    // bureau (au trackpad par exemple). Une surface « dock » est sur tous les
-    // bureaux et reste fixe pendant le glissement ; son contenu change quand
-    // même d'un bureau à l'autre (filterByVirtualDesktop).
-    readonly property string dockLayerScope: "dock"
     // Marge transparente (en px) laissée entre le fond du dock et le bord de
     // ses fenêtres. Un fond qui touche exactement le bord d'une fenêtre fait
     // apparaître, sur les parties droites, un filet d'un pixel dont la couleur
@@ -512,12 +504,55 @@ PlasmoidItem {
         onTriggered: root.overlayCovering = root.overlayVisible
     }
 
+    // Les icônes ne commencent à s'agrandir que lorsque le fond de la fenêtre
+    // agrandie est entièrement prêt, verre (Liquid Glass) compris. Sinon, les
+    // icônes grossissent tout de suite mais le verre du fond n'existe pas encore
+    // sur les côtés qui s'élargissent, et l'on voit un instant un Dock à moitié
+    // dessiné. Sans verre, ou quand aucune fenêtre n'est derrière le Dock, le
+    // verre est prêt aussitôt et l'agrandissement n'est pas retardé. Au pire,
+    // il démarre après overlayZoomMaxWait.
+    property bool overlayZoomReady: false
+    readonly property bool overlayZoomActive: overlayOpen && overlayZoomReady
+    readonly property int overlayZoomMaxWait: 600
+
+    Timer {
+        id: overlayZoomTimer
+
+        interval: root.overlayZoomMaxWait
+        repeat: false
+        onTriggered: root.overlayZoomReady = root.overlayVisible
+    }
+
+    function updateOverlayZoomReady() {
+        if (!overlayVisible) {
+            overlayZoomTimer.stop();
+            overlayZoomReady = false;
+            return;
+        }
+        if (!overlayZoomReady && overlayBackgroundSurface.glassHandoffReady) {
+            overlayZoomTimer.stop();
+            overlayZoomReady = true;
+        }
+    }
+
+    Connections {
+        target: overlayBackgroundSurface
+
+        function onGlassHandoffReadyChanged() {
+            root.updateOverlayZoomReady();
+        }
+    }
+
     onOverlayVisibleChanged: {
         if (overlayVisible) {
             overlayCoverTimer.restart();
+            overlayZoomReady = false;
+            overlayZoomTimer.restart();
+            updateOverlayZoomReady();
         } else {
             overlayCoverTimer.stop();
             overlayCovering = false;
+            updateOverlayZoomReady();
         }
     }
     property Item representationItem: null
@@ -763,6 +798,10 @@ PlasmoidItem {
         target: virtualDesktopInfo
 
         function onCurrentDesktopChanged() {
+            // Diagnostic : visible dans le journal (journalctl --user -b).
+            console.info("macOS Dock: desktop changed, maximized before:",
+                root.maximizedWindowPresent, "reveal:",
+                root.dockRevealProgress.toFixed(2));
             root.desktopSwitching = true;
             desktopSwitchTimer.restart();
             root.updateScreenWindowState();
@@ -1343,13 +1382,16 @@ PlasmoidItem {
     // Vrai pendant que l'ouverture de la fenêtre agrandie attend la fin de la
     // fermeture d'un menu étranger.
     property bool overlayOpenDeferred: false
+    // Vrai quand la fenêtre agrandie vient de s'ouvrir juste après la fermeture
+    // d'un menu étranger : on vérifie alors qu'elle reçoit bien le pointeur.
+    property bool overlayResyncPending: false
 
     Timer {
         id: overlayOpenDeferTimer
 
         // Le temps que le menu soit réellement fermé (fermeture mise en file
         // d'attente) et que Wayland redonne le pointeur au Dock.
-        interval: 90
+        interval: 150
         repeat: false
         onTriggered: {
             root.overlayOpenDeferred = false;
@@ -1357,6 +1399,51 @@ PlasmoidItem {
                 // Dernier filet : si le menu est encore là, on le ferme et on
                 // ouvre quand même, plutôt que de laisser le Dock inerte.
                 root.dismissForeignPopups();
+                overlayCloseTimer.stop();
+                root.overlayOpen = true;
+                root.overlayResyncPending = true;
+                overlayResyncTimer.restart();
+            }
+        }
+    }
+
+    // Après la fermeture d'un menu étranger, il arrive que la nouvelle fenêtre
+    // agrandie, apparue sous un pointeur immobile, ne reçoive jamais l'entrée
+    // du pointeur : elle ne suit alors plus la souris et l'agrandissement reste
+    // figé sur la première icône. Si, peu après son ouverture, elle ne se sait
+    // toujours pas survolée, on la referme et on la rouvre une fois : la
+    // nouvelle fenêtre reçoit alors une entrée du pointeur toute neuve.
+    Timer {
+        id: overlayResyncTimer
+
+        interval: 300
+        repeat: false
+        onTriggered: {
+            if (!root.overlayResyncPending) {
+                return;
+            }
+            root.overlayResyncPending = false;
+            if (root.overlayOpen && !root.overlayHovered) {
+                console.info("macOS Dock: re-opening the enlarged window"
+                    + " (no pointer after a foreign menu closed)");
+                overlayCloseTimer.stop();
+                overlayCollapseTimer.stop();
+                root.overlayCollapsing = false;
+                root.overlayOpen = false;
+                overlayReopenTimer.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: overlayReopenTimer
+
+        // Laisse à Wayland le temps de redonner le pointeur à la fenêtre de
+        // base avant de rouvrir la fenêtre agrandie.
+        interval: 80
+        repeat: false
+        onTriggered: {
+            if (root.baseHovered || root.overlayHovered) {
                 overlayCloseTimer.stop();
                 root.overlayOpen = true;
             }
@@ -1556,6 +1643,12 @@ PlasmoidItem {
             if (maximizedPresent && fullscreenPresent) {
                 break;
             }
+        }
+        if (desktopSwitching && (maximizedPresent !== maximizedWindowPresent
+                || fullscreenPresent !== fullscreenWindowPresent)) {
+            console.info("macOS Dock: window state after desktop change,"
+                + " maximized:", maximizedPresent, "fullscreen:",
+                fullscreenPresent);
         }
         maximizedWindowPresent = maximizedPresent;
         fullscreenWindowPresent = fullscreenPresent;
@@ -4739,7 +4832,7 @@ PlasmoidItem {
         // la fenêtre agrandie démarre).
         visible: root.dockWindowVisible
 
-        LayerShell.Window.scope: root.dockLayerScope
+        LayerShell.Window.scope: "macosdock-base"
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -5085,7 +5178,7 @@ PlasmoidItem {
             && !root.fullscreenWindowPresent
             && (!root.dockWindowVisible || root.panelEdgeMargin > 0.5)
 
-        LayerShell.Window.scope: root.dockLayerScope
+        LayerShell.Window.scope: "macosdock-edge"
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -5215,7 +5308,7 @@ PlasmoidItem {
         color: "transparent"
         visible: root.overlayVisible
 
-        LayerShell.Window.scope: root.dockLayerScope
+        LayerShell.Window.scope: "macosdock"
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -5781,7 +5874,7 @@ PlasmoidItem {
                         displayScale: root.scaleForIndex(
                             root.taskDockStartIndex
                                 + root.visualIndexForModelIndex(index),
-                            root.lastPointerMain, root.overlayOpen,
+                            root.lastPointerMain, root.overlayZoomActive,
                             overlayContent.mainLength, root.maxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
@@ -5808,7 +5901,7 @@ PlasmoidItem {
                         dockIndex: root.folderDockIndex + index
                         utilityType: "folder"
                         displayScale: root.scaleForIndex(dockIndex,
-                            root.lastPointerMain, root.overlayOpen,
+                            root.lastPointerMain, root.overlayZoomActive,
                             overlayContent.mainLength, root.maxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
@@ -5853,7 +5946,7 @@ PlasmoidItem {
 
                         dockIndex: root.removableVolumeDockStartIndex + index
                         displayScale: root.scaleForIndex(dockIndex,
-                            root.lastPointerMain, root.overlayOpen,
+                            root.lastPointerMain, root.overlayZoomActive,
                             overlayContent.mainLength, root.maxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
@@ -5874,7 +5967,7 @@ PlasmoidItem {
                     dockIndex: root.trashDockIndex
                     utilityType: "trash"
                     displayScale: root.scaleForIndex(dockIndex,
-                        root.lastPointerMain, root.overlayOpen,
+                        root.lastPointerMain, root.overlayZoomActive,
                         overlayContent.mainLength, root.maxScale,
                         root.baseIconSize)
                     displayCrossExtent: root.maximumIconSize
@@ -5893,7 +5986,7 @@ PlasmoidItem {
                     inOverlay: true
                     dockIndex: root.powerButtonDockIndex
                     displayScale: root.scaleForIndex(dockIndex,
-                        root.lastPointerMain, root.overlayOpen,
+                        root.lastPointerMain, root.overlayZoomActive,
                         overlayContent.mainLength, root.maxScale,
                         root.baseIconSize)
                     displayCrossExtent: root.maximumIconSize
