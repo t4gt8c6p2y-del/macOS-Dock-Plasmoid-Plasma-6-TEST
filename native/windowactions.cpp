@@ -170,6 +170,10 @@ int WindowActions::closeForeignPopups()
         const QByteArray className = window->metaObject()->className();
         // Popups of Plasma applets (launcher, system tray...) are left alone.
         if (className.startsWith("PlasmaQuick")) {
+            // Logged so that a menu that is wrongly left open (and keeps the
+            // pointer) can be identified from the journal.
+            qInfo().noquote() << "macOS Dock: leaving this popup open:"
+                              << className << window->objectName();
             continue;
         }
         bool ours = false;

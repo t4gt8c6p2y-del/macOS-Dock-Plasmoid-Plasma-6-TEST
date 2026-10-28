@@ -52,6 +52,14 @@ PlasmoidItem {
     readonly property real itemSpacing:
         fittedItemSpacing(configuredItemSpacing)
     readonly property real windowPadding: 10
+    // Nom (« namespace ») des surfaces layer-shell du Dock. KWin ne reconnaît
+    // comme « Dock » que le nom exact "dock" ; tout autre nom en fait une
+    // fenêtre ordinaire, rattachée au seul bureau virtuel où elle est apparue,
+    // et l'effet Glissement la déplace alors avec ce bureau quand on change de
+    // bureau (au trackpad par exemple). Une surface « dock » est sur tous les
+    // bureaux et reste fixe pendant le glissement ; son contenu change quand
+    // même d'un bureau à l'autre (filterByVirtualDesktop).
+    readonly property string dockLayerScope: "dock"
     // Marge transparente (en px) laissée entre le fond du dock et le bord de
     // ses fenêtres. Un fond qui touche exactement le bord d'une fenêtre fait
     // apparaître, sur les parties droites, un filet d'un pixel dont la couleur
@@ -490,6 +498,28 @@ PlasmoidItem {
     readonly property bool overlayVisible:
         (overlayOpen || overlayCollapsing || startupBounceCount > 0)
             && dockWindowVisible
+    // Vrai peu après l'affichage de la fenêtre agrandie, le temps qu'elle ait
+    // dessiné sa première image : la base garde alors sa teinte et sa bordure
+    // jusque-là, puis ne montre plus que son verre (voir
+    // DockBackground.coveredByOverlay).
+    property bool overlayCovering: false
+
+    Timer {
+        id: overlayCoverTimer
+
+        interval: 60
+        repeat: false
+        onTriggered: root.overlayCovering = root.overlayVisible
+    }
+
+    onOverlayVisibleChanged: {
+        if (overlayVisible) {
+            overlayCoverTimer.restart();
+        } else {
+            overlayCoverTimer.stop();
+            overlayCovering = false;
+        }
+    }
     property Item representationItem: null
     property bool baseHovered: false
     property bool overlayHovered: false
@@ -1297,13 +1327,63 @@ PlasmoidItem {
     // dans le Dock mais ne le survole plus, et l'agrandissement reste figé sur
     // la première icône. Quand le pointeur arrive sur le Dock, on referme donc
     // ces menus, comme le ferait un clic à côté d'eux.
+    //
+    // Renvoie vrai si au moins un menu a été fermé. Dans ce cas le pointeur est
+    // encore « capturé » par le menu qui disparaît : le Dock n'y est pas
+    // survolé tout de suite (voir requestOverlayOpen).
     function dismissForeignPopups() {
         if (openMenuCount > 0 || openPreviewCount > 0
                 || folderPopup.visible || folderPopupOpenPending
                 || appGroupPopup.visible || appGroupPopupOpenPending) {
+            return false;
+        }
+        return windowActions.closeForeignPopups() > 0;
+    }
+
+    // Vrai pendant que l'ouverture de la fenêtre agrandie attend la fin de la
+    // fermeture d'un menu étranger.
+    property bool overlayOpenDeferred: false
+
+    Timer {
+        id: overlayOpenDeferTimer
+
+        // Le temps que le menu soit réellement fermé (fermeture mise en file
+        // d'attente) et que Wayland redonne le pointeur au Dock.
+        interval: 90
+        repeat: false
+        onTriggered: {
+            root.overlayOpenDeferred = false;
+            if (root.baseHovered || root.overlayHovered) {
+                // Dernier filet : si le menu est encore là, on le ferme et on
+                // ouvre quand même, plutôt que de laisser le Dock inerte.
+                root.dismissForeignPopups();
+                overlayCloseTimer.stop();
+                root.overlayOpen = true;
+            }
+        }
+    }
+
+    // Ouvre la fenêtre agrandie (icônes qui grossissent) quand le pointeur
+    // arrive sur le Dock. Si un menu d'un autre composant de plasmashell était
+    // ouvert (clic droit sur le bureau), on le ferme d'abord et on n'ouvre la
+    // fenêtre agrandie qu'ensuite : une fenêtre ouverte pendant que ce menu
+    // capte encore le pointeur ne reçoit plus aucun mouvement, et
+    // l'agrandissement resterait figé sur la première icône survolée.
+    function requestOverlayOpen() {
+        if (overlayOpenDeferred) {
             return;
         }
-        windowActions.closeForeignPopups();
+        if (overlayOpen) {
+            dismissForeignPopups();
+            return;
+        }
+        if (dismissForeignPopups()) {
+            overlayOpenDeferred = true;
+            overlayOpenDeferTimer.restart();
+            return;
+        }
+        overlayCloseTimer.stop();
+        overlayOpen = true;
     }
 
     function scheduleDockHide() {
@@ -4659,7 +4739,7 @@ PlasmoidItem {
         // la fenêtre agrandie démarre).
         visible: root.dockWindowVisible
 
-        LayerShell.Window.scope: "macosdock-base"
+        LayerShell.Window.scope: root.dockLayerScope
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -4724,6 +4804,9 @@ PlasmoidItem {
                 // agrandie est prêt à le remplacer.
                 externalOpacity: root.overlayVisible
                     && overlayBackgroundSurface.glassHandoffReady ? 0.01 : 1.0
+                // En attendant, la fenêtre agrandie dessine déjà la teinte et
+                // la bordure ; ce fond-ci ne montre plus que son verre.
+                coveredByOverlay: root.overlayCovering
                 wallpaperInfo: root.wallpaperInfo
                 colorSampler: wallpaperLocator
                 backdropOrigin: Qt.point(
@@ -4780,14 +4863,15 @@ PlasmoidItem {
                     onHoveredChanged: {
                         root.baseHovered = hovered;
                         if (hovered) {
-                            root.dismissForeignPopups();
                             root.revealDock();
                             var coordinate = root.isVertical
                                 ? point.position.y : point.position.x;
                             root.lastPointerMain = (root.overlayWindowMainLength
                                 - root.baseWindowMainLength) / 2 + coordinate;
                             overlayCloseTimer.stop();
-                            root.overlayOpen = true;
+                            // Ferme d'abord un éventuel menu étranger (clic
+                            // droit sur le bureau), puis ouvre l'agrandissement.
+                            root.requestOverlayOpen();
                         } else {
                             root.scheduleOverlayClose();
                             root.scheduleDockHide();
@@ -5001,7 +5085,7 @@ PlasmoidItem {
             && !root.fullscreenWindowPresent
             && (!root.dockWindowVisible || root.panelEdgeMargin > 0.5)
 
-        LayerShell.Window.scope: "macosdock-edge"
+        LayerShell.Window.scope: root.dockLayerScope
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -5108,6 +5192,9 @@ PlasmoidItem {
                 onHoveredChanged: {
                     root.edgeHovered = hovered;
                     if (hovered) {
+                        // Même chose que pour le Dock : un menu étranger
+                        // (clic droit sur le bureau) garderait le pointeur.
+                        root.dismissForeignPopups();
                         root.revealDock();
                     } else {
                         root.scheduleDockHide();
@@ -5128,7 +5215,7 @@ PlasmoidItem {
         color: "transparent"
         visible: root.overlayVisible
 
-        LayerShell.Window.scope: "macosdock"
+        LayerShell.Window.scope: root.dockLayerScope
         LayerShell.Window.anchors: {
             if (root.dockLocation === PlasmaCore.Types.TopEdge) {
                 return LayerShell.Window.AnchorTop;
@@ -5164,9 +5251,14 @@ PlasmoidItem {
             id: overlayContent
 
             anchors.fill: parent
+            // Même décalage que la fenêtre de base (calculé sur SA taille, pas
+            // sur celle de la fenêtre agrandie, plus haute) : les deux fonds
+            // sont collés au bord de l'écran et doivent glisser exactement du
+            // même nombre de pixels, sinon leurs bordures se croisent pendant
+            // l'apparition du Dock.
             transform: Translate {
-                x: root.dockSlideX(overlayWindow.width)
-                y: root.dockSlideY(overlayWindow.height)
+                x: root.dockSlideX(root.baseWindowWidth)
+                y: root.dockSlideY(root.baseWindowHeight)
             }
 
             readonly property real mainLength: root.isVertical ? height : width
@@ -5351,9 +5443,10 @@ PlasmoidItem {
                 id: overlayBackgroundSurface
 
                 z: 0
-                // Reste effacé tant que son verre n'est pas prêt : la fenêtre de
-                // base, dessous, garde le sien jusque-là (voir DockBackground).
-                holdUntilGlassReady: true
+                // Teinte et bordure sont affichées aussitôt, à la taille des
+                // icônes agrandies ; seul le verre attend d'être prêt, et la
+                // fenêtre de base, dessous, garde le sien jusque-là (voir
+                // DockBackground et coveredByOverlay).
                 glassFadeMs: 0
                 borderStrength: root.borderStrength
                 borderWidth: root.borderWidth
@@ -5487,12 +5580,11 @@ PlasmoidItem {
                 onHoveredChanged: {
                     root.overlayHovered = hovered;
                     if (hovered) {
-                        root.dismissForeignPopups();
                         root.revealDock();
-                        root.overlayOpen = true;
                         root.lastPointerMain = root.isVertical
                             ? point.position.y : point.position.x;
                         overlayCloseTimer.stop();
+                        root.requestOverlayOpen();
                     } else {
                         root.scheduleOverlayClose();
                         root.scheduleDockHide();

@@ -72,9 +72,18 @@ Kirigami.ShadowedRectangle {
 
     // Passage d'une fenêtre du Dock à l'autre (Basis / Overlay) : la nouvelle
     // fenêtre démarre ses propres captures et ne peut pas afficher le verre
-    // tout de suite. Elle reste donc effacée (holdUntilGlassReady) tant que son
-    // verre n'est pas prêt, pendant que l'autre fenêtre garde le sien.
-    property bool holdUntilGlassReady: false
+    // tout de suite. Son fond (teinte + bordure) est, lui, affiché aussitôt à
+    // la taille actuelle du Dock : les icônes agrandies ne doivent jamais
+    // déborder d'un fond resté à sa taille de repos. Le verre (flou) apparaît
+    // dès qu'il est prêt ; en attendant, c'est le verre de l'autre fenêtre qui
+    // reste visible dessous (voir coveredByOverlay).
+    //
+    // Vrai quand une autre fenêtre du Dock (la fenêtre agrandie) dessine déjà
+    // la teinte, la bordure et le reflet à la place de celui-ci : seul son verre
+    // reste alors affiché, sans teinte, pour ne pas doubler la teinte ni faire
+    // apparaître une seconde bordure à l'intérieur de la première.
+    property bool coveredByOverlay: false
+    readonly property real ownDecorationOpacity: coveredByOverlay ? 0.0 : 1.0
     // Durée du fondu d'apparition du verre (0 : instantané).
     property int glassFadeMs: 160
     // Multiplicateur d'opacité imposé de l'extérieur (voir main.qml).
@@ -83,8 +92,7 @@ Kirigami.ShadowedRectangle {
         || (glassLoader.item ? Boolean(glassLoader.item.handoffReady) : true)
     // Jamais tout à fait 0 : un élément invisible n'est plus dessiné et ses
     // captures ne se mettraient plus à jour.
-    opacity: externalOpacity * (holdUntilGlassReady && !glassHandoffReady
-        ? 0.01 : 1.0)
+    opacity: externalOpacity
 
     readonly property var glassConfig: ({
         "fadeMs": glassFadeMs,
@@ -182,6 +190,7 @@ Kirigami.ShadowedRectangle {
         radius: background.radius
         color: background.tintColor
         visible: background.glassVisible
+        opacity: background.ownDecorationOpacity
     }
 
     Rectangle {
@@ -191,6 +200,7 @@ Kirigami.ShadowedRectangle {
         color: "transparent"
         visible: background.showHighlight
             && background.highlightStrength > 0.001
+        opacity: background.ownDecorationOpacity
 
         gradient: Gradient {
             orientation: Gradient.Vertical
@@ -360,6 +370,7 @@ Kirigami.ShadowedRectangle {
 
     // Côté haut.
     BorderEdge {
+        opacity: background.ownDecorationOpacity
         x: background.capWidth
         y: 0
         width: background.edgeWidth
@@ -370,6 +381,7 @@ Kirigami.ShadowedRectangle {
 
     // Côté bas.
     BorderEdge {
+        opacity: background.ownDecorationOpacity
         x: background.capWidth
         y: background.height - background.drawnWidth
         width: background.edgeWidth
@@ -380,6 +392,7 @@ Kirigami.ShadowedRectangle {
 
     // Extrémité gauche.
     BorderCap {
+        opacity: background.ownDecorationOpacity
         x: 0
         y: 0
         width: background.capWidth
@@ -395,6 +408,7 @@ Kirigami.ShadowedRectangle {
 
     // Extrémité droite.
     BorderCap {
+        opacity: background.ownDecorationOpacity
         x: background.width - background.capWidth
         y: 0
         width: background.capWidth
@@ -416,6 +430,7 @@ Kirigami.ShadowedRectangle {
         anchors.fill: parent
         active: background.lightEnabled
         visible: background.activePeak > 0.003
+        opacity: background.ownDecorationOpacity
         source: "BorderLightLayer.qml"
         onLoaded: {
             item.peak = Qt.binding(function() { return background.activePeak; });
