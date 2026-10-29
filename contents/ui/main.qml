@@ -513,7 +513,7 @@ PlasmoidItem {
     // il démarre après overlayZoomMaxWait.
     property bool overlayZoomReady: false
     readonly property bool overlayZoomActive: overlayOpen && overlayZoomReady
-    readonly property int overlayZoomMaxWait: 600
+    readonly property int overlayZoomMaxWait: 450
 
     Timer {
         id: overlayZoomTimer
@@ -809,15 +809,18 @@ PlasmoidItem {
     }
 
     Behavior on dockRevealProgress {
-        enabled: !root.desktopSwitching
         // Beim Aufdecken bewegt sich mit OutQuint der Grossteil des Weges
         // sofort und laeuft dann lange weich aus - dieselbe Dauer wie zuvor,
         // aber deutlich gleitender als OutCubic. Beim Verbergen bleibt es bei
         // einer beschleunigenden Kurve, damit das Dock zuegig verschwindet
         // statt traege wegzukriechen.
         NumberAnimation {
+            // Après un changement de bureau, le Dock apparaît d'un coup (il
+            // prend aussitôt l'état du nouveau bureau : durée nulle), mais il
+            // disparaît en glissant quand une fenêtre agrandie l'y attend.
             duration: root.dockRequestedVisible
-                ? root.dockRevealDuration : root.dockHideDuration
+                ? (root.desktopSwitching ? 0 : root.dockRevealDuration)
+                : root.dockHideDuration
             easing.type: root.dockRequestedVisible
                 ? Easing.OutQuint : Easing.InQuad
         }
@@ -1367,9 +1370,7 @@ PlasmoidItem {
     // la première icône. Quand le pointeur arrive sur le Dock, on referme donc
     // ces menus, comme le ferait un clic à côté d'eux.
     //
-    // Renvoie vrai si au moins un menu a été fermé. Dans ce cas le pointeur est
-    // encore « capturé » par le menu qui disparaît : le Dock n'y est pas
-    // survolé tout de suite (voir requestOverlayOpen).
+    // Renvoie vrai si au moins un menu a été fermé (voir zoomSuppressed).
     function dismissForeignPopups() {
         if (openMenuCount > 0 || openPreviewCount > 0
                 || folderPopup.visible || folderPopupOpenPending
@@ -1379,85 +1380,42 @@ PlasmoidItem {
         return windowActions.closeForeignPopups() > 0;
     }
 
-    // Vrai pendant que l'ouverture de la fenêtre agrandie attend la fin de la
-    // fermeture d'un menu étranger.
-    property bool overlayOpenDeferred: false
-    // Vrai quand la fenêtre agrandie vient de s'ouvrir juste après la fermeture
-    // d'un menu étranger : on vérifie alors qu'elle reçoit bien le pointeur.
-    property bool overlayResyncPending: false
+    // Contournement : après un clic droit sur le bureau, le menu de plasmashell
+    // capte la souris, et même une fois refermé, la fenêtre agrandie ne suit
+    // plus le pointeur (l'agrandissement reste figé sur la première icône).
+    // Quand le pointeur arrive sur le Dock alors qu'un tel menu était ouvert,
+    // on referme le menu et l'agrandissement des icônes est désactivé jusqu'à
+    // ce que le pointeur ait quitté le Dock. Le Dock reste utilisable
+    // (clics, aperçus, bouton droit) ; il ne fait simplement pas l'effet loupe.
+    property bool zoomSuppressed: false
 
     Timer {
-        id: overlayOpenDeferTimer
+        id: zoomSuppressResetTimer
 
-        // Le temps que le menu soit réellement fermé (fermeture mise en file
-        // d'attente) et que Wayland redonne le pointeur au Dock.
-        interval: 150
+        // Le pointeur peut passer d'une fenêtre du Dock à l'autre (bord, base) :
+        // on attend un instant avant de décider qu'il a vraiment quitté le Dock.
+        interval: 600
         repeat: false
         onTriggered: {
-            root.overlayOpenDeferred = false;
-            if (root.baseHovered || root.overlayHovered) {
-                // Dernier filet : si le menu est encore là, on le ferme et on
-                // ouvre quand même, plutôt que de laisser le Dock inerte.
-                root.dismissForeignPopups();
-                overlayCloseTimer.stop();
-                root.overlayOpen = true;
-                root.overlayResyncPending = true;
-                overlayResyncTimer.restart();
+            if (!root.baseHovered && !root.overlayHovered
+                    && !root.edgeHovered) {
+                root.zoomSuppressed = false;
             }
         }
     }
 
-    // Après la fermeture d'un menu étranger, il arrive que la nouvelle fenêtre
-    // agrandie, apparue sous un pointeur immobile, ne reçoive jamais l'entrée
-    // du pointeur : elle ne suit alors plus la souris et l'agrandissement reste
-    // figé sur la première icône. Si, peu après son ouverture, elle ne se sait
-    // toujours pas survolée, on la referme et on la rouvre une fois : la
-    // nouvelle fenêtre reçoit alors une entrée du pointeur toute neuve.
-    Timer {
-        id: overlayResyncTimer
-
-        interval: 300
-        repeat: false
-        onTriggered: {
-            if (!root.overlayResyncPending) {
-                return;
-            }
-            root.overlayResyncPending = false;
-            if (root.overlayOpen && !root.overlayHovered) {
-                console.info("macOS Dock: re-opening the enlarged window"
-                    + " (no pointer after a foreign menu closed)");
-                overlayCloseTimer.stop();
-                overlayCollapseTimer.stop();
-                root.overlayCollapsing = false;
-                root.overlayOpen = false;
-                overlayReopenTimer.restart();
-            }
-        }
-    }
-
-    Timer {
-        id: overlayReopenTimer
-
-        // Laisse à Wayland le temps de redonner le pointeur à la fenêtre de
-        // base avant de rouvrir la fenêtre agrandie.
-        interval: 80
-        repeat: false
-        onTriggered: {
-            if (root.baseHovered || root.overlayHovered) {
-                overlayCloseTimer.stop();
-                root.overlayOpen = true;
-            }
+    function noteZoomSuppressCheck() {
+        if (zoomSuppressed && !baseHovered && !overlayHovered
+                && !edgeHovered) {
+            zoomSuppressResetTimer.restart();
         }
     }
 
     // Ouvre la fenêtre agrandie (icônes qui grossissent) quand le pointeur
-    // arrive sur le Dock. Si un menu d'un autre composant de plasmashell était
-    // ouvert (clic droit sur le bureau), on le ferme d'abord et on n'ouvre la
-    // fenêtre agrandie qu'ensuite : une fenêtre ouverte pendant que ce menu
-    // capte encore le pointeur ne reçoit plus aucun mouvement, et
-    // l'agrandissement resterait figé sur la première icône survolée.
+    // arrive sur le Dock, sauf si un menu étranger vient d'être fermé (voir
+    // zoomSuppressed).
     function requestOverlayOpen() {
-        if (overlayOpenDeferred) {
+        if (zoomSuppressed) {
             return;
         }
         if (overlayOpen) {
@@ -1465,8 +1423,7 @@ PlasmoidItem {
             return;
         }
         if (dismissForeignPopups()) {
-            overlayOpenDeferred = true;
-            overlayOpenDeferTimer.restart();
+            zoomSuppressed = true;
             return;
         }
         overlayCloseTimer.stop();
@@ -4968,6 +4925,7 @@ PlasmoidItem {
                         } else {
                             root.scheduleOverlayClose();
                             root.scheduleDockHide();
+                            root.noteZoomSuppressCheck();
                         }
                     }
                 }
@@ -5287,10 +5245,13 @@ PlasmoidItem {
                     if (hovered) {
                         // Même chose que pour le Dock : un menu étranger
                         // (clic droit sur le bureau) garderait le pointeur.
-                        root.dismissForeignPopups();
+                        if (root.dismissForeignPopups()) {
+                            root.zoomSuppressed = true;
+                        }
                         root.revealDock();
                     } else {
                         root.scheduleDockHide();
+                        root.noteZoomSuppressCheck();
                     }
                 }
             }
@@ -5681,6 +5642,7 @@ PlasmoidItem {
                     } else {
                         root.scheduleOverlayClose();
                         root.scheduleDockHide();
+                        root.noteZoomSuppressCheck();
                     }
                 }
             }

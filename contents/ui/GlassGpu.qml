@@ -37,7 +37,7 @@ Item {
 
     // Le verre n'apparaît qu'une fois les fenêtres derrière le Dock capturées
     // (sinon on verrait un instant le fond d'écran seul, par exemple quand le
-    // Dock réapparaît au-dessus d'une fenêtre agrandie). Au bout de 1,5 s, il
+    // Dock réapparaît au-dessus d'une fenêtre agrandie). Au bout de 1,2 s, il
     // s'affiche de toute façon.
     // Toutes les captures ont livré une image.
     readonly property bool captureIdle: liveLoader.item
@@ -89,17 +89,18 @@ Item {
     }
 
     Timer {
-        // Pour la fenêtre agrandie (fondu à 0), le verre de la fenêtre de base
-        // reste affiché dessous pendant l'attente : la marge de sécurité peut
-        // être plus courte, ce qui raccourcit le délai avant l'agrandissement
-        // des icônes (voir main.qml, overlayZoomReady).
-        interval: gpu.fadeMs === 0 ? 180 : 300
+        // Marge de sécurité entre « la capture annonce une image » et « cette
+        // image est à l'écran » : sans elle, on verrait un instant le fond
+        // d'écran seul. C'est la partie la plus visible du délai avant que le
+        // flou et le Liquid Glass n'apparaissent quand le Dock réapparaît au-
+        // dessus d'une fenêtre agrandie ; 120 ms suffisent (elle était de 300).
+        interval: 120
         running: gpu.windowShown && gpu.captureIdle && !gpu.nothingToCapture
         onTriggered: gpu.captureHeld = true
     }
 
     Timer {
-        interval: 1800
+        interval: 1200
         running: gpu.windowShown && !gpu.settled && !gpu.settleTimedOut
         onTriggered: gpu.settleTimedOut = true
     }

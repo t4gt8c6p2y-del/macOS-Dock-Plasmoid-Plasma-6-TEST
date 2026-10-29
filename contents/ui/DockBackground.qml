@@ -85,7 +85,7 @@ Kirigami.ShadowedRectangle {
     property bool coveredByOverlay: false
     readonly property real ownDecorationOpacity: coveredByOverlay ? 0.0 : 1.0
     // Durée du fondu d'apparition du verre (0 : instantané).
-    property int glassFadeMs: 160
+    property int glassFadeMs: 100
     // Multiplicateur d'opacité imposé de l'extérieur (voir main.qml).
     property real externalOpacity: 1.0
     readonly property bool glassHandoffReady: !glassVisible
