@@ -1,5 +1,6 @@
 #include "borderlight.h"
 #include "dockmenu.h"
+#include "glassblur.h"
 #include "glasspane.h"
 #include "windowactions.h"
 #include "launcherprogressmonitor.h"
@@ -28,6 +29,7 @@ public:
         qmlRegisterType<GlassPane>(uri, 1, 0, "GlassPane");
         qmlRegisterType<BorderLight>(uri, 1, 0, "BorderLight");
         qmlRegisterType<DockMenu>(uri, 1, 0, "DockMenu");
+        qmlRegisterType<GlassBlur>(uri, 1, 0, "GlassBlur");
     }
 };
 

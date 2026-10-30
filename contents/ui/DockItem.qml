@@ -4,6 +4,7 @@ import QtQuick
 import org.kde.kirigami as Kirigami
 import org.kde.layershell as LayerShell
 import org.kde.plasma.core as PlasmaCore
+import "effects" as DockEffects
 
 Item {
     id: root
@@ -361,7 +362,9 @@ Item {
             Kirigami.Theme.colorSet: Kirigami.Theme.Tooltip
             Kirigami.Theme.inherit: false
 
-            LayerShell.Window.scope: "macosdock-preview"
+            // « tooltip » : KWin traite la fenêtre comme une infobulle (et non comme
+            // une fenêtre normale), ce qui lui donne les coins arrondis du verre.
+            LayerShell.Window.scope: "tooltip"
             LayerShell.Window.anchors: {
                 if (root.isVertical) {
                     return (root.location === PlasmaCore.Types.LeftEdge
@@ -385,30 +388,45 @@ Item {
             LayerShell.Window.activateOnShow: false
             LayerShell.Window.wantsToBeOnActiveScreen: true
 
-            PlasmaCore.DialogBackground {
+            readonly property real glassRadius: root.hasWindowPreviews
+                ? 16 : height / 2
+
+            GlassSurface {
                 anchors.fill: parent
-                visible: root.hasWindowPreviews
+                radius: previewWindow.glassRadius
             }
 
-            Kirigami.ShadowedRectangle {
-                anchors.fill: parent
-                visible: !root.hasWindowPreviews
-                radius: height / 2
-                color: Qt.rgba(Kirigami.Theme.backgroundColor.r,
-                    Kirigami.Theme.backgroundColor.g,
-                    Kirigami.Theme.backgroundColor.b, 0.94)
-                border.width: 1
-                border.color: Qt.rgba(Kirigami.Theme.textColor.r,
-                    Kirigami.Theme.textColor.g,
-                    Kirigami.Theme.textColor.b, 0.22)
-                shadow.size: 8
-                shadow.yOffset: 2
-                shadow.color: Qt.rgba(0, 0, 0, 0.35)
+            DockEffects.GlassBlur {
+                id: glassBlur
+            }
+
+            // Fond flouté par KWin, comme celui du menu du clic droit.
+            function updateGlass() {
+                if (!visible) {
+                    return;
+                }
+                glassBlur.apply(previewWindow, [{
+                    "x": 0,
+                    "y": 0,
+                    "width": width,
+                    "height": height,
+                    "radius": glassRadius
+                }]);
+            }
+
+            Timer {
+                id: glassRetryTimer
+
+                interval: 150
+                repeat: false
+                onTriggered: previewWindow.updateGlass()
             }
 
             onVisibleChanged: {
                 if (visible) {
                     root.schedulePreviewPosition();
+                    updateGlass();
+                    glassRetryTimer.restart();
                 }
                 if (!visible && root.previewOpen) {
                     root.previewOpen = false;
@@ -419,11 +437,13 @@ Item {
             onWidthChanged: {
                 if (visible) {
                     root.schedulePreviewPosition();
+                    updateGlass();
                 }
             }
             onHeightChanged: {
                 if (visible) {
                     root.schedulePreviewPosition();
+                    updateGlass();
                 }
             }
             onScreenChanged: {
@@ -527,8 +547,23 @@ Item {
     Keys.onEnterPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
     Keys.onMenuPressed: {
-        var center = root.mapToItem(null, root.width / 2, root.height / 2);
-        root.contextMenuRequested(center.x, center.y);
+        var anchor = root.menuAnchorScene();
+        root.contextMenuRequested(anchor.x, anchor.y);
+    }
+
+    // Point (dans la fenêtre) vers lequel pointe la bulle d'un menu : le bord de
+    // l'icône tourné vers l'intérieur de l'écran, au milieu de l'icône.
+    function menuAnchorScene() {
+        var x = iconContainer.width / 2;
+        var y = iconContainer.height / 2;
+        if (root.isVertical) {
+            x = root.location === PlasmaCore.Types.LeftEdge
+                ? iconContainer.width : 0;
+        } else {
+            y = root.location === PlasmaCore.Types.TopEdge
+                ? iconContainer.height : 0;
+        }
+        return iconContainer.mapToItem(null, x, y);
     }
 
     SequentialAnimation {
@@ -782,10 +817,10 @@ Item {
             acceptedButtons: Qt.RightButton
             gesturePolicy: TapHandler.ReleaseWithinBounds
 
-            onTapped: (eventPoint) => {
+            onTapped: {
                 root.setPreviewOpen(false);
-                root.contextMenuRequested(eventPoint.scenePosition.x,
-                    eventPoint.scenePosition.y);
+                var anchor = root.menuAnchorScene();
+                root.contextMenuRequested(anchor.x, anchor.y);
             }
         }
     }

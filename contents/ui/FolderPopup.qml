@@ -5,6 +5,7 @@ import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
 import org.kde.layershell as LayerShell
 import org.kde.plasma.core as PlasmaCore
+import "effects" as DockEffects
 
 // Contenu d'un dossier du Dock, à la manière de macOS : les fichiers sortent
 // de l'icône du dossier et se déplient en éventail, légèrement en diagonale
@@ -466,18 +467,84 @@ Window {
         colorGroup: SystemPalette.Active
     }
 
-    readonly property color pillColor: {
-        var base = useThemeColor ? palette.window : customColor;
-        return Qt.rgba(base.r, base.g, base.b, 0.94);
+    // Les pastilles ont le fond des menus du thème Liquid Glass : presque
+    // transparent, avec un liseré fin ; le flou est demandé à KWin sur leur
+    // forme (voir updateGlass). Texte blanc, comme dans ces menus.
+    readonly property color pillColor: Qt.rgba(0.11, 0.11, 0.118, 0.09)
+    readonly property color pillTextColor: "#ffffff"
+    readonly property color pillBorderColor: Qt.rgba(1, 1, 1, 0.16)
+
+    DockEffects.GlassBlur {
+        id: glassBlur
     }
-    readonly property color pillTextColor: {
-        var base = useThemeColor ? palette.window : customColor;
-        var luminance = 0.2126 * base.r + 0.7152 * base.g + 0.0722 * base.b;
-        return useThemeColor ? palette.windowText
-            : (luminance > 0.5 ? "#1b1b1b" : "#f5f5f5");
+
+    property string glassKey: ""
+    property int glassTicks: 0
+
+    function pillGeometry(item) {
+        if (!item || !item.visible || item.width < 1 || item.height < 1) {
+            return null;
+        }
+        var origin = item.mapToItem(null, 0, 0);
+        return {
+            "x": Math.round(origin.x),
+            "y": Math.round(origin.y),
+            "width": Math.round(item.width),
+            "height": Math.round(item.height),
+            "radius": item.height / 2
+        };
     }
-    readonly property color pillBorderColor:
-        Qt.rgba(1, 1, 1, 0.22)
+
+    // Zones floutées par KWin : les pastilles, une fois à peu près visibles.
+    function updateGlass() {
+        if (!visible) {
+            glassKey = "";
+            return;
+        }
+        var rects = [];
+        for (var index = 0; index < fanRepeater.count; ++index) {
+            var loader = fanRepeater.itemAt(index);
+            if (!loader || !loader.item || loader.labelOpacity < 0.6) {
+                continue;
+            }
+            var rect = pillGeometry(loader.item.pillItem);
+            if (rect) {
+                rects.push(rect);
+            }
+        }
+        if (buttonRow.opacity > 0.6) {
+            var openRect = pillGeometry(openPill);
+            if (openRect) {
+                rects.push(openRect);
+            }
+            var backRect = pillGeometry(backPill);
+            if (backRect) {
+                rects.push(backRect);
+            }
+        }
+        if (emptyPill.visible && emptyPill.opacity > 0.6) {
+            var emptyRect = pillGeometry(emptyPill);
+            if (emptyRect) {
+                rects.push(emptyRect);
+            }
+        }
+        // On ne renvoie la liste à KWin que si elle a changé (et, de temps en
+        // temps, par sécurité : la surface de la fenêtre peut être créée après
+        // le premier envoi).
+        var key = JSON.stringify(rects);
+        if (key === glassKey && (++glassTicks % 15) !== 0) {
+            return;
+        }
+        glassKey = key;
+        glassBlur.apply(root, rects);
+    }
+
+    Timer {
+        interval: 33
+        repeat: true
+        running: root.visible
+        onTriggered: root.updateGlass()
+    }
 
     HoverHandler {
         id: popupHover
@@ -542,6 +609,8 @@ Window {
 
                 Item {
                     id: row
+
+                    readonly property Item pillItem: pill
 
                     x: 0
                     y: fanDelegate.centerY - root.step / 2

@@ -585,6 +585,9 @@ PlasmoidItem {
         ? overlayWindowHeight / 2 : overlayWindowWidth / 2
     // Position du pointeur dans la fenêtre agrandie : l'éclairage de la
     // bordure la suit.
+    // Tant qu'un menu est ouvert, l'agrandissement reste là où il était : les
+    // mouvements du pointeur ne le déplacent plus.
+    readonly property bool pointerFrozen: openMenuCount > 0
     property real pointerX: overlayWindowWidth / 2
     property real pointerY: overlayWindowHeight / 2
 
@@ -1441,23 +1444,6 @@ PlasmoidItem {
                 && openPreviewCount === 0) {
             dockHideTimer.restart();
         }
-    }
-
-    // Point d'ancrage d'un menu ouvert par un clic gauche (pas de position de
-    // clic) : le bord de l'icône tourné vers l'intérieur de l'écran.
-    function menuAnchorPoint(item) {
-        var x = item.width / 2;
-        var y = item.height / 2;
-        if (menuPopupDirection === "up") {
-            y = 0;
-        } else if (menuPopupDirection === "down") {
-            y = item.height;
-        } else if (menuPopupDirection === "right") {
-            x = item.width;
-        } else {
-            x = 0;
-        }
-        return item.mapToItem(null, x, y);
     }
 
     function menuOpened(menu) {
@@ -3483,8 +3469,10 @@ PlasmoidItem {
             return result;
         }
 
-        // Ouvre le menu à l'endroit du clic (coordonnées de la fenêtre).
-        function popupAt(window, sceneX, sceneY) {
+        // Ouvre le menu (coordonnées de la fenêtre). bubble = faux : à l'endroit
+        // du clic. bubble = vrai : bulle à pointe en « V » posée sur le bord de
+        // l'icône (sceneX/sceneY = ce point d'ancrage).
+        function popupAt(window, sceneX, sceneY, bubble) {
             entryLookup = ({});
             var items = buildItems(entries, "");
             if (!window || items.length === 0) {
@@ -3495,7 +3483,7 @@ PlasmoidItem {
                 return;
             }
             nativeMenu.popup(window, sceneX, sceneY,
-                root.menuPopupDirection, items);
+                root.menuPopupDirection, items, bubble === true);
         }
 
         function close() {
@@ -3860,9 +3848,10 @@ PlasmoidItem {
         onContextMenuRequested: (sceneX, sceneY) => {
             if (appGroupLeader) {
                 appGroupMenu.popupAt(taskDelegate.Window.window,
-                    sceneX, sceneY);
+                    sceneX, sceneY, true);
             } else {
-                taskMenu.popupAt(taskDelegate.Window.window, sceneX, sceneY);
+                taskMenu.popupAt(taskDelegate.Window.window,
+                    sceneX, sceneY, true);
             }
         }
         onDragStarted: (sx, sy) => root.handleTaskDragStarted(taskDelegate, sx, sy)
@@ -4392,7 +4381,7 @@ PlasmoidItem {
             }
         }
         onContextMenuRequested: (sceneX, sceneY) => utilityMenu.popupAt(
-            utilityDelegate.Window.window, sceneX, sceneY)
+            utilityDelegate.Window.window, sceneX, sceneY, true)
 
         // Ordner beim Überfahren aufklappen, sobald ein laufendes Fenster eine
         // Datei aus genau diesem Ordner nennt. Die Abfrage kostet ein
@@ -4515,11 +4504,12 @@ PlasmoidItem {
         appIcon: "system-shutdown"
 
         onClicked: {
-            var anchor = root.menuAnchorPoint(powerDelegate);
-            powerMenu.popupAt(powerDelegate.Window.window, anchor.x, anchor.y);
+            var anchor = powerDelegate.menuAnchorScene();
+            powerMenu.popupAt(powerDelegate.Window.window,
+                anchor.x, anchor.y, true);
         }
         onContextMenuRequested: (sceneX, sceneY) => powerMenu.popupAt(
-            powerDelegate.Window.window, sceneX, sceneY)
+            powerDelegate.Window.window, sceneX, sceneY, true)
 
         TrackedMenu {
             id: powerMenu
@@ -4600,7 +4590,7 @@ PlasmoidItem {
             removableVolumesModel.open(volumeUdi);
         }
         onContextMenuRequested: (sceneX, sceneY) => volumeMenu.popupAt(
-            volumeDelegate.Window.window, sceneX, sceneY)
+            volumeDelegate.Window.window, sceneX, sceneY, true)
 
         onVolumeErrorTextChanged: {
             if (volumeErrorText.length > 0) {
@@ -4991,7 +4981,7 @@ PlasmoidItem {
                     cursorShape: Qt.PointingHandCursor
 
                     onPointChanged: {
-                        if (hovered) {
+                        if (hovered && !root.pointerFrozen) {
                             var coordinate = root.isVertical
                                 ? point.position.y : point.position.x;
                             root.lastPointerMain = (root.overlayWindowMainLength
@@ -5005,8 +4995,12 @@ PlasmoidItem {
                             root.revealDock();
                             var coordinate = root.isVertical
                                 ? point.position.y : point.position.x;
-                            root.lastPointerMain = (root.overlayWindowMainLength
-                                - root.baseWindowMainLength) / 2 + coordinate;
+                            if (!root.pointerFrozen) {
+                                root.lastPointerMain =
+                                    (root.overlayWindowMainLength
+                                        - root.baseWindowMainLength) / 2
+                                    + coordinate;
+                            }
                             overlayCloseTimer.stop();
                             // Ferme d'abord un éventuel menu étranger (clic
                             // droit sur le bureau), puis ouvre l'agrandissement.
@@ -5713,7 +5707,7 @@ PlasmoidItem {
 
                 cursorShape: Qt.PointingHandCursor
                 onPointChanged: {
-                    if (hovered) {
+                    if (hovered && !root.pointerFrozen) {
                         root.lastPointerMain = root.isVertical
                             ? point.position.y : point.position.x;
                         root.pointerX = point.position.x;
@@ -5724,8 +5718,10 @@ PlasmoidItem {
                     root.overlayHovered = hovered;
                     if (hovered) {
                         root.revealDock();
-                        root.lastPointerMain = root.isVertical
-                            ? point.position.y : point.position.x;
+                        if (!root.pointerFrozen) {
+                            root.lastPointerMain = root.isVertical
+                                ? point.position.y : point.position.x;
+                        }
                         overlayCloseTimer.stop();
                         root.requestOverlayOpen();
                     } else {

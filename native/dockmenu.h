@@ -39,9 +39,14 @@ public:
      * Ouvre le menu à l'endroit du clic. (x, y) sont en coordonnées de la
      * fenêtre parent. direction : "up" (le menu s'ouvre au-dessus du point,
      * Dock en bas), "down", "left" ou "right".
+     *
+     * bubble = faux : menu ordinaire, dont un coin est posé sur le point.
+     * bubble = vrai : bulle centrée sur le point, avec une pointe arrondie
+     * (en « V ») dirigée vers lui ; le point est alors le bord de l'icône.
      */
     Q_INVOKABLE bool popup(QWindow *parentWindow, qreal x, qreal y,
-                           const QString &direction, const QVariantList &items);
+                           const QString &direction, const QVariantList &items,
+                           bool bubble = false);
     Q_INVOKABLE void close();
 
 Q_SIGNALS:
