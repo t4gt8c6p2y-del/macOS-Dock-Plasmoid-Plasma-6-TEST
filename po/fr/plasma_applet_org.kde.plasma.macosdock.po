@@ -1003,3 +1003,11 @@ msgstr "Ajouter un séparateur"
 #: contents/ui/main.qml
 msgid "Remove separator"
 msgstr "Supprimer le séparateur"
+
+#: contents/ui/main.qml
+msgid "Options"
+msgstr "Options"
+
+#: contents/ui/main.qml
+msgid "Open Location"
+msgstr "Ouvrir l’emplacement"

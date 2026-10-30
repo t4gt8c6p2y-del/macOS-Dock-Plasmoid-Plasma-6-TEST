@@ -244,7 +244,7 @@ Item {
 
     signal clicked()
     signal newInstanceRequested()
-    signal contextMenuRequested()
+    signal contextMenuRequested(real sceneX, real sceneY)
     signal dragStarted(real sceneX, real sceneY)
     signal dragMoved(real sceneX, real sceneY)
     signal dragEnded()
@@ -526,7 +526,10 @@ Item {
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
-    Keys.onMenuPressed: root.contextMenuRequested()
+    Keys.onMenuPressed: {
+        var center = root.mapToItem(null, root.width / 2, root.height / 2);
+        root.contextMenuRequested(center.x, center.y);
+    }
 
     SequentialAnimation {
         id: clickBounceAnimation
@@ -779,9 +782,10 @@ Item {
             acceptedButtons: Qt.RightButton
             gesturePolicy: TapHandler.ReleaseWithinBounds
 
-            onTapped: {
+            onTapped: (eventPoint) => {
                 root.setPreviewOpen(false);
-                root.contextMenuRequested();
+                root.contextMenuRequested(eventPoint.scenePosition.x,
+                    eventPoint.scenePosition.y);
             }
         }
     }

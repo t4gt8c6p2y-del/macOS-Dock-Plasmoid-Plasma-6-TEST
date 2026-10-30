@@ -1001,3 +1001,11 @@ msgstr "Trennlinie hinzufügen"
 #: contents/ui/main.qml
 msgid "Remove separator"
 msgstr "Trennlinie entfernen"
+
+#: contents/ui/main.qml
+msgid "Options"
+msgstr "Optionen"
+
+#: contents/ui/main.qml
+msgid "Open Location"
+msgstr "Speicherort öffnen"

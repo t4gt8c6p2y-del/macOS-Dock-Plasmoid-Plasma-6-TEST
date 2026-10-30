@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Concurrent DBus Gui Qml Quick)
+find_package(Qt6 REQUIRED COMPONENTS Core Concurrent DBus Gui Qml Quick Widgets)
 find_package(KF6Service REQUIRED)
 find_package(KF6WindowSystem REQUIRED)
 find_package(KF6Solid REQUIRED)
@@ -20,6 +20,8 @@ add_library(macosdockeffectsplugin MODULE
     borderlight.cpp
     borderlight.h
     desktopidutils.h
+    dockmenu.cpp
+    dockmenu.h
     glasspane.cpp
     glasspane.h
     kdeconnectsharemonitor.cpp
@@ -44,6 +46,7 @@ target_link_libraries(macosdockeffectsplugin PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::Widgets
     KF6::Service
     KF6::WindowSystem
     KF6::Solid

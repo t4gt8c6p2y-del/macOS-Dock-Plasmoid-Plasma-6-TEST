@@ -34,6 +34,14 @@ public:
     Q_INVOKABLE QString canonicalDirectoryUrl(const QUrl &url) const;
 
     /**
+     * Shows the launcher file (.desktop) of an application in the file
+     * manager, like "Show in Finder". Accepts the launcher URLs of the task
+     * manager (file:///..., applications:foo.desktop, application://foo.desktop).
+     * Returns false when no launcher file could be found.
+     */
+    Q_INVOKABLE bool showLauncherLocation(const QString &launcherUrl);
+
+    /**
      * Closes menus that other parts of this process (plasmashell) have open,
      * such as the desktop context menu. While such a menu holds the pointer
      * grab, the Dock no longer receives pointer motion. Returns how many menus

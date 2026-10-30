@@ -41,6 +41,11 @@ PlasmoidItem {
     readonly property int dockLocation: Plasmoid.formFactor
         === PlasmaCore.Types.Planar
         ? configuredDockLocation : Plasmoid.location
+    // Côté vers lequel s'ouvrent les menus contextuels depuis le point du clic.
+    readonly property string menuPopupDirection:
+        dockLocation === PlasmaCore.Types.TopEdge ? "down"
+        : dockLocation === PlasmaCore.Types.LeftEdge ? "right"
+        : dockLocation === PlasmaCore.Types.RightEdge ? "left" : "up"
     readonly property bool isVertical:
         dockLocation === PlasmaCore.Types.LeftEdge
         || dockLocation === PlasmaCore.Types.RightEdge
@@ -1438,14 +1443,21 @@ PlasmoidItem {
         }
     }
 
-    function configureContextMenu(menu) {
-        // Qt 6.8+ can place the menu in a real transient window. On Wayland,
-        // the compositor can then dismiss it for clicks outside the Dock's
-        // own layer-shell surfaces. Keep the item-popup fallback for older Qt.
-        if (menu && menu["popupType"] !== undefined
-                && QQC2.Popup["Window"] !== undefined) {
-            menu["popupType"] = QQC2.Popup["Window"];
+    // Point d'ancrage d'un menu ouvert par un clic gauche (pas de position de
+    // clic) : le bord de l'icône tourné vers l'intérieur de l'écran.
+    function menuAnchorPoint(item) {
+        var x = item.width / 2;
+        var y = item.height / 2;
+        if (menuPopupDirection === "up") {
+            y = 0;
+        } else if (menuPopupDirection === "down") {
+            y = item.height;
+        } else if (menuPopupDirection === "right") {
+            x = item.width;
+        } else {
+            x = 0;
         }
+        return item.mapToItem(null, x, y);
     }
 
     function menuOpened(menu) {
@@ -3404,32 +3416,115 @@ PlasmoidItem {
         }
     }
 
-    component TrackedMenu: QQC2.Menu {
+    // Entrée d'un menu contextuel du Dock. Le menu lui-même est un QMenu natif
+    // (voir DockMenu) : il est habillé par le style Qt de l'utilisateur et reçoit
+    // le flou / le Liquid Glass de KWin, comme le menu du clic droit du bureau.
+    // Une entrée qui contient d'autres entrées devient un sous-menu.
+    component MenuEntry: QtObject {
+        property string text
+        property string iconName
+        property bool enabled: true
+        property bool visible: true
+        default property list<QtObject> entries
+        signal triggered()
+    }
+
+    component MenuDivider: QtObject {
+        property bool visible: true
+    }
+
+    component TrackedMenu: QtObject {
         id: trackedMenu
 
+        default property list<QtObject> entries
         property bool countedAsOpen: false
+        property var entryLookup: ({})
 
-        closePolicy: QQC2.Popup.CloseOnEscape
-            | QQC2.Popup.CloseOnPressOutside
-            | QQC2.Popup.CloseOnReleaseOutside
-            | QQC2.Popup.CloseOnPressOutsideParent
-            | QQC2.Popup.CloseOnReleaseOutsideParent
+        readonly property DockEffects.DockMenu nativeMenu: DockEffects.DockMenu {
+            onTriggered: (entryId) => trackedMenu.activateEntry(entryId)
+            onOpened: trackedMenu.noteOpened()
+            onClosed: trackedMenu.noteClosed()
+        }
 
-        Component.onCompleted: root.configureContextMenu(trackedMenu)
+        function buildItems(list, prefix) {
+            var result = [];
+            for (var i = 0; i < list.length; ++i) {
+                var entry = list[i];
+                if (!entry || entry.visible === false) {
+                    continue;
+                }
+                if (entry.text === undefined) {
+                    // Trait de séparation (jamais en tête, jamais doublé).
+                    if (result.length > 0
+                            && !result[result.length - 1].separator) {
+                        result.push({ "separator": true });
+                    }
+                    continue;
+                }
+                var entryId = prefix + i;
+                var item = {
+                    "id": entryId,
+                    "text": entry.text,
+                    "icon": entry.iconName,
+                    "enabled": entry.enabled,
+                    "separator": false
+                };
+                entryLookup[entryId] = entry;
+                var children = entry.entries
+                    ? buildItems(entry.entries, entryId + ".") : [];
+                if (children.length > 0) {
+                    item.children = children;
+                }
+                result.push(item);
+            }
+            if (result.length > 0 && result[result.length - 1].separator) {
+                result.pop();
+            }
+            return result;
+        }
 
-        onOpened: {
+        // Ouvre le menu à l'endroit du clic (coordonnées de la fenêtre).
+        function popupAt(window, sceneX, sceneY) {
+            entryLookup = ({});
+            var items = buildItems(entries, "");
+            if (!window || items.length === 0) {
+                return;
+            }
+            if (!nativeMenu.available) {
+                console.warn("macOS Dock: native menus are unavailable");
+                return;
+            }
+            nativeMenu.popup(window, sceneX, sceneY,
+                root.menuPopupDirection, items);
+        }
+
+        function close() {
+            nativeMenu.close();
+        }
+
+        function activateEntry(entryId) {
+            var entry = entryLookup[entryId];
+            if (entry) {
+                entry.triggered();
+            }
+        }
+
+        function noteOpened() {
             if (!countedAsOpen) {
                 countedAsOpen = true;
                 root.menuOpened(trackedMenu);
             }
         }
-        onClosed: {
+
+        function noteClosed() {
             if (countedAsOpen) {
                 countedAsOpen = false;
                 root.menuClosed(trackedMenu);
             }
         }
+
         Component.onDestruction: {
+            nativeMenu.close();
             if (countedAsOpen) {
                 root.menuClosed(trackedMenu);
             }
@@ -3762,11 +3857,12 @@ PlasmoidItem {
             }
         }
 
-        onContextMenuRequested: {
+        onContextMenuRequested: (sceneX, sceneY) => {
             if (appGroupLeader) {
-                appGroupMenu.popup();
+                appGroupMenu.popupAt(taskDelegate.Window.window,
+                    sceneX, sceneY);
             } else {
-                taskMenu.popup();
+                taskMenu.popupAt(taskDelegate.Window.window, sceneX, sceneY);
             }
         }
         onDragStarted: (sx, sy) => root.handleTaskDragStarted(taskDelegate, sx, sy)
@@ -3792,29 +3888,48 @@ PlasmoidItem {
             }
         }
 
+        // Même structure que le menu d'une icône sous macOS : « Options » (un
+        // sous-menu), un trait de séparation, puis « Ouvrir ».
         TrackedMenu {
             id: taskMenu
 
-            QQC2.MenuItem {
-                text: taskDelegate.runningTask
-                    ? i18n("Activate") : i18n("Open")
-                icon.name: taskDelegate.runningTask ? "window" : "system-run"
+            MenuEntry {
+                text: i18n("Options")
+
+                MenuEntry {
+                    text: taskDelegate.pinned
+                        ? i18n("Unpin from Dock") : i18n("Keep in Dock")
+                    enabled: taskDelegate.launcherTarget.length > 0
+                    onTriggered: root.scheduleLauncherToggle(
+                        taskDelegate.launcherTarget)
+                }
+
+                MenuEntry {
+                    text: i18n("Open New Window")
+                    visible: taskDelegate.canOpenNewInstance
+                    onTriggered: root.launchNewInstance(taskDelegate.index)
+                }
+
+                MenuEntry {
+                    text: i18n("Open Location")
+                    enabled: taskDelegate.launcherTarget.length > 0
+                    onTriggered: windowActions.showLauncherLocation(
+                        taskDelegate.launcherTarget)
+                }
+            }
+
+            MenuDivider {}
+
+            MenuEntry {
+                text: i18n("Open")
                 onTriggered: root.openTask(taskDelegate.index,
                     taskDelegate.launcherOnly)
             }
 
-            QQC2.MenuItem {
-                text: i18n("Open New Window")
-                icon.name: "window-new"
-                visible: taskDelegate.canOpenNewInstance
-                onTriggered: root.launchNewInstance(taskDelegate.index)
-            }
-
-            QQC2.MenuItem {
+            MenuEntry {
                 text: taskDelegate.hasRecentShare
                     ? i18n("Open again from %1", taskDelegate.recentShareDevice)
                     : ""
-                icon.name: "preferences-kde-connect"
                 visible: taskDelegate.hasRecentShare && taskDelegate.recentShareUrl.length > 0
                 onTriggered: {
                     if (taskDelegate.recentShareUrl.length > 0) {
@@ -3823,83 +3938,49 @@ PlasmoidItem {
                 }
             }
 
-            QQC2.MenuSeparator {}
-
-            QQC2.MenuItem {
-                text: taskDelegate.pinned
-                    ? i18n("Unpin from Dock") : i18n("Keep in Dock")
-                icon.name: taskDelegate.pinned ? "list-remove" : "bookmark-new"
-                enabled: taskDelegate.launcherTarget.length > 0
-                onTriggered:
-                    root.scheduleLauncherToggle(taskDelegate.launcherTarget)
-            }
-
-            QQC2.MenuItem {
-                text: root.isVertical ? i18n("Move Up") : i18n("Move Left")
-                icon.name: root.isVertical ? "go-up" : "go-previous"
-                visible: taskDelegate.pinned
-                enabled: root.stableVisualIndexForModelIndex(
-                    taskDelegate.index) > 0
-                onTriggered: root.moveTask(taskDelegate.index, -1)
-            }
-
-            QQC2.MenuItem {
-                text: root.isVertical ? i18n("Move Down") : i18n("Move Right")
-                icon.name: root.isVertical ? "go-down" : "go-next"
-                visible: taskDelegate.pinned
-                enabled: root.stableVisualIndexForModelIndex(
-                    taskDelegate.index) < root.taskVisualCount - 1
-                onTriggered: root.moveTask(taskDelegate.index, 1)
-            }
-
-            QQC2.MenuSeparator {
+            // Fenêtres de l'application : seulement quand elle est lancée.
+            MenuDivider {
                 visible: taskDelegate.runningTask
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: taskDelegate.allMinimized
                     ? (taskDelegate.groupParent
                         ? i18n("Restore All") : i18n("Restore"))
                     : (taskDelegate.groupParent
                         ? i18n("Minimize All") : i18n("Minimize"))
-                icon.name: taskDelegate.allMinimized
-                    ? "window-restore" : "window-minimize"
                 visible: taskDelegate.runningTask
                 enabled: taskDelegate.canMinimize
                 onTriggered: root.setTaskMinimized(taskDelegate.index,
                     !taskDelegate.allMinimized)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: taskDelegate.allMaximized
                     ? (taskDelegate.groupParent
                         ? i18n("Restore All") : i18n("Restore"))
                     : (taskDelegate.groupParent
                         ? i18n("Maximize All") : i18n("Maximize"))
-                icon.name: taskDelegate.allMaximized
-                    ? "window-restore" : "window-maximize"
                 visible: taskDelegate.runningTask
                 enabled: taskDelegate.canMaximize
                 onTriggered: root.setTaskMaximized(taskDelegate.index,
                     !taskDelegate.allMaximized)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: taskDelegate.groupParent
                     ? i18n("Close All Windows") : i18n("Close")
-                icon.name: "window-close"
                 visible: taskDelegate.runningTask
                 enabled: taskDelegate.canClose
                 onTriggered: root.closeTask(taskDelegate.index)
             }
 
-            QQC2.MenuSeparator {
+            MenuDivider {
                 visible: taskDelegate.runningTask
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Force Quit Application…")
-                icon.name: "process-stop"
                 visible: taskDelegate.runningTask
                 enabled: windowActions.interactiveForceQuitAvailable
                 onTriggered: root.startInteractiveForceQuit()
@@ -3909,16 +3990,16 @@ PlasmoidItem {
         TrackedMenu {
             id: appGroupMenu
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Open Group")
-                icon.name: "folder-open"
+                iconName: "folder-open"
                 onTriggered: root.toggleAppGroupPopup(
                     taskDelegate.appGroup.id, taskDelegate)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Ungroup")
-                icon.name: "edit-delete"
+                iconName: "edit-delete"
                 onTriggered: root.ungroupAppGroup(
                     taskDelegate.appGroup.id)
             }
@@ -4310,7 +4391,8 @@ PlasmoidItem {
                 root.openTrashExternally();
             }
         }
-        onContextMenuRequested: utilityMenu.popup()
+        onContextMenuRequested: (sceneX, sceneY) => utilityMenu.popupAt(
+            utilityDelegate.Window.window, sceneX, sceneY)
 
         // Ordner beim Überfahren aufklappen, sobald ein laufendes Fenster eine
         // Datei aus genau diesem Ordner nennt. Die Abfrage kostet ein
@@ -4381,10 +4463,10 @@ PlasmoidItem {
         TrackedMenu {
             id: utilityMenu
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: utilityDelegate.isFolder
                     ? i18n("Open Folder") : i18n("Open Trash")
-                icon.name: utilityDelegate.isFolder
+                iconName: utilityDelegate.isFolder
                     ? "document-open-folder" : "user-trash"
                 onTriggered: {
                     if (utilityDelegate.isFolder) {
@@ -4395,31 +4477,31 @@ PlasmoidItem {
                 }
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: utilityDelegate.hasRecentShare
                     ? i18n("Open again from %1",
                         utilityDelegate.recentShareDevice)
                     : ""
-                icon.name: "preferences-kde-connect"
+                iconName: "preferences-kde-connect"
                 visible: utilityDelegate.hasRecentShare
                     && utilityDelegate.recentShareUrl.length > 0
                 onTriggered: kdeConnectMonitor.openShareUrl(
                     utilityDelegate.recentShareUrl)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 visible: utilityDelegate.isFolder
                     && utilityDelegate.folderIndex > 0
                 text: i18n("Remove Folder from Dock")
-                icon.name: "list-remove"
+                iconName: "list-remove"
                 onTriggered: root.removeAdditionalFolder(
                     utilityDelegate.folderUrl)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 visible: utilityDelegate.isTrash
                 text: i18n("Empty Trash")
-                icon.name: "trash-empty"
+                iconName: "trash-empty"
                 enabled: root.trashItemCount > 0
                 onTriggered: root.emptyTrash()
             }
@@ -4427,50 +4509,56 @@ PlasmoidItem {
     }
 
     component PowerDelegate: AuxiliaryDelegate {
+        id: powerDelegate
+
         appName: i18n("Power / Session")
         appIcon: "system-shutdown"
 
-        onClicked: powerMenu.popup()
-        onContextMenuRequested: powerMenu.popup()
+        onClicked: {
+            var anchor = root.menuAnchorPoint(powerDelegate);
+            powerMenu.popupAt(powerDelegate.Window.window, anchor.x, anchor.y);
+        }
+        onContextMenuRequested: (sceneX, sceneY) => powerMenu.popupAt(
+            powerDelegate.Window.window, sceneX, sceneY)
 
         TrackedMenu {
             id: powerMenu
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Sleep / Standby")
-                icon.name: "system-suspend"
+                iconName: "system-suspend"
                 enabled: sessionManagement.canSuspend
                 onTriggered: sessionManagement.suspend()
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Restart…")
-                icon.name: "system-reboot"
+                iconName: "system-reboot"
                 enabled: sessionManagement.canReboot
                 onTriggered: sessionManagement.requestReboot(
                     Sessions.SessionManagement.ForcePrompt)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Shut Down…")
-                icon.name: "system-shutdown"
+                iconName: "system-shutdown"
                 enabled: sessionManagement.canShutdown
                 onTriggered: sessionManagement.requestShutdown(
                     Sessions.SessionManagement.ForcePrompt)
             }
 
-            QQC2.MenuSeparator {}
+            MenuDivider {}
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Lock Screen")
-                icon.name: "system-lock-screen"
+                iconName: "system-lock-screen"
                 enabled: sessionManagement.canLock
                 onTriggered: sessionManagement.lock()
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: i18n("Log Out…")
-                icon.name: "system-log-out"
+                iconName: "system-log-out"
                 enabled: sessionManagement.canLogout
                 onTriggered: sessionManagement.requestLogout(
                     Sessions.SessionManagement.ForcePrompt)
@@ -4511,7 +4599,8 @@ PlasmoidItem {
             // open() handles mount-if-needed internally
             removableVolumesModel.open(volumeUdi);
         }
-        onContextMenuRequested: volumeMenu.popup()
+        onContextMenuRequested: (sceneX, sceneY) => volumeMenu.popupAt(
+            volumeDelegate.Window.window, sceneX, sceneY)
 
         onVolumeErrorTextChanged: {
             if (volumeErrorText.length > 0) {
@@ -4556,7 +4645,7 @@ PlasmoidItem {
         TrackedMenu {
             id: volumeMenu
 
-            QQC2.MenuItem {
+            MenuEntry {
                 // Ist die Tab-Option aus, oeffnet die Standardaktion im
                 // eingestellten Dateimanager — dann darf hier auch nicht
                 // „In neuem Fenster" stehen, das waere eine Dolphin-Zusage,
@@ -4568,7 +4657,7 @@ PlasmoidItem {
                     : (volumeDelegate.volumeOperation === "mounting"
                         ? i18n("Mounting…")
                         : i18n("Mount Volume"))
-                icon.name: volumeDelegate.volumeMounted
+                iconName: volumeDelegate.volumeMounted
                     ? (root.openRemovableVolumesInNewTab
                         ? "tab-new"
                         : "document-open-folder")
@@ -4577,11 +4666,11 @@ PlasmoidItem {
                 onTriggered: removableVolumesModel.open(volumeDelegate.volumeUdi)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: root.openRemovableVolumesInNewTab
                     ? i18n("Open in New Window")
                     : i18n("Open in New Tab")
-                icon.name: root.openRemovableVolumesInNewTab
+                iconName: root.openRemovableVolumesInNewTab
                     ? "window-new"
                     : "tab-new"
                 visible: volumeDelegate.volumeMounted
@@ -4589,7 +4678,7 @@ PlasmoidItem {
                 onTriggered: removableVolumesModel.open(volumeDelegate.volumeUdi, !root.openRemovableVolumesInNewTab)
             }
 
-            QQC2.MenuItem {
+            MenuEntry {
                 text: volumeDelegate.volumeOperation === "ejecting"
                     ? i18n("Ejecting…")
                     : (volumeDelegate.volumeOperation === "unmounting"
@@ -4597,7 +4686,7 @@ PlasmoidItem {
                         : (volumeDelegate.volumeKind === "optical"
                             ? i18n("Eject Disc")
                             : i18n("Unmount Volume")))
-                icon.name: "media-eject"
+                iconName: "media-eject"
                 enabled: volumeDelegate.volumeMounted
                     && volumeDelegate.volumeCanRemove
                     && !volumeDelegate.volumeBusy
@@ -5654,42 +5743,42 @@ PlasmoidItem {
                     root.menuSeparatorVisual = root.separatorBoundaryAtMain(
                         root.isVertical ? eventPoint.position.y
                             : eventPoint.position.x);
-                    dockMenu.popup();
+                    dockMenu.popupAt(overlayWindow,
+                        eventPoint.scenePosition.x,
+                        eventPoint.scenePosition.y);
                 }
             }
 
             TrackedMenu {
                 id: dockMenu
 
-                QQC2.MenuItem {
+                MenuEntry {
                     id: addSeparatorItem
 
                     text: i18n("Add separator")
-                    icon.name: "list-add"
+                    iconName: "list-add"
                     visible: root.menuSeparatorVisual >= 0
                         && root.userSeparatorVisualSlots.indexOf(
                             root.menuSeparatorVisual) < 0
-                    height: visible ? implicitHeight : 0
                     onTriggered: root.addUserSeparatorAfterVisual(
                         root.menuSeparatorVisual)
                 }
 
-                QQC2.MenuItem {
+                MenuEntry {
                     id: removeSeparatorItem
 
                     text: i18n("Remove separator")
-                    icon.name: "list-remove"
+                    iconName: "list-remove"
                     visible: root.menuSeparatorVisual >= 0
                         && root.userSeparatorVisualSlots.indexOf(
                             root.menuSeparatorVisual) >= 0
-                    height: visible ? implicitHeight : 0
                     onTriggered: root.removeUserSeparatorAtVisual(
                         root.menuSeparatorVisual)
                 }
 
-                QQC2.MenuItem {
+                MenuEntry {
                     text: i18n("Configure Dock…")
-                    icon.name: "configure"
+                    iconName: "configure"
                     onTriggered: Plasmoid.internalAction("configure").trigger()
                 }
             }

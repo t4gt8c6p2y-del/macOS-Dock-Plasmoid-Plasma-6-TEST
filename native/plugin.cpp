@@ -1,4 +1,5 @@
 #include "borderlight.h"
+#include "dockmenu.h"
 #include "glasspane.h"
 #include "windowactions.h"
 #include "launcherprogressmonitor.h"
@@ -26,6 +27,7 @@ public:
         qmlRegisterType<WallpaperLocator>(uri, 1, 0, "WallpaperLocator");
         qmlRegisterType<GlassPane>(uri, 1, 0, "GlassPane");
         qmlRegisterType<BorderLight>(uri, 1, 0, "BorderLight");
+        qmlRegisterType<DockMenu>(uri, 1, 0, "DockMenu");
     }
 };
 

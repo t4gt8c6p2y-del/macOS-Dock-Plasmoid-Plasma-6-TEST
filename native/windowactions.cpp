@@ -8,11 +8,15 @@
 #include <QDBusReply>
 #include <QDBusServiceWatcher>
 #include <QDebug>
+#include <QDesktopServices>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMetaObject>
+#include <QStringList>
 #include <QWindow>
 #include <QVariant>
+
+#include <KService>
 
 namespace
 {
@@ -147,6 +151,79 @@ QString WindowActions::canonicalDirectoryUrl(const QUrl &url) const
         path = directory.absoluteFilePath();
     }
     return QUrl::fromLocalFile(path).toString();
+}
+
+bool WindowActions::showLauncherLocation(const QString &launcherUrl)
+{
+    QString path;
+    const QUrl url(launcherUrl);
+    if (url.isLocalFile()) {
+        path = url.toLocalFile();
+    }
+
+    if (path.isEmpty() || !QFileInfo::exists(path)) {
+        path.clear();
+        QString storageId = launcherUrl.trimmed();
+        if (storageId.startsWith(QLatin1String("application://"))) {
+            storageId.remove(0, 14);
+        } else if (storageId.startsWith(QLatin1String("applications:"))) {
+            storageId.remove(0, 13);
+        } else if (url.isLocalFile()) {
+            storageId = QFileInfo(url.toLocalFile()).fileName();
+        }
+        const qsizetype queryIndex = storageId.indexOf(QLatin1Char('?'));
+        if (queryIndex >= 0) {
+            storageId.truncate(queryIndex);
+        }
+        storageId = QUrl::fromPercentEncoding(storageId.toUtf8());
+        if (storageId.isEmpty()) {
+            return false;
+        }
+        if (!storageId.endsWith(QLatin1String(".desktop"))) {
+            storageId += QLatin1String(".desktop");
+        }
+
+        KService::Ptr service = KService::serviceByStorageId(storageId);
+        if (!service) {
+            QString name = storageId;
+            name.chop(8);
+            service = KService::serviceByDesktopName(name);
+        }
+        if (service) {
+            path = service->entryPath();
+        }
+    }
+
+    if (path.isEmpty() || !QFileInfo::exists(path)) {
+        return false;
+    }
+
+    const QString itemUrl = QUrl::fromLocalFile(path).toString();
+    const QString folder = QFileInfo(path).absolutePath();
+    const QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) {
+        return QDesktopServices::openUrl(QUrl::fromLocalFile(folder));
+    }
+
+    // org.freedesktop.FileManager1 opens the folder and selects the file; when
+    // no file manager answers, the folder is simply opened.
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.FileManager1"),
+        QStringLiteral("/org/freedesktop/FileManager1"),
+        QStringLiteral("org.freedesktop.FileManager1"),
+        QStringLiteral("ShowItems"));
+    message.setArguments({QStringList{itemUrl}, QString()});
+    auto *watcher = new QDBusPendingCallWatcher(
+        bus.asyncCall(message, virtualDesktopRequestTimeoutMs), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [watcher, folder]() {
+                const QDBusPendingReply<> reply = *watcher;
+                if (reply.isError()) {
+                    QDesktopServices::openUrl(QUrl::fromLocalFile(folder));
+                }
+                watcher->deleteLater();
+            });
+    return true;
 }
 
 void WindowActions::setKWinAvailable(bool available)
