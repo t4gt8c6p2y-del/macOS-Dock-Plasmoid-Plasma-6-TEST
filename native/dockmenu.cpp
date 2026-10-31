@@ -215,8 +215,22 @@ public:
         if (!isVisible() || !windowHandle()) {
             return;
         }
-        KWindowEffects::enableBlurBehind(
-            windowHandle(), true, glassRegionFromPath(bubblePath()));
+        QRegion region = glassRegionFromPath(bubblePath());
+        // KWin arrondit les coins de la zone floutée avec le rayon (grand) des
+        // popups, en partant de la boîte englobante de la région : avec notre
+        // rayon plus petit, le verre s'arrêtait avant le liseré dans les
+        // angles. On étend la boîte jusqu'aux coins de la fenêtre avec quatre
+        // pixels isolés : ils tombent dans la partie arrondie par KWin, donc
+        // invisibles, et la marge transparente (pad) garde les angles du
+        // liseré à l'intérieur de la forme arrondie.
+        const QRect box = rect();
+        if (box.width() > 2 && box.height() > 2) {
+            region += QRect(box.left(), box.top(), 1, 1);
+            region += QRect(box.right(), box.top(), 1, 1);
+            region += QRect(box.left(), box.bottom(), 1, 1);
+            region += QRect(box.right(), box.bottom(), 1, 1);
+        }
+        KWindowEffects::enableBlurBehind(windowHandle(), true, region);
         // La demande ne prend effet qu'au prochain dessin de la fenêtre : sans
         // cela, le verre n'apparaît que quand la souris la survole.
         update();
