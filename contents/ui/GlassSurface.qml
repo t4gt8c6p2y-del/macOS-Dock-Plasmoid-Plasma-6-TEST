@@ -16,13 +16,15 @@ Rectangle {
         ? theme.fillColor : "#1c1c1e"
     readonly property real fillOpacity: theme.fillOpacity !== undefined
         ? Number(theme.fillOpacity) : 0.06
-    readonly property real rimAlpha: Math.min(1, 2.7 * (theme.rimTop !== undefined
-        ? Number(theme.rimTop) : 0.1))
 
     color: highlighted
         ? Qt.rgba(1, 1, 1, 0.14)
         : Qt.rgba(fillColor.r, fillColor.g, fillColor.b, fillOpacity)
-    border.width: Math.max(1, theme.rimWidth !== undefined
-        ? Number(theme.rimWidth) : 1)
-    border.color: Qt.rgba(1, 1, 1, rimAlpha)
+
+    // Liseré tout autour : côtés un peu moins brillants que les angles.
+    GlassRim {
+        anchors.fill: parent
+        radius: root.radius
+        theme: root.theme
+    }
 }

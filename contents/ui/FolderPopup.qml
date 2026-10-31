@@ -483,9 +483,6 @@ Window {
         return Qt.rgba(fill.r, fill.g, fill.b, alpha);
     }
     readonly property color pillTextColor: "#ffffff"
-    readonly property color pillBorderColor: Qt.rgba(1, 1, 1,
-        Math.min(1, 2.7 * (glassTheme.rimTop !== undefined
-            ? Number(glassTheme.rimTop) : 0.1)))
 
     DockEffects.GlassBlur {
         id: glassBlur
@@ -673,8 +670,12 @@ Window {
                                     palette.highlight.g,
                                     palette.highlight.b, 0.35))
                             : root.pillColor
-                        border.width: 1
-                        border.color: root.pillBorderColor
+                        border.width: 0
+                        GlassRim {
+                            anchors.fill: parent
+                            radius: parent.radius
+                            theme: root.glassTheme
+                        }
                         opacity: fanDelegate.labelOpacity
 
                         QQC2.Label {
@@ -734,8 +735,12 @@ Window {
         height: root.pillHeight
         radius: height / 2
         color: root.pillColor
-        border.width: 1
-        border.color: root.pillBorderColor
+        border.width: 0
+        GlassRim {
+            anchors.fill: parent
+            radius: parent.radius
+            theme: root.glassTheme
+        }
         opacity: root.clamp01(progress)
         x: root.labelsLeft
             ? centerX + root.iconSize / 2 - width
@@ -791,8 +796,12 @@ Window {
                     Qt.rgba(palette.highlight.r, palette.highlight.g,
                         palette.highlight.b, 0.35))
                 : root.pillColor
-            border.width: 1
-            border.color: root.pillBorderColor
+            border.width: 0
+            GlassRim {
+                anchors.fill: parent
+                radius: parent.radius
+                theme: root.glassTheme
+            }
             scale: openHover.hovered ? 1.04 : 1.0
 
             Behavior on scale {
@@ -845,8 +854,12 @@ Window {
                     Qt.rgba(palette.highlight.r, palette.highlight.g,
                         palette.highlight.b, 0.35))
                 : root.pillColor
-            border.width: 1
-            border.color: root.pillBorderColor
+            border.width: 0
+            GlassRim {
+                anchors.fill: parent
+                radius: parent.radius
+                theme: root.glassTheme
+            }
 
             Kirigami.Icon {
                 anchors.centerIn: parent
