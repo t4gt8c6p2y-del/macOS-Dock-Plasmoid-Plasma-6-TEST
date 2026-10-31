@@ -135,6 +135,9 @@
     <entry name="hideOnMaximized" type="Bool">
       <default>true</default>
     </entry>
+    <entry name="maximizedRevealDelay" type="Int">
+      <default>0</default>
+    </entry>
     <entry name="launchAnimation" type="Int">
       <default>1</default>
     </entry>

@@ -351,12 +351,14 @@ Item {
 
             flags: Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
             color: "transparent"
-            width: root.hasWindowPreviews
-                ? previewContent.implicitWidth + 2 * Kirigami.Units.smallSpacing
-                : previewContent.implicitWidth
-            height: root.hasWindowPreviews
-                ? previewContent.implicitHeight + 2 * Kirigami.Units.smallSpacing
-                : previewContent.implicitHeight
+            // Marge autour des aperçus : assez grande pour que leurs coins ne
+            // dépassent pas (et ne touchent pas) le contour arrondi de la bulle.
+            readonly property real contentMargin: root.hasWindowPreviews
+                ? Math.round(Kirigami.Units.smallSpacing + 6
+                    + 0.35 * glassRadius)
+                : 0
+            width: previewContent.implicitWidth + 2 * contentMargin
+            height: previewContent.implicitHeight + 2 * contentMargin
             visible: false
 
             Kirigami.Theme.colorSet: Kirigami.Theme.Tooltip
@@ -391,7 +393,7 @@ Item {
             // Réglages du thème Liquid Glass, relus à chaque affichage.
             property var glassTheme: ({})
             readonly property real glassRadius: root.hasWindowPreviews
-                ? Math.min(Number(glassTheme.popupRadius || 16), height / 2)
+                ? Math.min(Number(glassTheme.popupRadius || 16), 28)
                 : height / 2
 
             GlassSurface {
@@ -461,9 +463,7 @@ Item {
                 id: previewContent
 
                 anchors.fill: parent
-                anchors.margins: root.hasWindowPreviews
-                    ? Kirigami.Units.smallSpacing
-                    : 0
+                anchors.margins: previewWindow.contentMargin
                 windowsList: root.windowsList
                 appIcon: root.appIcon
                 appName: root.appName
@@ -556,7 +556,8 @@ Item {
     // Le menu pointe vers le haut de l'icône : il faut donc attendre que
     // l'icône ait fini de grossir (agrandissement au survol), sinon la pointe
     // serait posée sur la taille de repos.
-    function scaleSettled() {
+    // (Ne pas nommer cette fonction scaleSettled : c'est déjà une propriété.)
+    function scaleNearTarget() {
         return Math.abs(targetScale - currentScale) < 0.004;
     }
 
@@ -564,7 +565,7 @@ Item {
 
     function requestContextMenu() {
         setPreviewOpen(false);
-        if (scaleSettled()) {
+        if (scaleNearTarget()) {
             var anchor = menuAnchorScene();
             contextMenuRequested(anchor.x, anchor.y);
             return;
@@ -579,7 +580,7 @@ Item {
         interval: 16
         repeat: true
         onTriggered: {
-            if (root.scaleSettled() || ++root.menuSettleTicks > 25) {
+            if (root.scaleNearTarget() || ++root.menuSettleTicks > 25) {
                 stop();
                 var anchor = root.menuAnchorScene();
                 root.contextMenuRequested(anchor.x, anchor.y);

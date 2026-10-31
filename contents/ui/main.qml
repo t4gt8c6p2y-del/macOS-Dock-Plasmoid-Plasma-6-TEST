@@ -182,6 +182,10 @@ PlasmoidItem {
         Plasmoid.configuration.dockRevealDuration, 140, 60, 400))
     readonly property int dockHideDuration: Math.round(boundedNumber(
         Plasmoid.configuration.dockHideDuration, 160, 60, 400))
+    // Durée pendant laquelle le pointeur doit rester au bord de l'écran pour que
+    // le Dock caché (fenêtre agrandie) s'affiche.
+    readonly property int maximizedRevealDelay: Math.round(boundedNumber(
+        Plasmoid.configuration.maximizedRevealDelay, 0, 0, 2000))
     readonly property int appGroupPopupDuration: Math.round(boundedNumber(
         Plasmoid.configuration.appGroupPopupDuration, 180, 60, 400))
     readonly property real appGroupPopupOvershoot: boundedNumber(
@@ -1389,6 +1393,29 @@ PlasmoidItem {
     function revealDock() {
         dockHideTimer.stop();
         revealedForMaximized = true;
+    }
+
+    // Pointeur arrivé au bord de l'écran : si le Dock est caché, il faut y
+    // rester maximizedRevealDelay ms avant qu'il s'affiche.
+    function requestEdgeReveal() {
+        if (!autoHideRequired || revealedForMaximized
+                || maximizedRevealDelay <= 0) {
+            revealDock();
+            return;
+        }
+        edgeRevealTimer.interval = maximizedRevealDelay;
+        edgeRevealTimer.restart();
+    }
+
+    Timer {
+        id: edgeRevealTimer
+
+        repeat: false
+        onTriggered: {
+            if (root.edgeHovered) {
+                root.revealDock();
+            }
+        }
     }
 
     // Un menu ouvert dans plasmashell (par exemple le menu du clic droit sur le
@@ -5354,8 +5381,9 @@ PlasmoidItem {
                         if (root.dismissForeignPopups()) {
                             root.zoomSuppressed = true;
                         }
-                        root.revealDock();
+                        root.requestEdgeReveal();
                     } else {
+                        edgeRevealTimer.stop();
                         root.scheduleDockHide();
                         root.noteZoomSuppressCheck();
                     }

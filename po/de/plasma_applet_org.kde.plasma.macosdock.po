@@ -1009,3 +1009,11 @@ msgstr "Optionen"
 #: contents/ui/main.qml
 msgid "Open Location"
 msgstr "Speicherort öffnen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Show delay:"
+msgstr "Einblendverzögerung:"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Time the pointer must stay at the screen edge before the hidden Dock appears"
+msgstr "Zeit, die der Zeiger am Bildschirmrand verweilen muss, bevor das versteckte Dock erscheint"

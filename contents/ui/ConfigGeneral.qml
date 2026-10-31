@@ -55,6 +55,7 @@ KCM.SimpleKCM {
     property real cfg_borderLightIntensity: -1
     property bool cfg_borderFollowMouse: true
     property alias cfg_hideOnMaximized: hideOnMaximizedCheckBox.checked
+    property alias cfg_maximizedRevealDelay: maximizedRevealDelaySlider.value
     property alias cfg_launchAnimation: launchAnimationCombo.currentIndex
     property alias cfg_magnificationSpring: magnificationSpringSlider.value
     property alias cfg_magnificationDamping: magnificationDampingSlider.value
@@ -139,6 +140,7 @@ KCM.SimpleKCM {
     property real cfg_borderLightIntensityDefault: -1
     property bool cfg_borderFollowMouseDefault: true
     property bool cfg_hideOnMaximizedDefault: true
+    property int cfg_maximizedRevealDelayDefault: 0
     property int cfg_launchAnimationDefault: 1
     property real cfg_magnificationSpringDefault: 50.0
     property real cfg_magnificationDampingDefault: 1.0
@@ -197,6 +199,7 @@ KCM.SimpleKCM {
         "magnificationDamping": [0.2, 1], "clickBounceHeight": [0, 16],
         "launchBounceHeight": [0, 24], "dockRevealDuration": [60, 400],
         "dockHideDuration": [60, 400], "appGroupPopupDuration": [60, 400],
+        "maximizedRevealDelay": [0, 2000],
         "appGroupPopupOvershoot": [0, 3], "folderHoverScale": [1, 1.2],
         "appGroupViewMode": [0, 1],
         "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
@@ -1362,6 +1365,29 @@ KCM.SimpleKCM {
 
                     Kirigami.FormData.label: i18n("Window behavior:")
                     text: i18n("Automatically hide when a window is maximized")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Show delay:")
+                    Layout.fillWidth: true
+                    enabled: hideOnMaximizedCheckBox.checked
+
+                    QQC2.Slider {
+                        id: maximizedRevealDelaySlider
+
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2000
+                        stepSize: 50
+                        live: true
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Time the pointer must stay at the screen edge before the hidden Dock appears")
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(maximizedRevealDelaySlider.value) + i18n(" ms")
+                    }
                 }
 
                 QQC2.CheckBox {

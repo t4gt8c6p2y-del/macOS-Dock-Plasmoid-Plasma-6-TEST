@@ -1011,3 +1011,11 @@ msgstr "Options"
 #: contents/ui/main.qml
 msgid "Open Location"
 msgstr "Ouvrir l’emplacement"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Show delay:"
+msgstr "Délai d’affichage :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Time the pointer must stay at the screen edge before the hidden Dock appears"
+msgstr "Durée pendant laquelle le pointeur doit rester au bord de l’écran pour que le Dock caché s’affiche"
