@@ -10,7 +10,7 @@ Rectangle {
     property var theme: ({})
     // Part de l'intensité du liseré du thème utilisée pour les bulles
     // (même valeur que bubbleRimStrength dans native/dockmenu.cpp).
-    property real strength: 0.5
+    property real strength: 0.42
 
     color: "transparent"
     border.width: Math.max(1, theme.rimWidth !== undefined

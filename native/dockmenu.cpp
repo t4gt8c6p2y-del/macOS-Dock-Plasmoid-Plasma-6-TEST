@@ -34,7 +34,7 @@ constexpr int bubbleTailHeight = 10;
 constexpr int bubbleTailWidth = 24;
 constexpr int bubbleGap = 4;
 // Part de l'intensité du liseré du thème utilisée pour les bulles.
-constexpr qreal bubbleRimStrength = 0.5;
+constexpr qreal bubbleRimStrength = 0.42;
 
 QPointF mix(const QPointF &a, const QPointF &b, qreal t)
 {
@@ -90,22 +90,40 @@ public:
         , m_side(side)
         , m_theme(GlassTheme::load())
     {
+        // KWin arrondit les coins de la fenêtre avec le rayon des popups du
+        // thème (grand). Si le contour de la bulle est plus droit que cela, ses
+        // angles sortent de la forme arrondie par KWin et sont rognés (plus de
+        // liseré dans les angles). On entoure donc la bulle d'une marge
+        // transparente assez large pour que ses angles restent à l'intérieur.
+        const qreal kwinRadius = m_theme.popupRadius;
+        const qreal drawnRadius = bubbleRadius();
+        m_pad = qMax(0, qCeil((kwinRadius - drawnRadius) * 0.2929)) + 2;
+
+        const int pad = static_cast<int>(m_pad);
+        int tail[4] = {0, 0, 0, 0}; // gauche, haut, droite, bas
         switch (side) {
         case TailSide::None:
             break;
         case TailSide::Bottom:
-            setContentsMargins(0, 0, 0, bubbleTailHeight);
+            tail[3] = bubbleTailHeight;
             break;
         case TailSide::Top:
-            setContentsMargins(0, bubbleTailHeight, 0, 0);
+            tail[1] = bubbleTailHeight;
             break;
         case TailSide::Left:
-            setContentsMargins(bubbleTailHeight, 0, 0, 0);
+            tail[0] = bubbleTailHeight;
             break;
         case TailSide::Right:
-            setContentsMargins(0, 0, bubbleTailHeight, 0);
+            tail[2] = bubbleTailHeight;
             break;
         }
+        setContentsMargins(pad + tail[0], pad + tail[1], pad + tail[2], pad + tail[3]);
+    }
+
+    // Marge transparente autour de la bulle (voir le constructeur).
+    int pad() const
+    {
+        return static_cast<int>(m_pad);
     }
 
     TailSide side() const
@@ -119,12 +137,16 @@ public:
         m_tailOffset = offset;
     }
 
-    // Même rayon que la fenêtre « verre » de KWin (rayon des popups du thème) :
-    // un autre rayon décalerait le contour de la forme que KWin arrondit.
+    // Rayon des menus du thème : les angles ressemblent à ceux de la sélection.
+    qreal bubbleRadius() const
+    {
+        return qMax<qreal>(4, m_theme.menuRadius);
+    }
+
     qreal cornerRadius(const QRectF &edge) const
     {
         return qBound<qreal>(
-            6, m_theme.popupRadius, qMin(edge.width(), edge.height()) / 2 - 1);
+            4, bubbleRadius(), qMin(edge.width(), edge.height()) / 2 - 1);
     }
 
     QPainterPath bubblePath() const
@@ -273,6 +295,7 @@ private:
     TailSide m_side;
     GlassTheme m_theme;
     int m_tailOffset = 0;
+    qreal m_pad = 0;
 };
 }
 
@@ -342,6 +365,11 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
                 subMenu->winId();
                 if (subMenu->windowHandle() && menu->windowHandle()) {
                     subMenu->windowHandle()->setTransientParent(menu->windowHandle());
+                    // Les marges transparentes des deux menus s'ajouteraient :
+                    // on rapproche le sous-menu (comme avant ces marges).
+                    const int pad = subMenu->pad();
+                    subMenu->windowHandle()->setProperty(
+                        "_q_waylandPopupOffset", QPoint(-2 * pad, -pad));
                 }
             });
             addItems(subMenu, children);
@@ -425,37 +453,41 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     uint constraintAdjustment = 1 | 2;
 
     if (bubbleMenu) {
-        // La bulle est centrée sur l'icône, la pointe tournée vers elle.
+        // La bulle est centrée sur l'icône, la pointe tournée vers elle. La
+        // fenêtre a une marge transparente (pad) autour de la bulle : on la
+        // décale pour que la pointe reste à bubbleGap de l'icône.
+        const int gap = bubbleGap;
+        const int pad = bubbleMenu->pad();
         switch (bubbleMenu->side()) {
         case BubbleMenu::TailSide::Bottom:
             position = {anchor.x() - size.width() / 2,
-                        anchor.y() - bubbleGap - size.height()};
+                        anchor.y() - gap - size.height() + pad};
             bubbleMenu->setTailOffset(size.width() / 2);
             anchorEdges = Qt::TopEdge;
             gravityEdges = Qt::TopEdge;
-            offset = QPoint(0, -bubbleGap);
+            offset = QPoint(0, -gap + pad);
             break;
         case BubbleMenu::TailSide::Top:
-            position = {anchor.x() - size.width() / 2, anchor.y() + bubbleGap};
+            position = {anchor.x() - size.width() / 2, anchor.y() + gap - pad};
             bubbleMenu->setTailOffset(size.width() / 2);
             anchorEdges = Qt::BottomEdge;
             gravityEdges = Qt::BottomEdge;
-            offset = QPoint(0, bubbleGap);
+            offset = QPoint(0, gap - pad);
             break;
         case BubbleMenu::TailSide::Left:
-            position = {anchor.x() + bubbleGap, anchor.y() - size.height() / 2};
+            position = {anchor.x() + gap - pad, anchor.y() - size.height() / 2};
             bubbleMenu->setTailOffset(size.height() / 2);
             anchorEdges = Qt::RightEdge;
             gravityEdges = Qt::RightEdge;
-            offset = QPoint(bubbleGap, 0);
+            offset = QPoint(gap - pad, 0);
             break;
         case BubbleMenu::TailSide::Right:
-            position = {anchor.x() - bubbleGap - size.width(),
+            position = {anchor.x() - gap - size.width() + pad,
                         anchor.y() - size.height() / 2};
             bubbleMenu->setTailOffset(size.height() / 2);
             anchorEdges = Qt::LeftEdge;
             gravityEdges = Qt::LeftEdge;
-            offset = QPoint(-bubbleGap, 0);
+            offset = QPoint(-gap + pad, 0);
             break;
         case BubbleMenu::TailSide::None:
             break;
