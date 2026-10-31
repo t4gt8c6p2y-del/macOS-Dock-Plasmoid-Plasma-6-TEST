@@ -1,6 +1,7 @@
 #include "dockmenu.h"
 
 #include <QAction>
+#include <QDebug>
 #include <QApplication>
 #include <QIcon>
 #include <QLinearGradient>
@@ -9,6 +10,7 @@
 #include <QPainterPath>
 #include <QPainterPathStroker>
 #include <QPoint>
+#include <QRect>
 #include <QPointF>
 #include <QPolygonF>
 #include <QRegion>
@@ -352,6 +354,7 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
         Q_EMIT opened();
     });
     connect(menu, &QMenu::aboutToHide, this, [this, menu]() {
+        qInfo() << "macOS Dock: menu closed";
         setVisible(false);
         Q_EMIT closed();
         menu->deleteLater();
@@ -367,9 +370,21 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
 
     menu->ensurePolished();
     const QSize size = menu->sizeHint();
-    const QPoint anchor = parentWindow->mapToGlobal(
-        QPoint(qRound(x), qRound(y)));
+    const QPoint local(qRound(x), qRound(y));
+    const QPoint anchor = parentWindow->mapToGlobal(local);
     QPoint position = anchor;
+
+    // Sous Wayland, c'est le compositeur qui place le popup, d'après un
+    // « positionneur » : un point d'ancrage DANS la fenêtre du Dock, le côté du
+    // popup qui s'y accroche, et le sens dans lequel il s'étend. On le décrit
+    // explicitement (au lieu de laisser Qt le deviner d'après des coordonnées
+    // d'écran, fausses pour une fenêtre layer-shell : le popup serait recalé ou
+    // ancré hors de la fenêtre).
+    Qt::Edges anchorEdges = Qt::TopEdge | Qt::LeftEdge;
+    Qt::Edges gravityEdges = Qt::BottomEdge | Qt::RightEdge;
+    QPoint offset;
+    // slide_x = 1, slide_y = 2, flip_x = 4, flip_y = 8 (xdg_positioner)
+    uint constraintAdjustment = 1 | 2;
 
     if (bubbleMenu) {
         // La bulle est centrée sur l'icône, la pointe tournée vers elle.
@@ -377,27 +392,57 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
         case BubbleMenu::TailSide::Bottom:
             position = {anchor.x() - size.width() / 2,
                         anchor.y() - bubbleGap - size.height()};
-            bubbleMenu->setTailOffset(anchor.x() - position.x());
+            bubbleMenu->setTailOffset(size.width() / 2);
+            anchorEdges = Qt::TopEdge;
+            gravityEdges = Qt::TopEdge;
+            offset = QPoint(0, -bubbleGap);
             break;
         case BubbleMenu::TailSide::Top:
             position = {anchor.x() - size.width() / 2, anchor.y() + bubbleGap};
-            bubbleMenu->setTailOffset(anchor.x() - position.x());
+            bubbleMenu->setTailOffset(size.width() / 2);
+            anchorEdges = Qt::BottomEdge;
+            gravityEdges = Qt::BottomEdge;
+            offset = QPoint(0, bubbleGap);
             break;
         case BubbleMenu::TailSide::Left:
             position = {anchor.x() + bubbleGap, anchor.y() - size.height() / 2};
-            bubbleMenu->setTailOffset(anchor.y() - position.y());
+            bubbleMenu->setTailOffset(size.height() / 2);
+            anchorEdges = Qt::RightEdge;
+            gravityEdges = Qt::RightEdge;
+            offset = QPoint(bubbleGap, 0);
             break;
         case BubbleMenu::TailSide::Right:
             position = {anchor.x() - bubbleGap - size.width(),
                         anchor.y() - size.height() / 2};
-            bubbleMenu->setTailOffset(anchor.y() - position.y());
+            bubbleMenu->setTailOffset(size.height() / 2);
+            anchorEdges = Qt::LeftEdge;
+            gravityEdges = Qt::LeftEdge;
+            offset = QPoint(-bubbleGap, 0);
             break;
         }
     } else if (direction == QLatin1String("up")) {
         position.ry() -= size.height();
+        gravityEdges = Qt::TopEdge | Qt::RightEdge;
+        constraintAdjustment = 1 | 8 | 2;
     } else if (direction == QLatin1String("left")) {
         position.rx() -= size.width();
+        gravityEdges = Qt::BottomEdge | Qt::LeftEdge;
     }
+
+    if (QWindow *handle = menu->windowHandle()) {
+        handle->setProperty("_q_waylandPopupAnchorRect",
+                            QRect(local, QSize(1, 1)));
+        handle->setProperty("_q_waylandPopupAnchor",
+                            QVariant::fromValue(anchorEdges));
+        handle->setProperty("_q_waylandPopupGravity",
+                            QVariant::fromValue(gravityEdges));
+        handle->setProperty("_q_waylandPopupConstraintAdjustment",
+                            constraintAdjustment);
+        handle->setProperty("_q_waylandPopupOffset", offset);
+    }
+
+    qInfo().noquote() << "macOS Dock: opening a menu at" << local
+                      << "bubble" << bubble << "size" << size;
     positionedMenu->setDesiredPosition(position);
     menu->popup(position);
     return true;
