@@ -588,6 +588,25 @@ PlasmoidItem {
     // Tant qu'un menu est ouvert, l'agrandissement reste là où il était : les
     // mouvements du pointeur ne le déplacent plus.
     readonly property bool pointerFrozen: openMenuCount > 0
+    // Dernière position vue pendant le gel : appliquée à la fermeture du menu,
+    // sinon l'agrandissement reste sur l'ancienne position jusqu'au prochain
+    // mouvement de la souris.
+    property bool pendingPointerValid: false
+    property real pendingPointerMain: 0
+    property real pendingPointerX: 0
+    property real pendingPointerY: 0
+
+    function notePointer(main, x, y) {
+        pendingPointerMain = main;
+        pendingPointerX = x;
+        pendingPointerY = y;
+        pendingPointerValid = true;
+        if (!pointerFrozen) {
+            lastPointerMain = main;
+            pointerX = x;
+            pointerY = y;
+        }
+    }
     property real pointerX: overlayWindowWidth / 2
     property real pointerY: overlayWindowHeight / 2
 
@@ -1462,6 +1481,12 @@ PlasmoidItem {
             openContextMenu = null;
         }
         openMenuCount = Math.max(0, openMenuCount - 1);
+        if (openMenuCount === 0 && pendingPointerValid
+                && (overlayHovered || baseHovered)) {
+            lastPointerMain = pendingPointerMain;
+            pointerX = pendingPointerX;
+            pointerY = pendingPointerY;
+        }
         scheduleOverlayClose();
         scheduleDockHide();
     }
@@ -4981,11 +5006,12 @@ PlasmoidItem {
                     cursorShape: Qt.PointingHandCursor
 
                     onPointChanged: {
-                        if (hovered && !root.pointerFrozen) {
+                        if (hovered) {
                             var coordinate = root.isVertical
                                 ? point.position.y : point.position.x;
-                            root.lastPointerMain = (root.overlayWindowMainLength
-                                - root.baseWindowMainLength) / 2 + coordinate;
+                            root.notePointer((root.overlayWindowMainLength
+                                - root.baseWindowMainLength) / 2 + coordinate,
+                                root.pointerX, root.pointerY);
                         }
                     }
 
@@ -4995,12 +5021,9 @@ PlasmoidItem {
                             root.revealDock();
                             var coordinate = root.isVertical
                                 ? point.position.y : point.position.x;
-                            if (!root.pointerFrozen) {
-                                root.lastPointerMain =
-                                    (root.overlayWindowMainLength
-                                        - root.baseWindowMainLength) / 2
-                                    + coordinate;
-                            }
+                            root.notePointer((root.overlayWindowMainLength
+                                - root.baseWindowMainLength) / 2 + coordinate,
+                                root.pointerX, root.pointerY);
                             overlayCloseTimer.stop();
                             // Ferme d'abord un éventuel menu étranger (clic
                             // droit sur le bureau), puis ouvre l'agrandissement.
@@ -5707,21 +5730,19 @@ PlasmoidItem {
 
                 cursorShape: Qt.PointingHandCursor
                 onPointChanged: {
-                    if (hovered && !root.pointerFrozen) {
-                        root.lastPointerMain = root.isVertical
-                            ? point.position.y : point.position.x;
-                        root.pointerX = point.position.x;
-                        root.pointerY = point.position.y;
+                    if (hovered) {
+                        root.notePointer(root.isVertical
+                            ? point.position.y : point.position.x,
+                            point.position.x, point.position.y);
                     }
                 }
                 onHoveredChanged: {
                     root.overlayHovered = hovered;
                     if (hovered) {
                         root.revealDock();
-                        if (!root.pointerFrozen) {
-                            root.lastPointerMain = root.isVertical
-                                ? point.position.y : point.position.x;
-                        }
+                        root.notePointer(root.isVertical
+                            ? point.position.y : point.position.x,
+                            point.position.x, point.position.y);
                         overlayCloseTimer.stop();
                         root.requestOverlayOpen();
                     } else {

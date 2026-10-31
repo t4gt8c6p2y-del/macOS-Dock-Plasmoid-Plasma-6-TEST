@@ -300,6 +300,9 @@ Window {
     }
 
     onVisibleChanged: {
+        if (visible) {
+            glassTheme = glassBlur.theme();
+        }
         if (!visible) {
             closeTimer.stop();
             timelineAnimation.stop();
@@ -470,9 +473,19 @@ Window {
     // Les pastilles ont le fond des menus du thème Liquid Glass : presque
     // transparent, avec un liseré fin ; le flou est demandé à KWin sur leur
     // forme (voir updateGlass). Texte blanc, comme dans ces menus.
-    readonly property color pillColor: Qt.rgba(0.11, 0.11, 0.118, 0.09)
+    // Réglages du thème Liquid Glass, relus à chaque ouverture.
+    property var glassTheme: ({})
+    readonly property color pillColor: {
+        var fill = glassTheme.fillColor !== undefined
+            ? glassTheme.fillColor : Qt.rgba(0.11, 0.11, 0.118, 1);
+        var alpha = glassTheme.fillOpacity !== undefined
+            ? Number(glassTheme.fillOpacity) : 0.06;
+        return Qt.rgba(fill.r, fill.g, fill.b, alpha);
+    }
     readonly property color pillTextColor: "#ffffff"
-    readonly property color pillBorderColor: Qt.rgba(1, 1, 1, 0.16)
+    readonly property color pillBorderColor: Qt.rgba(1, 1, 1,
+        Math.min(1, 2.7 * (glassTheme.rimTop !== undefined
+            ? Number(glassTheme.rimTop) : 0.1)))
 
     DockEffects.GlassBlur {
         id: glassBlur

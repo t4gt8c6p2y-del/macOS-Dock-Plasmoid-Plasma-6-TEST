@@ -388,12 +388,16 @@ Item {
             LayerShell.Window.activateOnShow: false
             LayerShell.Window.wantsToBeOnActiveScreen: true
 
+            // Réglages du thème Liquid Glass, relus à chaque affichage.
+            property var glassTheme: ({})
             readonly property real glassRadius: root.hasWindowPreviews
-                ? 16 : height / 2
+                ? Math.min(Number(glassTheme.popupRadius || 16), height / 2)
+                : height / 2
 
             GlassSurface {
                 anchors.fill: parent
                 radius: previewWindow.glassRadius
+                theme: previewWindow.glassTheme
             }
 
             DockEffects.GlassBlur {
@@ -424,6 +428,7 @@ Item {
 
             onVisibleChanged: {
                 if (visible) {
+                    glassTheme = glassBlur.theme();
                     root.schedulePreviewPosition();
                     updateGlass();
                     glassRetryTimer.restart();
@@ -546,9 +551,40 @@ Item {
     Keys.onReturnPressed: root.clicked()
     Keys.onEnterPressed: root.clicked()
     Keys.onSpacePressed: root.clicked()
-    Keys.onMenuPressed: {
-        var anchor = root.menuAnchorScene();
-        root.contextMenuRequested(anchor.x, anchor.y);
+    Keys.onMenuPressed: root.requestContextMenu()
+
+    // Le menu pointe vers le haut de l'icône : il faut donc attendre que
+    // l'icône ait fini de grossir (agrandissement au survol), sinon la pointe
+    // serait posée sur la taille de repos.
+    function scaleSettled() {
+        return Math.abs(targetScale - currentScale) < 0.004;
+    }
+
+    property int menuSettleTicks: 0
+
+    function requestContextMenu() {
+        setPreviewOpen(false);
+        if (scaleSettled()) {
+            var anchor = menuAnchorScene();
+            contextMenuRequested(anchor.x, anchor.y);
+            return;
+        }
+        menuSettleTicks = 0;
+        menuSettleTimer.restart();
+    }
+
+    Timer {
+        id: menuSettleTimer
+
+        interval: 16
+        repeat: true
+        onTriggered: {
+            if (root.scaleSettled() || ++root.menuSettleTicks > 25) {
+                stop();
+                var anchor = root.menuAnchorScene();
+                root.contextMenuRequested(anchor.x, anchor.y);
+            }
+        }
     }
 
     // Point (dans la fenêtre) vers lequel pointe la bulle d'un menu : le bord de
@@ -817,11 +853,7 @@ Item {
             acceptedButtons: Qt.RightButton
             gesturePolicy: TapHandler.ReleaseWithinBounds
 
-            onTapped: {
-                root.setPreviewOpen(false);
-                var anchor = root.menuAnchorScene();
-                root.contextMenuRequested(anchor.x, anchor.y);
-            }
+            onTapped: root.requestContextMenu()
         }
     }
 

@@ -23,11 +23,12 @@
 
 #include <KWindowEffects>
 
+#include "glasstheme.h"
+
 namespace
 {
 constexpr int bubbleTailHeight = 10;
 constexpr int bubbleTailWidth = 24;
-constexpr int bubbleRadius = 14;
 constexpr int bubbleGap = 4;
 
 QPointF mix(const QPointF &a, const QPointF &b, qreal t)
@@ -35,18 +36,47 @@ QPointF mix(const QPointF &a, const QPointF &b, qreal t)
     return a + (b - a) * t;
 }
 
+// QMenu::popup() recale le menu dans l'écran en prenant les coordonnées du
+// parent pour des coordonnées d'écran : or la fenêtre du Dock (layer-shell) est
+// petite et son origine est (0, 0). Un menu qui doit remonter au-dessus de
+// cette fenêtre était donc repoussé vers le bas. On remet la position voulue
+// juste avant l'affichage (le compositeur place ensuite le popup par rapport
+// à la fenêtre du Dock, sans rien recaler de plus).
+class PositionedMenu : public QMenu
+{
+public:
+    void setDesiredPosition(const QPoint &position)
+    {
+        m_desired = position;
+        m_hasDesired = true;
+    }
+
+    void setVisible(bool visible) override
+    {
+        if (visible && m_hasDesired) {
+            setGeometry(QRect(m_desired, size()));
+        }
+        QMenu::setVisible(visible);
+    }
+
+private:
+    QPoint m_desired;
+    bool m_hasDesired = false;
+};
+
 // Menu en bulle : le fond est dessiné ici (rectangle arrondi + pointe en « V »
 // arrondi), les entrées le sont par le style Qt de l'utilisateur (Kvantum),
 // comme dans un menu ordinaire. Le fond est quasi transparent : c'est le flou
 // de KWin (effet Glass), demandé sur la forme exacte de la bulle, qui le
-// rend visible.
-class BubbleMenu : public QMenu
+// rend visible. Couleurs, liseré et rayon viennent du thème Liquid Glass.
+class BubbleMenu : public PositionedMenu
 {
 public:
     enum class TailSide { Bottom, Top, Left, Right };
 
     explicit BubbleMenu(TailSide side)
         : m_side(side)
+        , m_theme(GlassTheme::load())
     {
         switch (side) {
         case TailSide::Bottom:
@@ -79,16 +109,18 @@ public:
     {
         const QRectF body = QRectF(rect()).marginsRemoved(contentsMargins());
         const QRectF edge = body.adjusted(0.5, 0.5, -0.5, -0.5);
+        const qreal radius = qBound<qreal>(
+            6, m_theme.popupRadius, qMin(edge.width(), edge.height()) / 2 - 1);
         QPainterPath path;
-        path.addRoundedRect(edge, bubbleRadius, bubbleRadius);
+        path.addRoundedRect(edge, radius, radius);
 
         const qreal half = bubbleTailWidth / 2.0;
         const bool horizontalEdge = m_side == TailSide::Bottom
             || m_side == TailSide::Top;
         const qreal span = horizontalEdge ? edge.width() : edge.height();
         const qreal origin = horizontalEdge ? edge.left() : edge.top();
-        const qreal lowest = origin + bubbleRadius + half;
-        const qreal highest = origin + span - bubbleRadius - half;
+        const qreal lowest = origin + radius + half;
+        const qreal highest = origin + span - radius - half;
         const qreal along = qBound(lowest, static_cast<qreal>(m_tailOffset),
                                    qMax(lowest, highest));
 
@@ -129,20 +161,18 @@ public:
         return path.united(tail);
     }
 
-    // Applique la forme : zone floutée par KWin et zone sensible aux clics.
+    // Demande à KWin de flouter exactement la forme de la bulle.
     void applyShape()
     {
         if (!isVisible() || !windowHandle()) {
             return;
         }
-        const QPainterPath path = bubblePath();
-        const QRegion blurRegion(path.toFillPolygon().toPolygon());
-        KWindowEffects::enableBlurBehind(windowHandle(), true, blurRegion);
-
-        QPainterPathStroker stroker;
-        stroker.setWidth(3);
-        const QPainterPath grown = stroker.createStroke(path).united(path);
-        setMask(QRegion(grown.toFillPolygon().toPolygon()));
+        KWindowEffects::enableBlurBehind(
+            windowHandle(), true, glassRegionFromPath(bubblePath()));
+        // La demande ne prend effet qu'au prochain dessin de la fenêtre : sans
+        // cela, le verre n'apparaît que quand la souris la survole.
+        update();
+        windowHandle()->requestUpdate();
     }
 
 protected:
@@ -169,15 +199,22 @@ protected:
         painter.setRenderHint(QPainter::Antialiasing);
 
         const QPainterPath path = bubblePath();
-        painter.fillPath(path, QColor(28, 28, 30, 22));
+        QColor fill = m_theme.fill;
+        fill.setAlphaF(qBound<qreal>(0, m_theme.fillOpacity, 1));
+        painter.fillPath(path, fill);
 
-        // Liseré fin : plus clair en haut, plus discret en bas (comme celui des
-        // menus du thème).
+        // Liseré fermé, tout autour de la bulle (coins du haut compris) : plus
+        // marqué en haut qu'en bas et sur les côtés, avec les valeurs du thème.
+        const auto rimColor = [](qreal alpha) {
+            QColor color(255, 255, 255);
+            color.setAlphaF(qBound<qreal>(0, alpha * 2.7, 1));
+            return color;
+        };
         QLinearGradient rim(0, 0, 0, height());
-        rim.setColorAt(0.0, QColor(255, 255, 255, 70));
-        rim.setColorAt(0.5, QColor(255, 255, 255, 28));
-        rim.setColorAt(1.0, QColor(255, 255, 255, 44));
-        painter.setPen(QPen(QBrush(rim), 1.0));
+        rim.setColorAt(0.0, rimColor(m_theme.rimTop));
+        rim.setColorAt(0.5, rimColor(qMax(m_theme.rimSide, m_theme.rimTop * 0.6)));
+        rim.setColorAt(1.0, rimColor(m_theme.rimBottom));
+        painter.setPen(QPen(QBrush(rim), qMax<qreal>(1.0, m_theme.rimWidth)));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(path);
 
@@ -199,6 +236,7 @@ protected:
 
 private:
     TailSide m_side;
+    GlassTheme m_theme;
     int m_tailOffset = 0;
 };
 }
@@ -290,6 +328,7 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     close();
 
     BubbleMenu *bubbleMenu = nullptr;
+    PositionedMenu *positionedMenu = nullptr;
     QMenu *menu = nullptr;
     if (bubble) {
         const BubbleMenu::TailSide side = direction == QLatin1String("down")
@@ -298,9 +337,11 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
             : direction == QLatin1String("left") ? BubbleMenu::TailSide::Right
             : BubbleMenu::TailSide::Bottom;
         bubbleMenu = new BubbleMenu(side);
+        positionedMenu = bubbleMenu;
         menu = bubbleMenu;
     } else {
-        menu = new QMenu;
+        positionedMenu = new PositionedMenu;
+        menu = positionedMenu;
     }
     menu->setAttribute(Qt::WA_TranslucentBackground);
     addItems(menu, items);
@@ -357,6 +398,7 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     } else if (direction == QLatin1String("left")) {
         position.rx() -= size.width();
     }
+    positionedMenu->setDesiredPosition(position);
     menu->popup(position);
     return true;
 }

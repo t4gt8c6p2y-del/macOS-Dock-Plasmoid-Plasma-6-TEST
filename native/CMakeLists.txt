@@ -24,6 +24,7 @@ add_library(macosdockeffectsplugin MODULE
     dockmenu.h
     glassblur.cpp
     glassblur.h
+    glasstheme.h
     glasspane.cpp
     glasspane.h
     kdeconnectsharemonitor.cpp

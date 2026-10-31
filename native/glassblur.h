@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QVariantList>
+#include <QVariantMap>
 
 class QWindow;
 
@@ -25,4 +26,11 @@ public:
     /** Remplace les zones floutées de la fenêtre (liste vide : plus de flou). */
     Q_INVOKABLE void apply(QWindow *window, const QVariantList &rects);
     Q_INVOKABLE void clear(QWindow *window);
+
+    /**
+     * Réglages du thème Liquid Glass (relus à chaque appel) : fillColor,
+     * fillOpacity, rimWidth, rimTop, rimSide, rimBottom, popupRadius,
+     * menuRadius, tooltipRadius.
+     */
+    Q_INVOKABLE QVariantMap theme() const;
 };
