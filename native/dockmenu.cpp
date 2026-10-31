@@ -33,6 +33,8 @@ namespace
 constexpr int bubbleTailHeight = 10;
 constexpr int bubbleTailWidth = 24;
 constexpr int bubbleGap = 4;
+// Part de l'intensité du liseré du thème utilisée pour les bulles.
+constexpr qreal bubbleRimStrength = 0.5;
 
 QPointF mix(const QPointF &a, const QPointF &b, qreal t)
 {
@@ -117,12 +119,12 @@ public:
         m_tailOffset = offset;
     }
 
-    // Angles plus droits que ceux d'une grande bulle : ils ressemblent à ceux
-    // de la sélection à l'intérieur (rayon des menus du thème).
+    // Même rayon que la fenêtre « verre » de KWin (rayon des popups du thème) :
+    // un autre rayon décalerait le contour de la forme que KWin arrondit.
     qreal cornerRadius(const QRectF &edge) const
     {
         return qBound<qreal>(
-            4, m_theme.menuRadius, qMin(edge.width(), edge.height()) / 2 - 1);
+            6, m_theme.popupRadius, qMin(edge.width(), edge.height()) / 2 - 1);
     }
 
     QPainterPath bubblePath() const
@@ -227,48 +229,22 @@ protected:
         fill.setAlphaF(qBound<qreal>(0, m_theme.fillOpacity, 1));
         painter.fillPath(path, fill);
 
-        // Liseré fermé, tout autour de la bulle. Un trait d'un pixel paraît plus
-        // pâle dans les courbes (il y est lissé) : les côtés droits sont donc
-        // un peu moins brillants, et les angles gardent la pleine valeur.
-        const qreal lineWidth = qMax<qreal>(1.0, m_theme.rimWidth);
-        const qreal cornerAlpha = qBound<qreal>(0, m_theme.rimTop * 2.7, 1);
-        const qreal sideAlpha = cornerAlpha * 0.6;
-        QPen pen(QColor(255, 255, 255), lineWidth);
+        // Liseré fermé, d'une seule couleur : même luminosité partout (côtés,
+        // angles, pointe). Il est adouci par rapport au thème (bubbleRimStrength)
+        // car KWin ajoute déjà sa propre lumière sur la forme.
+        QColor rimColor(255, 255, 255);
+        rimColor.setAlphaF(qBound<qreal>(0, m_theme.rimTop * 2.7 * bubbleRimStrength, 1));
+        QPen pen(rimColor, qMax<qreal>(1.0, m_theme.rimWidth));
         pen.setJoinStyle(Qt::RoundJoin);
         pen.setCapStyle(Qt::RoundCap);
+        painter.setPen(pen);
         painter.setBrush(Qt::NoBrush);
-
-        QColor sideColor(255, 255, 255);
-        sideColor.setAlphaF(sideAlpha);
-        pen.setColor(sideColor);
-        painter.setPen(pen);
         painter.drawPath(path);
-
-        // Dans les quatre angles, on ajoute ce qu'il faut par-dessus le trait
-        // des côtés pour retrouver exactement cornerAlpha.
-        const QRectF body = QRectF(rect()).marginsRemoved(contentsMargins());
-        const int corner = qCeil(cornerRadius(body.adjusted(0.5, 0.5, -0.5, -0.5)));
-        const QRect box = body.toAlignedRect();
-        QRegion corners;
-        corners += QRect(box.left(), box.top(), corner, corner);
-        corners += QRect(box.right() + 1 - corner, box.top(), corner, corner);
-        corners += QRect(box.left(), box.bottom() + 1 - corner, corner, corner);
-        corners += QRect(box.right() + 1 - corner, box.bottom() + 1 - corner,
-                         corner, corner);
-        QColor boostColor(255, 255, 255);
-        boostColor.setAlphaF(sideAlpha < 1
-            ? qBound<qreal>(0, 1 - (1 - cornerAlpha) / (1 - sideAlpha), 1) : 0);
-        pen.setColor(boostColor);
-        painter.save();
-        painter.setClipRegion(corners);
-        painter.setPen(pen);
-        painter.drawPath(path);
-        painter.restore();
 
         // Séparateurs : le style (Kvantum) n'en trace aucun sur ce fond
         // transparent, on les dessine nous-mêmes, comme dans les menus macOS.
         QColor lineColor(255, 255, 255);
-        lineColor.setAlphaF(qBound<qreal>(0.12, cornerAlpha * 0.8, 0.4));
+        lineColor.setAlphaF(qBound<qreal>(0.12, m_theme.rimTop * 2.7 * 0.8, 0.4));
 
         const QList<QAction *> entries = actions();
         for (QAction *action : entries) {
