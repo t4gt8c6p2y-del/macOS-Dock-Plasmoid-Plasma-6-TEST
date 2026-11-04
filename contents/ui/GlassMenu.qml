@@ -118,7 +118,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: entryRow.modelData.text || ""
                         elide: Text.ElideRight
-                        font.pixelSize: 13.5
+                        font.pixelSize: 14
                         color: Qt.rgba(1, 1, 1, entryRow.isEnabled ? 0.95 : 0.35)
                     }
 

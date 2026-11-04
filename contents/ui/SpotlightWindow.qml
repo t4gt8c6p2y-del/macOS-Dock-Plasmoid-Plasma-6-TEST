@@ -1144,7 +1144,7 @@ Window {
                                 visible: !pill.isFavorites
                                 anchors.centerIn: parent
                                 text: pill.modelData.title
-                                font.pixelSize: 13.5
+                                font.pixelSize: 14
                                 color: Qt.rgba(1, 1, 1, pill.active ? 0.95 : 0.7)
                             }
 
@@ -1338,7 +1338,7 @@ Window {
                         x: 14
                         anchors.verticalCenter: parent.verticalCenter
                         text: resultRow.modelData.text || ""
-                        font.pixelSize: 12.5
+                        font.pixelSize: 13
                         font.weight: Font.DemiBold
                         color: Qt.rgba(1, 1, 1, 0.5)
                     }
@@ -1438,7 +1438,7 @@ Window {
                             maximumLineCount: 1
                             text: resultRow.kind === "clip"
                                 ? resultRow.modelData.text.replace(/\s+/g, " ").trim() : ""
-                            font.pixelSize: 14.5
+                            font.pixelSize: 15
                             color: "white"
                         }
                     }

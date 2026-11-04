@@ -415,7 +415,7 @@ Window {
                         width: parent.width - 34 - 12
                         color: "white"
                         selectionColor: Qt.rgba(1, 1, 1, 0.3)
-                        font.pixelSize: 13.5
+                        font.pixelSize: 14
                         clip: true
 
                         Text {
@@ -566,7 +566,7 @@ Window {
                             maximumLineCount: 2
                             elide: Text.ElideRight
                             text: win.lastText(conversationRow.modelData)
-                            font.pixelSize: 12.5
+                            font.pixelSize: 13
                             color: Qt.rgba(1, 1, 1, 0.55)
                         }
                     }

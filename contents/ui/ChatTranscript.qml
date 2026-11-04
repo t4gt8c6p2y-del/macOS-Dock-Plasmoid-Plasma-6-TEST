@@ -122,13 +122,13 @@ ListView {
 
                 Text {
                     text: row.modelData.provider !== undefined ? view.providerNameFor(row.modelData.provider) : ""
-                    font.pixelSize: 11.5
+                    font.pixelSize: 12
                     color: Qt.rgba(1, 1, 1, 0.42)
                 }
 
                 Text {
                     text: i18n("Copy")
-                    font.pixelSize: 11.5
+                    font.pixelSize: 12
                     color: copyArea.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.42)
 
                     MouseArea {
