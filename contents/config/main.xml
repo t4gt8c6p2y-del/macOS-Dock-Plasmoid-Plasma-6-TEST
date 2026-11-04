@@ -228,5 +228,60 @@
     -->
     <entry name="appGroups" type="StringList"/>
     <entry name="launchers" type="StringList"/>
+
+    <!--
+      Spotlight (barre « Search or Ask » façon macOS 27) et application
+      « Siri IA » : icônes du Dock, favoris du Spotlight, assistant IA.
+    -->
+    <entry name="showSpotlightButton" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="showSiriButton" type="Bool">
+      <default>true</default>
+    </entry>
+    <!-- Remplace le lanceur par défaut (touche Windows, Alt+Espace, KRunner). -->
+    <entry name="spotlightReplaceLauncher" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="spotlightFavorites" type="StringList"/>
+    <!--
+      Identifiants de l'assistant IA. Ils restent dans la configuration locale
+      de Plasma (~/.config), jamais dans le dépôt.
+      aiProvider : 0 = Gemini, 1 = GLM (OpenCode), 2 = fournisseur personnalisé.
+      glmBackend : 0 = CLI « opencode » (modèles gratuits), 1 = API avec clé.
+    -->
+    <entry name="aiProvider" type="Int">
+      <default>0</default>
+    </entry>
+    <entry name="geminiApiKey" type="String">
+      <default></default>
+    </entry>
+    <entry name="geminiModel" type="String">
+      <default>gemini-3.8-flash</default>
+    </entry>
+    <entry name="glmBackend" type="Int">
+      <default>0</default>
+    </entry>
+    <entry name="glmModel" type="String">
+      <default>glm-5.3-flash-free</default>
+    </entry>
+    <entry name="glmApiKey" type="String">
+      <default></default>
+    </entry>
+    <entry name="glmBaseUrl" type="String">
+      <default>https://opencode.ai/inference/openai/v1</default>
+    </entry>
+    <entry name="customAiName" type="String">
+      <default></default>
+    </entry>
+    <entry name="customAiUrl" type="String">
+      <default></default>
+    </entry>
+    <entry name="customAiKey" type="String">
+      <default></default>
+    </entry>
+    <entry name="customAiModel" type="String">
+      <default></default>
+    </entry>
   </group>
 </kcfg>

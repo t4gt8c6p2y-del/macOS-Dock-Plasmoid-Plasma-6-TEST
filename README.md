@@ -45,6 +45,14 @@ color scheme.
 - Precise rounded blur region without a rectangular hover background
 - Complete German, US English, and French interface selected from the system language
 
+## Spotlight and Siri AI
+
+- **Spotlight**: a "Search or Ask" bar and results panel modelled on macOS 27, opened with the Windows key, Alt+Space, by typing on the desktop, or from the dock icon. The glass background follows the Liquid Glass settings. The button on the left of the bar cycles through *default* (apps, then AI) → *apps* → *files* → *clipboard*; a double click returns to default. A Favorites category (star) is available.
+- **Siri AI**: a chat app with a conversation history (Gemini, GLM via OpenCode, or any OpenAI-compatible service).
+- **Credentials**: stored only in the local Plasma configuration (`~/.config`), never in the repository, and excluded from "Copy style". Enter them in the settings, tab *Credentials*.
+- `install.sh` copies `spotlight-integration.sh` to `~/.local/share/macosdock/` and runs it: the Windows key opens Spotlight and KRunner is masked. Undo with `~/.local/share/macosdock/spotlight-integration.sh disable`, or skip the step with `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh`. Log out and back in once.
+- The free GLM model is reachable only through the `opencode` command (opencode.ai); Gemini needs a free key from aistudio.google.com/apikey.
+
 ## Requirements
 
 - KDE Plasma 6

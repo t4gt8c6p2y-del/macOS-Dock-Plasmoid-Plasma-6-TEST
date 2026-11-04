@@ -1019,3 +1019,407 @@ msgstr "Délai d’affichage :"
 #: contents/ui/ConfigGeneral.qml
 msgid "Time the pointer must stay at the screen edge before the hidden Dock appears"
 msgstr "Durée pendant laquelle le pointeur doit rester au bord de l’écran pour que le Dock caché s’affiche"
+
+#: contents/ui/AiChat.qml:73 contents/ui/ChatTranscript.qml:148 contents/ui/ConfigGeneral.qml:1626 contents/ui/ConfigGeneral.qml:1748
+msgid "Custom AI"
+msgstr "IA personnalisée"
+
+#: contents/ui/AiChat.qml:85
+msgid "No Gemini API key. Add it in the Dock settings, tab “Credentials”."
+msgstr "Aucune clé API Gemini. Ajoutez-la dans les réglages du Dock, onglet « Identifiants »."
+
+#: contents/ui/AiChat.qml:92
+msgid "The OpenCode command-line tool was not found. Install it from opencode.ai, or switch GLM to “API key” mode in the Dock settings, tab “Credentials”."
+msgstr "La commande OpenCode est introuvable. Installez-la depuis opencode.ai, ou passez GLM en mode « Clé API » dans les réglages du Dock, onglet « Identifiants »."
+
+#: contents/ui/AiChat.qml:97
+msgid "No OpenCode API key. Add it in the Dock settings, tab “Credentials”."
+msgstr "Aucune clé API OpenCode. Ajoutez-la dans les réglages du Dock, onglet « Identifiants »."
+
+#: contents/ui/AiChat.qml:102
+msgid "The custom AI is not configured. Fill in its address and model in the Dock settings, tab “Credentials”."
+msgstr "L’IA personnalisée n’est pas configurée. Renseignez son adresse et son modèle dans les réglages du Dock, onglet « Identifiants »."
+
+#: contents/ui/AiChat.qml:390
+msgid "Network error: %1 could not be reached."
+msgstr "Erreur réseau : %1 est injoignable."
+
+#: contents/ui/AiChat.qml:394
+msgid "%1 refused the request (HTTP %2). Check the API key and the model name."
+msgstr "%1 a refusé la requête (HTTP %2). Vérifiez la clé API et le nom du modèle."
+
+#: contents/ui/AiChat.qml:396
+msgid "%1 did not find this model or address (HTTP 404). Check the model name."
+msgstr "%1 n’a pas trouvé ce modèle ou cette adresse (HTTP 404). Vérifiez le nom du modèle."
+
+#: contents/ui/AiChat.qml:398
+msgid "%1 quota reached (HTTP 429). Wait a moment or pick another model."
+msgstr "Quota de %1 atteint (HTTP 429). Patientez un instant ou choisissez un autre modèle."
+
+#: contents/ui/AiChat.qml:400
+msgid "%1 returned an error (HTTP %2)."
+msgstr "%1 a renvoyé une erreur (HTTP %2)."
+
+#: contents/ui/AiChat.qml:422
+msgid "%1 returned an unreadable answer."
+msgstr "%1 a renvoyé une réponse illisible."
+
+#: contents/ui/AiChat.qml:467
+msgid "Gemini blocked this request (%1)."
+msgstr "Gemini a bloqué cette demande (%1)."
+
+#: contents/ui/AiChat.qml:468
+msgid "Gemini returned an empty answer."
+msgstr "Gemini a renvoyé une réponse vide."
+
+#: contents/ui/AiChat.qml:508
+msgid "%1 returned an empty answer."
+msgstr "%1 a renvoyé une réponse vide."
+
+#: contents/ui/AiChat.qml:566
+msgid "OpenCode took too long to answer."
+msgstr "OpenCode a mis trop de temps à répondre."
+
+#: contents/ui/AiChat.qml:572
+msgid "OpenCode could not answer (exit code %1)."
+msgstr "OpenCode n’a pas pu répondre (code de sortie %1)."
+
+#: contents/ui/AiChat.qml:577
+msgid "OpenCode returned an empty answer."
+msgstr "OpenCode a renvoyé une réponse vide."
+
+#: contents/ui/AiChat.qml:598
+msgid "The assistant took too long to answer."
+msgstr "L’assistant a mis trop de temps à répondre."
+
+#: contents/ui/ChatTranscript.qml:130 contents/ui/SpotlightWindow.qml:777
+msgid "Copy"
+msgstr "Copier"
+
+#: contents/ui/ConfigGeneral.qml:436
+msgid "Hide"
+msgstr "Masquer"
+
+#: contents/ui/ConfigGeneral.qml:436
+msgid "Show"
+msgstr "Afficher"
+
+#: contents/ui/ConfigGeneral.qml:444
+msgid "Enter an API key first."
+msgstr "Saisissez d’abord une clé API."
+
+#: contents/ui/ConfigGeneral.qml:447
+msgid "Testing…"
+msgstr "Test en cours…"
+
+#: contents/ui/ConfigGeneral.qml:456
+msgid "Network error: Google could not be reached."
+msgstr "Erreur réseau : Google est injoignable."
+
+#: contents/ui/ConfigGeneral.qml:460
+msgid "Key rejected (HTTP %1)."
+msgstr "Clé refusée (HTTP %1)."
+
+#: contents/ui/ConfigGeneral.qml:477
+msgid "Key accepted, model “%1” is available."
+msgstr "Clé acceptée, le modèle « %1 » est disponible."
+
+#: contents/ui/ConfigGeneral.qml:482
+msgid "Key accepted, but model “%1” was not found. Try: %2"
+msgstr "Clé acceptée, mais le modèle « %1 » est introuvable. Essayez : %2"
+
+#: contents/ui/ConfigGeneral.qml:540
+msgid "Credentials"
+msgstr "Identifiants"
+
+#: contents/ui/ConfigGeneral.qml:1331
+msgid "Spotlight and Siri AI"
+msgstr "Spotlight et Siri IA"
+
+#: contents/ui/ConfigGeneral.qml:1335
+msgid "Dock icons:"
+msgstr "Icônes du Dock :"
+
+#: contents/ui/ConfigGeneral.qml:1339
+msgid "Show Spotlight button"
+msgstr "Afficher le bouton Spotlight"
+
+#: contents/ui/ConfigGeneral.qml:1344
+msgid "Show Siri AI app"
+msgstr "Afficher l’app Siri IA"
+
+#: contents/ui/ConfigGeneral.qml:1351
+msgid "System launcher:"
+msgstr "Lanceur du système :"
+
+#: contents/ui/ConfigGeneral.qml:1352
+msgid "Replace it with Spotlight (Windows key, Alt+Space, typing on the desktop)"
+msgstr "Le remplacer par le Spotlight (touche Windows, Alt+Espace, frappe sur le bureau)"
+
+#: contents/ui/ConfigGeneral.qml:1358
+msgid "The Windows key and KRunner settings are changed by install.sh (script spotlight-integration.sh); this option only lets Spotlight answer KRunner's calls. Apps, files and clipboard modes are chosen with the button on the left of the search bar."
+msgstr "Les réglages de la touche Windows et de KRunner sont modifiés par install.sh (script spotlight-integration.sh) ; cette option permet seulement au Spotlight de répondre aux appels de KRunner. Les modes Apps, Fichiers et Presse-papiers se choisissent avec le bouton à gauche de la barre de recherche."
+
+#: contents/ui/ConfigGeneral.qml:1624
+msgid "Default assistant:"
+msgstr "Assistant par défaut :"
+
+#: contents/ui/ConfigGeneral.qml:1626 contents/ui/ConfigGeneral.qml:1638
+msgid "Gemini"
+msgstr "Gemini"
+
+#: contents/ui/ConfigGeneral.qml:1626 contents/ui/ConfigGeneral.qml:1699
+msgid "GLM (OpenCode)"
+msgstr "GLM (OpenCode)"
+
+#: contents/ui/ConfigGeneral.qml:1632
+msgid "Keys are stored only in your Plasma configuration (~/.config), never in the Git repository, and “Copy style” does not include them. You can switch assistant at any time from the “…” menu of Spotlight or from Siri AI."
+msgstr "Les clés sont stockées uniquement dans votre configuration Plasma (~/.config), jamais dans le dépôt Git, et « Copier le style » ne les inclut pas. Vous pouvez changer d’assistant à tout moment depuis le menu « … » du Spotlight ou depuis Siri IA."
+
+#: contents/ui/ConfigGeneral.qml:1644 contents/ui/ConfigGeneral.qml:1772
+msgid "API key:"
+msgstr "Clé API :"
+
+#: contents/ui/ConfigGeneral.qml:1646
+msgid "Google AI Studio key"
+msgstr "Clé Google AI Studio"
+
+#: contents/ui/ConfigGeneral.qml:1650 contents/ui/ConfigGeneral.qml:1713 contents/ui/ConfigGeneral.qml:1780
+msgid "Model:"
+msgstr "Modèle :"
+
+#: contents/ui/ConfigGeneral.qml:1667
+msgid "Suggestions"
+msgstr "Suggestions"
+
+#: contents/ui/ConfigGeneral.qml:1677
+msgid "Test key"
+msgstr "Tester la clé"
+
+#: contents/ui/ConfigGeneral.qml:1693
+msgid "Create a free key at aistudio.google.com/apikey. The free tier has daily limits, and Google may use free-tier requests to improve its products."
+msgstr "Créez une clé gratuite sur aistudio.google.com/apikey. L’offre gratuite a des limites quotidiennes, et Google peut utiliser les requêtes de l’offre gratuite pour améliorer ses produits."
+
+#: contents/ui/ConfigGeneral.qml:1705
+msgid "Access:"
+msgstr "Accès :"
+
+#: contents/ui/ConfigGeneral.qml:1707
+msgid "OpenCode command (free models)"
+msgstr "Commande OpenCode (modèles gratuits)"
+
+#: contents/ui/ConfigGeneral.qml:1707
+msgid "API key"
+msgstr "Clé API"
+
+#: contents/ui/ConfigGeneral.qml:1723
+msgid "OpenCode only lets its free models be used from OpenCode itself, so this mode runs the “opencode” command (install it from opencode.ai). No key is needed here."
+msgstr "OpenCode n’autorise ses modèles gratuits que depuis OpenCode lui-même : ce mode lance donc la commande « opencode » (à installer depuis opencode.ai). Aucune clé n’est nécessaire ici."
+
+#: contents/ui/ConfigGeneral.qml:1730
+msgid "OpenCode API key:"
+msgstr "Clé API OpenCode :"
+
+#: contents/ui/ConfigGeneral.qml:1733
+msgid "Key from opencode.ai/console"
+msgstr "Clé issue de opencode.ai/console"
+
+#: contents/ui/ConfigGeneral.qml:1739 contents/ui/ConfigGeneral.qml:1763
+msgid "Address:"
+msgstr "Adresse :"
+
+#: contents/ui/ConfigGeneral.qml:1754
+msgid "Name:"
+msgstr "Nom :"
+
+#: contents/ui/ConfigGeneral.qml:1756
+msgid "Shown in the menus"
+msgstr "Affiché dans les menus"
+
+#: contents/ui/ConfigGeneral.qml:1774
+msgid "Optional for a local server"
+msgstr "Facultative pour un serveur local"
+
+#: contents/ui/ConfigGeneral.qml:1788
+msgid "Any service compatible with the OpenAI chat API works (OpenRouter, Groq, Mistral, a local Ollama at http://localhost:11434/v1…)."
+msgstr "Tout service compatible avec l’API de chat OpenAI fonctionne (OpenRouter, Groq, Mistral, un Ollama local sur http://localhost:11434/v1…)."
+
+#: contents/ui/SiriWindow.qml:146 contents/ui/main.qml:4721
+msgid "Credentials…"
+msgstr "Identifiants…"
+
+#: contents/ui/SiriWindow.qml:157
+msgid "Unpin"
+msgstr "Désépingler"
+
+#: contents/ui/SiriWindow.qml:157
+msgid "Pin"
+msgstr "Épingler"
+
+#: contents/ui/SiriWindow.qml:159
+msgid "Copy Conversation"
+msgstr "Copier la conversation"
+
+#: contents/ui/SiriWindow.qml:161
+msgid "Delete"
+msgstr "Supprimer"
+
+#: contents/ui/SiriWindow.qml:423
+msgid "Search"
+msgstr "Rechercher"
+
+#: contents/ui/SiriWindow.qml:598
+msgid "No conversations found"
+msgstr "Aucune conversation trouvée"
+
+#: contents/ui/SiriWindow.qml:599
+msgid "Your conversations will appear here"
+msgstr "Vos conversations apparaîtront ici"
+
+#: contents/ui/SiriWindow.qml:670
+msgid "How can I help?"
+msgstr "Comment puis-je vous aider ?"
+
+#: contents/ui/SiriWindow.qml:732
+msgid "Ask Siri AI…"
+msgstr "Demandez à Siri IA…"
+
+#: contents/ui/SpotlightWindow.qml:84
+msgid "Utilities"
+msgstr "Utilitaires"
+
+#: contents/ui/SpotlightWindow.qml:85
+msgid "Productivity & Finance"
+msgstr "Productivité et finance"
+
+#: contents/ui/SpotlightWindow.qml:86
+msgid "Photo & Video"
+msgstr "Photo et vidéo"
+
+#: contents/ui/SpotlightWindow.qml:87
+msgid "Entertainment"
+msgstr "Divertissement"
+
+#: contents/ui/SpotlightWindow.qml:88
+msgid "Social"
+msgstr "Réseaux sociaux"
+
+#: contents/ui/SpotlightWindow.qml:89
+msgid "Creativity"
+msgstr "Créativité"
+
+#: contents/ui/SpotlightWindow.qml:90
+msgid "Information & Reading"
+msgstr "Informations et lecture"
+
+#: contents/ui/SpotlightWindow.qml:91
+msgid "Other"
+msgstr "Autres"
+
+#: contents/ui/SpotlightWindow.qml:94
+msgid "Ask a follow-up…"
+msgstr "Poser une autre question…"
+
+#: contents/ui/SpotlightWindow.qml:505 contents/ui/SpotlightWindow.qml:703 contents/ui/SpotlightWindow.qml:96
+msgid "Files"
+msgstr "Fichiers"
+
+#: contents/ui/SpotlightWindow.qml:705 contents/ui/SpotlightWindow.qml:97
+msgid "Clipboard"
+msgstr "Presse-papiers"
+
+#: contents/ui/SpotlightWindow.qml:97
+msgid "Search or Ask"
+msgstr "Rechercher ou demander"
+
+#: contents/ui/SpotlightWindow.qml:248 contents/ui/SpotlightWindow.qml:707
+msgid "Favorites"
+msgstr "Favoris"
+
+#: contents/ui/SpotlightWindow.qml:488 contents/ui/SpotlightWindow.qml:500 contents/ui/SpotlightWindow.qml:528
+msgid "No results"
+msgstr "Aucun résultat"
+
+#: contents/ui/SpotlightWindow.qml:500
+msgid "Searching…"
+msgstr "Recherche en cours…"
+
+#: contents/ui/SpotlightWindow.qml:502
+msgid "No recent files"
+msgstr "Aucun fichier récent"
+
+#: contents/ui/SpotlightWindow.qml:505
+msgid "Recent"
+msgstr "Récents"
+
+#: contents/ui/SpotlightWindow.qml:513
+msgid "Clipboard history is unavailable (Klipper is not running)."
+msgstr "L’historique du presse-papiers est indisponible (Klipper n’est pas lancé)."
+
+#: contents/ui/SpotlightWindow.qml:520
+msgid "Clipboard history"
+msgstr "Historique du presse-papiers"
+
+#: contents/ui/SpotlightWindow.qml:528
+msgid "The clipboard history is empty"
+msgstr "L’historique du presse-papiers est vide"
+
+#: contents/ui/SpotlightWindow.qml:1501 contents/ui/SpotlightWindow.qml:714
+msgid "Ask %1"
+msgstr "Demander à %1"
+
+#: contents/ui/SpotlightWindow.qml:722
+msgid "New Siri AI conversation"
+msgstr "Nouvelle conversation Siri IA"
+
+#: contents/ui/SpotlightWindow.qml:723 contents/ui/main.qml:4673
+msgid "Open Siri AI"
+msgstr "Ouvrir Siri IA"
+
+#: contents/ui/SpotlightWindow.qml:726 contents/ui/main.qml:4682
+msgid "Spotlight Settings…"
+msgstr "Réglages de Spotlight…"
+
+#: contents/ui/SpotlightWindow.qml:767
+msgid "Remove from Favorites"
+msgstr "Retirer des favoris"
+
+#: contents/ui/SpotlightWindow.qml:768
+msgid "Add to Favorites"
+msgstr "Ajouter aux favoris"
+
+#: contents/ui/SpotlightWindow.qml:771
+msgid "Show in File Manager"
+msgstr "Afficher dans le gestionnaire de fichiers"
+
+#: contents/ui/SpotlightWindow.qml:774
+msgid "Show in Folder"
+msgstr "Afficher dans le dossier"
+
+#: contents/ui/SpotlightWindow.qml:775
+msgid "Copy Path"
+msgstr "Copier le chemin"
+
+#: contents/ui/SpotlightWindow.qml:1211
+msgid "No favorites yet. Right-click an app, then “Add to Favorites”."
+msgstr "Aucun favori pour l’instant. Faites un clic droit sur une app, puis « Ajouter aux favoris »."
+
+#: contents/ui/main.qml:4653
+msgid "Spotlight"
+msgstr "Spotlight"
+
+#: contents/ui/main.qml:4667
+msgid "Open Spotlight"
+msgstr "Ouvrir Spotlight"
+
+#: contents/ui/main.qml:4688 contents/ui/main.qml:4729
+msgid "Remove from Dock"
+msgstr "Retirer du Dock"
+
+#: contents/ui/main.qml:4698
+msgid "Siri AI"
+msgstr "Siri IA"
+
+#: contents/ui/main.qml:4715
+msgid "New Conversation"
+msgstr "Nouvelle conversation"

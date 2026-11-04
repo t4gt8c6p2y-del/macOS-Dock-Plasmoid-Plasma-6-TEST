@@ -95,6 +95,23 @@ KCM.SimpleKCM {
         showProgressIndicatorsCheckBox.checked
     property alias cfg_showKdeConnectRecentShares:
         showKdeConnectRecentSharesCheckBox.checked
+    // Spotlight, Siri IA et assistant IA. Les identifiants ne font jamais
+    // partie du style copié (voir styleBooleanKeys) ni de la réinitialisation.
+    property alias cfg_showSpotlightButton: showSpotlightButtonCheckBox.checked
+    property alias cfg_showSiriButton: showSiriButtonCheckBox.checked
+    property alias cfg_spotlightReplaceLauncher: replaceLauncherCheckBox.checked
+    property var cfg_spotlightFavorites: []
+    property alias cfg_aiProvider: aiProviderCombo.currentIndex
+    property alias cfg_geminiApiKey: geminiKeyField.text
+    property alias cfg_geminiModel: geminiModelField.text
+    property alias cfg_glmBackend: glmBackendCombo.currentIndex
+    property alias cfg_glmModel: glmModelField.text
+    property alias cfg_glmApiKey: glmKeyField.text
+    property alias cfg_glmBaseUrl: glmBaseUrlField.text
+    property alias cfg_customAiName: customAiNameField.text
+    property alias cfg_customAiUrl: customAiUrlField.text
+    property alias cfg_customAiKey: customAiKeyField.text
+    property alias cfg_customAiModel: customAiModelField.text
     property var cfg_launchers: []
     property var cfg_appGroups: []
 
@@ -168,6 +185,21 @@ KCM.SimpleKCM {
     property int cfg_powerButtonPositionDefault: 1
     property bool cfg_showProgressIndicatorsDefault: true
     property bool cfg_showKdeConnectRecentSharesDefault: true
+    property bool cfg_showSpotlightButtonDefault: true
+    property bool cfg_showSiriButtonDefault: true
+    property bool cfg_spotlightReplaceLauncherDefault: true
+    property var cfg_spotlightFavoritesDefault: []
+    property int cfg_aiProviderDefault: 0
+    property string cfg_geminiApiKeyDefault: ""
+    property string cfg_geminiModelDefault: "gemini-3.8-flash"
+    property int cfg_glmBackendDefault: 0
+    property string cfg_glmModelDefault: "glm-5.3-flash-free"
+    property string cfg_glmApiKeyDefault: ""
+    property string cfg_glmBaseUrlDefault: "https://opencode.ai/inference/openai/v1"
+    property string cfg_customAiNameDefault: ""
+    property string cfg_customAiUrlDefault: ""
+    property string cfg_customAiKeyDefault: ""
+    property string cfg_customAiModelDefault: ""
     property var cfg_appGroupsDefault: []
     property var cfg_launchersDefault: []
 
@@ -211,6 +243,7 @@ KCM.SimpleKCM {
         "showTrash", "showRemovableVolumes", "openRemovableVolumesInNewTab",
         "showDesktopSwitcher", "showPowerButton", "showProgressIndicators",
         "showKdeConnectRecentShares", "perDesktopDock",
+        "showSpotlightButton", "showSiriButton",
         "useThemeIndicatorColor", "borderColorFromWallpaper",
         "liveBackdrop"
     ]
@@ -376,6 +409,83 @@ KCM.SimpleKCM {
             i18n("Settings reset. Dock icons were kept. Click “Apply” to save."));
     }
 
+    // Champ de mot de passe avec un bouton « afficher ».
+    component SecretField: RowLayout {
+        id: secretField
+
+        property alias text: secretInput.text
+        property alias placeholderText: secretInput.placeholderText
+
+        QQC2.TextField {
+            id: secretInput
+
+            Layout.fillWidth: true
+            echoMode: revealButton.checked ? TextInput.Normal : TextInput.Password
+            selectByMouse: true
+            // Aucune aide à la saisie : le texte est un secret.
+            inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+        }
+
+        QQC2.Button {
+            id: revealButton
+
+            checkable: true
+            icon.name: checked ? "password-show-off" : "password-show-on"
+
+            QQC2.ToolTip.visible: hovered
+            QQC2.ToolTip.text: checked ? i18n("Hide") : i18n("Show")
+        }
+    }
+
+    // Vérifie la clé Gemini : liste les modèles qu'elle peut utiliser.
+    function testGemini() {
+        var key = String(geminiKeyField.text).trim();
+        if (key.length === 0) {
+            geminiTestResult.text = i18n("Enter an API key first.");
+            return;
+        }
+        geminiTestResult.text = i18n("Testing…");
+        var request = new XMLHttpRequest();
+        request.open("GET", "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200");
+        request.setRequestHeader("x-goog-api-key", key);
+        request.onreadystatechange = function () {
+            if (request.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            if (request.status === 0) {
+                geminiTestResult.text = i18n("Network error: Google could not be reached.");
+                return;
+            }
+            if (request.status !== 200) {
+                geminiTestResult.text = i18n("Key rejected (HTTP %1).", request.status);
+                return;
+            }
+            var names = [];
+            try {
+                var models = JSON.parse(request.responseText).models || [];
+                for (var i = 0; i < models.length; ++i) {
+                    var methods = models[i].supportedGenerationMethods || [];
+                    if (methods.indexOf("generateContent") >= 0) {
+                        names.push(String(models[i].name).replace(/^models\//, ""));
+                    }
+                }
+            } catch (error) {
+                names = [];
+            }
+            var wanted = String(geminiModelField.text).trim();
+            if (names.indexOf(wanted) >= 0) {
+                geminiTestResult.text = i18n("Key accepted, model “%1” is available.", wanted);
+            } else {
+                var flash = names.filter(function (name) {
+                    return /flash/.test(name) && !/(image|tts|live|audio|preview)/.test(name);
+                }).slice(0, 6);
+                geminiTestResult.text = i18n("Key accepted, but model “%1” was not found. Try: %2",
+                    wanted, flash.join(", "));
+            }
+        };
+        request.send();
+    }
+
     // Presse-papiers : un TextEdit invisible est le moyen le plus simple
     // d'accéder au presse-papiers du système depuis QML.
     TextEdit {
@@ -424,6 +534,10 @@ KCM.SimpleKCM {
 
             QQC2.TabButton {
                 text: i18n("Miscellaneous")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Credentials")
             }
         }
 
@@ -1214,6 +1328,39 @@ KCM.SimpleKCM {
 
                 Item {
                     Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Spotlight and Siri AI")
+                }
+
+                ColumnLayout {
+                    Kirigami.FormData.label: i18n("Dock icons:")
+
+                    QQC2.CheckBox {
+                        id: showSpotlightButtonCheckBox
+                        text: i18n("Show Spotlight button")
+                    }
+
+                    QQC2.CheckBox {
+                        id: showSiriButtonCheckBox
+                        text: i18n("Show Siri AI app")
+                    }
+                }
+
+                QQC2.CheckBox {
+                    id: replaceLauncherCheckBox
+
+                    Kirigami.FormData.label: i18n("System launcher:")
+                    text: i18n("Replace it with Spotlight (Windows key, Alt+Space, typing on the desktop)")
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The Windows key and KRunner settings are changed by install.sh (script spotlight-integration.sh); this option only lets Spotlight answer KRunner's calls. Apps, files and clipboard modes are chosen with the button on the left of the search bar.")
+                    opacity: 0.78
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
                     Kirigami.FormData.label: i18n("View layouts")
                 }
 
@@ -1466,6 +1613,180 @@ KCM.SimpleKCM {
                     Layout.fillWidth: true
                     visible: false
                     showCloseButton: true
+                }
+            }
+
+            // Onglet Identifiants : assistant IA du Spotlight et de Siri IA.
+            Kirigami.FormLayout {
+                QQC2.ComboBox {
+                    id: aiProviderCombo
+
+                    Kirigami.FormData.label: i18n("Default assistant:")
+                    Layout.fillWidth: true
+                    model: [i18n("Gemini"), i18n("GLM (OpenCode)"), i18n("Custom AI")]
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Keys are stored only in your Plasma configuration (~/.config), never in the Git repository, and “Copy style” does not include them. You can switch assistant at any time from the “…” menu of Spotlight or from Siri AI.")
+                    opacity: 0.78
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Gemini")
+                }
+
+                SecretField {
+                    id: geminiKeyField
+
+                    Kirigami.FormData.label: i18n("API key:")
+                    Layout.fillWidth: true
+                    placeholderText: i18n("Google AI Studio key")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Model:")
+                    Layout.fillWidth: true
+
+                    QQC2.TextField {
+                        id: geminiModelField
+
+                        Layout.fillWidth: true
+                        placeholderText: "gemini-3.8-flash"
+                        selectByMouse: true
+                    }
+
+                    QQC2.ComboBox {
+                        id: geminiSuggestions
+
+                        model: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite",
+                            "gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+                        currentIndex: -1
+                        displayText: i18n("Suggestions")
+                        onActivated: geminiModelField.text = currentText
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    QQC2.Button {
+                        icon.name: "dialog-ok-apply"
+                        text: i18n("Test key")
+                        onClicked: configPage.testGemini()
+                    }
+
+                    QQC2.Label {
+                        id: geminiTestResult
+
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.85
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Create a free key at aistudio.google.com/apikey. The free tier has daily limits, and Google may use free-tier requests to improve its products.")
+                    opacity: 0.78
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("GLM (OpenCode)")
+                }
+
+                QQC2.ComboBox {
+                    id: glmBackendCombo
+
+                    Kirigami.FormData.label: i18n("Access:")
+                    Layout.fillWidth: true
+                    model: [i18n("OpenCode command (free models)"), i18n("API key")]
+                }
+
+                QQC2.TextField {
+                    id: glmModelField
+
+                    Kirigami.FormData.label: i18n("Model:")
+                    Layout.fillWidth: true
+                    placeholderText: "glm-5.3-flash-free"
+                    selectByMouse: true
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: glmBackendCombo.currentIndex === 0
+                    text: i18n("OpenCode only lets its free models be used from OpenCode itself, so this mode runs the “opencode” command (install it from opencode.ai). No key is needed here.")
+                    opacity: 0.78
+                }
+
+                SecretField {
+                    id: glmKeyField
+
+                    Kirigami.FormData.label: i18n("OpenCode API key:")
+                    Layout.fillWidth: true
+                    enabled: glmBackendCombo.currentIndex === 1
+                    placeholderText: i18n("Key from opencode.ai/console")
+                }
+
+                QQC2.TextField {
+                    id: glmBaseUrlField
+
+                    Kirigami.FormData.label: i18n("Address:")
+                    Layout.fillWidth: true
+                    enabled: glmBackendCombo.currentIndex === 1
+                    placeholderText: "https://opencode.ai/inference/openai/v1"
+                    selectByMouse: true
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Custom AI")
+                }
+
+                QQC2.TextField {
+                    id: customAiNameField
+
+                    Kirigami.FormData.label: i18n("Name:")
+                    Layout.fillWidth: true
+                    placeholderText: i18n("Shown in the menus")
+                    selectByMouse: true
+                }
+
+                QQC2.TextField {
+                    id: customAiUrlField
+
+                    Kirigami.FormData.label: i18n("Address:")
+                    Layout.fillWidth: true
+                    placeholderText: "https://api.example.com/v1"
+                    selectByMouse: true
+                }
+
+                SecretField {
+                    id: customAiKeyField
+
+                    Kirigami.FormData.label: i18n("API key:")
+                    Layout.fillWidth: true
+                    placeholderText: i18n("Optional for a local server")
+                }
+
+                QQC2.TextField {
+                    id: customAiModelField
+
+                    Kirigami.FormData.label: i18n("Model:")
+                    Layout.fillWidth: true
+                    selectByMouse: true
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Any service compatible with the OpenAI chat API works (OpenRouter, Groq, Mistral, a local Ollama at http://localhost:11434/v1…).")
+                    opacity: 0.78
                 }
             }
         }

@@ -21,6 +21,8 @@ case "$LOCALE_NAME" in
         MSG_QSB_FAILED='HINWEIS: Der Liquid-Glass-Shader konnte nicht kompiliert werden. Liquid Glass läuft über den langsameren Prozessor-Pfad.'
         MSG_NO_VIEWER='FEHLER: plasmoidviewer wurde nicht gefunden (Paket plasma-sdk).'
         MSG_PREVIEW='==> Starte Vorschau in plasmoidviewer ...'
+        MSG_SPOTLIGHT='==> Richte die Spotlight-Integration ein (Windows-Taste, KRunner) ...'
+        MSG_SPOTLIGHT_DONE='    Melde dich einmal ab und wieder an, damit die Windows-Taste das Spotlight öffnet. Rückgängig: ~/.local/share/macosdock/spotlight-integration.sh disable'
         ;;
     fr*)
         MSG_NO_KPACKAGE='ERREUR : kpackagetool6 est introuvable. KDE Plasma 6 est requis.'
@@ -36,6 +38,8 @@ case "$LOCALE_NAME" in
         MSG_QSB_FAILED='INFO : le shader Liquid Glass n’a pas pu être compilé. Le Liquid Glass utilisera le calcul par le processeur, plus lent.'
         MSG_NO_VIEWER='ERREUR : plasmoidviewer est introuvable (paquet plasma-sdk).'
         MSG_PREVIEW='==> Lancement de l’aperçu dans plasmoidviewer...'
+        MSG_SPOTLIGHT='==> Configuration de l’intégration du Spotlight (touche Windows, KRunner)...'
+        MSG_SPOTLIGHT_DONE='    Déconnectez-vous puis reconnectez-vous une fois pour que la touche Windows ouvre le Spotlight. Pour annuler : ~/.local/share/macosdock/spotlight-integration.sh disable'
         ;;
     *)
         MSG_NO_KPACKAGE='ERROR: kpackagetool6 was not found. KDE Plasma 6 is required.'
@@ -51,6 +55,8 @@ case "$LOCALE_NAME" in
         MSG_QSB_FAILED='NOTE: the Liquid Glass shader could not be compiled. Liquid Glass will use the slower CPU path.'
         MSG_NO_VIEWER='ERROR: plasmoidviewer was not found (plasma-sdk package).'
         MSG_PREVIEW='==> Starting preview in plasmoidviewer...'
+        MSG_SPOTLIGHT='==> Setting up the Spotlight integration (Windows key, KRunner)...'
+        MSG_SPOTLIGHT_DONE='    Log out and back in once so the Windows key opens Spotlight. To undo: ~/.local/share/macosdock/spotlight-integration.sh disable'
         ;;
 esac
 
@@ -139,6 +145,18 @@ trap - EXIT
 
 printf '%s\n' "$MSG_SUCCESS"
 printf '%s\n' "$MSG_ADD"
+
+# Spotlight : le script est copié dans le dossier de données du Dock (le
+# plasmoïde l'y retrouve pour activer/désactiver l'option des réglages) et
+# appliqué une fois. MACOSDOCK_SKIP_SPOTLIGHT=1 ignore cette étape.
+install -Dm755 "$SCRIPT_DIR/spotlight-integration.sh" \
+    "${XDG_DATA_HOME:-$HOME/.local/share}/macosdock/spotlight-integration.sh"
+if [[ "${MACOSDOCK_SKIP_SPOTLIGHT:-0}" != "1" ]]; then
+    printf '%s\n' "$MSG_SPOTLIGHT"
+    if "${XDG_DATA_HOME:-$HOME/.local/share}/macosdock/spotlight-integration.sh" enable; then
+        printf '%s\n' "$MSG_SPOTLIGHT_DONE"
+    fi
+fi
 
 case "${1:-}" in
     --preview|-p)

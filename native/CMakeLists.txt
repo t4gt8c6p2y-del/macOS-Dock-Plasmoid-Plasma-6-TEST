@@ -36,6 +36,8 @@ add_library(macosdockeffectsplugin MODULE
     plugin.cpp
     removablevolumesmodel.cpp
     removablevolumesmodel.h
+    spotlightbackend.cpp
+    spotlightbackend.h
     wallpaperlocator.cpp
     wallpaperlocator.h
     windowactions.cpp

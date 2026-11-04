@@ -7,6 +7,7 @@
 #include "kdeconnectsharemonitor.h"
 #include "opendocumentlocator.h"
 #include "removablevolumesmodel.h"
+#include "spotlightbackend.h"
 #include "wallpaperlocator.h"
 
 #include <QQmlEngine>
@@ -30,6 +31,7 @@ public:
         qmlRegisterType<BorderLight>(uri, 1, 0, "BorderLight");
         qmlRegisterType<DockMenu>(uri, 1, 0, "DockMenu");
         qmlRegisterType<GlassBlur>(uri, 1, 0, "GlassBlur");
+        qmlRegisterType<SpotlightBackend>(uri, 1, 0, "SpotlightBackend");
     }
 };
 

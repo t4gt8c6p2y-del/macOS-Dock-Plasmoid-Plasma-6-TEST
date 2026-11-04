@@ -45,6 +45,14 @@ Fenstersteuerung und einem zum Qt-Farbschema passenden Blur-Hintergrund.
 - präzise, abgerundete Blur-Region ohne rechteckigen Hover-Hintergrund
 - vollständige deutsche, US-englische und französische Oberfläche nach Systemsprache
 
+## Spotlight und Siri KI
+
+- **Spotlight**: eine Leiste „Suchen oder fragen“ mit Ergebnisfeld nach dem Vorbild von macOS 27, geöffnet mit der Windows-Taste, Alt+Leertaste, durch Tippen auf dem Desktop oder über das Dock-Symbol. Der Glashintergrund folgt den Liquid-Glass-Einstellungen. Die Schaltfläche links in der Leiste wechselt zwischen *Standard* (Apps, dann KI) → *Apps* → *Dateien* → *Zwischenablage*; ein Doppelklick führt zurück zum Standard. Eine Kategorie Favoriten (Stern) ist vorhanden.
+- **Siri KI**: eine Chat-App mit Unterhaltungsverlauf (Gemini, GLM über OpenCode oder jeder OpenAI-kompatible Dienst).
+- **Zugangsdaten**: nur in der lokalen Plasma-Konfiguration (`~/.config`) gespeichert, nie im Repository und von „Stil kopieren“ ausgenommen. Eingabe in den Einstellungen im Reiter *Zugangsdaten*.
+- `install.sh` kopiert `spotlight-integration.sh` nach `~/.local/share/macosdock/` und führt es aus: Die Windows-Taste öffnet Spotlight, KRunner wird maskiert. Rückgängig: `~/.local/share/macosdock/spotlight-integration.sh disable`, oder den Schritt mit `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh` überspringen. Einmal ab- und wieder anmelden.
+- Das kostenlose GLM-Modell ist nur über den Befehl `opencode` (opencode.ai) erreichbar; Gemini braucht einen kostenlosen Schlüssel von aistudio.google.com/apikey.
+
 ## Voraussetzungen
 
 - KDE Plasma 6

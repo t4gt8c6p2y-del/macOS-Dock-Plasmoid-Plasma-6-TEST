@@ -224,6 +224,21 @@ PlasmoidItem {
             ? true : Boolean(Plasmoid.configuration.showPowerButton)
     readonly property int powerButtonPosition: Math.round(boundedNumber(
         Plasmoid.configuration.powerButtonPosition, 1, 0, 1))
+    // Spotlight et Siri IA : deux icônes en tête du Dock, avant les applications.
+    readonly property bool showSpotlightButton:
+        Plasmoid.configuration.showSpotlightButton === undefined
+            ? true : Boolean(Plasmoid.configuration.showSpotlightButton)
+    readonly property bool showSiriButton:
+        Plasmoid.configuration.showSiriButton === undefined
+            ? true : Boolean(Plasmoid.configuration.showSiriButton)
+    readonly property bool spotlightReplaceLauncher:
+        Plasmoid.configuration.spotlightReplaceLauncher === undefined
+            ? true : Boolean(Plasmoid.configuration.spotlightReplaceLauncher)
+    readonly property int leadingToolCount:
+        (showSpotlightButton ? 1 : 0) + (showSiriButton ? 1 : 0)
+    readonly property int spotlightDockIndex: showSpotlightButton ? 0 : -1
+    readonly property int siriDockIndex:
+        showSiriButton ? (showSpotlightButton ? 1 : 0) : -1
     readonly property bool showDesktopSwitcher:
         Plasmoid.configuration.showDesktopSwitcher === undefined
             ? true : Boolean(Plasmoid.configuration.showDesktopSwitcher)
@@ -334,7 +349,7 @@ PlasmoidItem {
     // Dock indices describe visual order along the main axis. A leading power
     // button occupies slot zero, so task drag and magnification use this offset.
     readonly property int taskDockStartIndex:
-        powerButtonOnLeft ? 1 : 0
+        leadingToolCount + (powerButtonOnLeft ? 1 : 0)
     readonly property int folderDockIndex:
         folderItemCount > 0
             ? taskDockStartIndex + taskVisualCount : -1
@@ -345,24 +360,25 @@ PlasmoidItem {
         ? taskDockStartIndex + taskVisualCount + folderItemCount
             + removableVolumeCount : -1
     readonly property int powerButtonDockIndex: showPowerButton
-        ? (powerButtonOnLeft ? 0
-            : taskVisualCount + folderItemCount + removableVolumeCount
-                + (showTrash ? 1 : 0)) : -1
+        ? (powerButtonOnLeft ? leadingToolCount
+            : taskDockStartIndex + taskVisualCount + folderItemCount
+                + removableVolumeCount + (showTrash ? 1 : 0)) : -1
     readonly property int trailingUtilityItemCount:
         folderItemCount + removableVolumeCount + (showTrash ? 1 : 0)
             + (showPowerButton && !powerButtonOnLeft ? 1 : 0)
     readonly property int utilityItemCount:
-        folderItemCount + removableVolumeCount + (showTrash ? 1 : 0) + (showPowerButton ? 1 : 0)
+        leadingToolCount + folderItemCount + removableVolumeCount
+            + (showTrash ? 1 : 0) + (showPowerButton ? 1 : 0)
     readonly property int dockItemCount: taskVisualCount + utilityItemCount
     readonly property bool leadingUtilitySeparatorVisible:
-        powerButtonOnLeft && dockItemCount > 1
+        taskDockStartIndex > 0 && dockItemCount > taskDockStartIndex
     readonly property bool trailingUtilitySeparatorVisible:
         taskVisualCount > 0 && trailingUtilityItemCount > 0
     // Séparations fixes entre les applications et les utilitaires.
     readonly property var systemSectionBreakAfterDockIndices: {
         var result = [];
         if (leadingUtilitySeparatorVisible) {
-            result.push(powerButtonDockIndex);
+            result.push(taskDockStartIndex - 1);
         }
         if (trailingUtilitySeparatorVisible) {
             result.push(taskDockStartIndex + taskVisualCount - 1);
@@ -1561,6 +1577,12 @@ PlasmoidItem {
         }
         if (powerOverlayItem) {
             powerOverlayItem.setPreviewOpen(false);
+        }
+        if (spotlightOverlayItem) {
+            spotlightOverlayItem.setPreviewOpen(false);
+        }
+        if (siriOverlayItem) {
+            siriOverlayItem.setPreviewOpen(false);
         }
     }
 
@@ -3217,6 +3239,23 @@ PlasmoidItem {
         }
     }
 
+    onShowSpotlightButtonChanged: {
+        if (!showSpotlightButton) {
+            closeTransientUi();
+        }
+    }
+
+    onShowSiriButtonChanged: {
+        if (!showSiriButton) {
+            closeTransientUi();
+            siriWindow.closeSiri();
+        }
+    }
+
+    // Super / Alt+Espace / frappe sur le bureau : intégration du lanceur.
+    onSpotlightReplaceLauncherChanged:
+        spotlightBackend.applyLauncherIntegration(spotlightReplaceLauncher)
+
     onShowPowerButtonChanged: {
         if (!showPowerButton) {
             closeTransientUi();
@@ -4608,6 +4647,92 @@ PlasmoidItem {
         }
     }
 
+    component SpotlightDelegate: AuxiliaryDelegate {
+        id: spotlightDelegate
+
+        appName: i18n("Spotlight")
+        appIcon: Qt.resolvedUrl("icons/spotlight.svg")
+
+        onClicked: {
+            root.closeTransientUi();
+            spotlightWindow.toggleSpotlight();
+        }
+        onContextMenuRequested: (sceneX, sceneY) => spotlightMenu.popupAt(
+            spotlightDelegate.Window.window, sceneX, sceneY, true)
+
+        TrackedMenu {
+            id: spotlightMenu
+
+            MenuEntry {
+                text: i18n("Open Spotlight")
+                iconName: "edit-find"
+                onTriggered: spotlightWindow.openSpotlight("")
+            }
+
+            MenuEntry {
+                text: i18n("Open Siri AI")
+                iconName: "dialog-messages"
+                visible: root.showSiriButton
+                onTriggered: siriWindow.openSiri(false)
+            }
+
+            MenuDivider {}
+
+            MenuEntry {
+                text: i18n("Spotlight Settings…")
+                iconName: "configure"
+                onTriggered: Plasmoid.internalAction("configure").trigger()
+            }
+
+            MenuEntry {
+                text: i18n("Remove from Dock")
+                iconName: "list-remove"
+                onTriggered: Plasmoid.configuration.showSpotlightButton = false
+            }
+        }
+    }
+
+    component SiriDelegate: AuxiliaryDelegate {
+        id: siriDelegate
+
+        appName: i18n("Siri AI")
+        appIcon: Qt.resolvedUrl("icons/siri.svg")
+        // Un point sous l'icône tant que la fenêtre est ouverte.
+        isRunning: siriWindow.visible
+        previewAvailable: false
+
+        onClicked: {
+            root.closeTransientUi();
+            siriWindow.toggleSiri();
+        }
+        onContextMenuRequested: (sceneX, sceneY) => siriMenu.popupAt(
+            siriDelegate.Window.window, sceneX, sceneY, true)
+
+        TrackedMenu {
+            id: siriMenu
+
+            MenuEntry {
+                text: i18n("New Conversation")
+                iconName: "document-new"
+                onTriggered: siriWindow.openSiri(true)
+            }
+
+            MenuEntry {
+                text: i18n("Credentials…")
+                iconName: "configure"
+                onTriggered: Plasmoid.internalAction("configure").trigger()
+            }
+
+            MenuDivider {}
+
+            MenuEntry {
+                text: i18n("Remove from Dock")
+                iconName: "list-remove"
+                onTriggered: Plasmoid.configuration.showSiriButton = false
+            }
+        }
+    }
+
     component RemovableVolumeDelegate: AuxiliaryDelegate {
         id: volumeDelegate
 
@@ -5015,7 +5140,7 @@ PlasmoidItem {
                 FolderDropTarget {
                     anchors.fill: parent
                     z: 1
-                    excludedItems: [trashBaseItem, powerBaseItem]
+                    excludedItems: [trashBaseItem, powerBaseItem, spotlightBaseItem, siriBaseItem]
                 }
 
                 Rectangle {
@@ -5245,8 +5370,97 @@ PlasmoidItem {
                         ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
                         : root.crossMargin
                 }
+
+                SpotlightDelegate {
+                    id: spotlightBaseItem
+
+                    visible: root.showSpotlightButton
+                    dockIndex: root.spotlightDockIndex
+                    x: root.isVertical ? root.crossMargin
+                        : root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                    y: root.isVertical
+                        ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                        : root.crossMargin
+                }
+
+                SiriDelegate {
+                    id: siriBaseItem
+
+                    visible: root.showSiriButton
+                    dockIndex: root.siriDockIndex
+                    x: root.isVertical ? root.crossMargin
+                        : root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                    y: root.isVertical
+                        ? root.baseCenterForIndex(dockIndex) - scaledSize / 2
+                        : root.crossMargin
+                }
             }
         }
+    }
+
+    // --- Spotlight, assistant IA et Siri IA ---------------------------------------
+    DockEffects.SpotlightBackend {
+        id: spotlightBackend
+
+        replaceLauncher: root.spotlightReplaceLauncher
+
+        onToggleRequested: spotlightWindow.toggleSpotlight()
+        onShowRequested: spotlightWindow.openSpotlight("")
+        onHideRequested: spotlightWindow.closeSpotlight()
+        onQueryRequested: (text) => spotlightWindow.openSpotlight(text)
+        onAssistantRequested: siriWindow.openSiri(false)
+    }
+
+    // Les identifiants viennent uniquement de la configuration locale de Plasma
+    // (~/.config) : ils ne sont jamais écrits dans le dépôt Git.
+    AiChat {
+        id: aiChat
+
+        backend: spotlightBackend
+        defaultProvider: Math.round(root.boundedNumber(
+            Plasmoid.configuration.aiProvider, 0, 0, 2))
+        geminiKey: String(Plasmoid.configuration.geminiApiKey || "")
+        geminiModel: String(Plasmoid.configuration.geminiModel || "gemini-3.8-flash")
+        glmBackend: Math.round(root.boundedNumber(
+            Plasmoid.configuration.glmBackend, 0, 0, 1))
+        glmModel: String(Plasmoid.configuration.glmModel || "glm-5.3-flash-free")
+        glmKey: String(Plasmoid.configuration.glmApiKey || "")
+        glmBaseUrl: String(Plasmoid.configuration.glmBaseUrl
+            || "https://opencode.ai/inference/openai/v1")
+        customName: String(Plasmoid.configuration.customAiName || "")
+        customUrl: String(Plasmoid.configuration.customAiUrl || "")
+        customKey: String(Plasmoid.configuration.customAiKey || "")
+        customModel: String(Plasmoid.configuration.customAiModel || "")
+
+        onProviderChosen: (index) => {
+            Plasmoid.configuration.aiProvider = index;
+        }
+    }
+
+    SpotlightWindow {
+        id: spotlightWindow
+
+        backend: spotlightBackend
+        chat: aiChat
+        favorites: Plasmoid.configuration.spotlightFavorites || []
+        assistantEnabled: root.showSiriButton
+
+        onFavoritesChangeRequested: (ids) => {
+            Plasmoid.configuration.spotlightFavorites = ids;
+        }
+        onAssistantRequested: (freshConversation) => {
+            siriWindow.openSiri(freshConversation);
+        }
+        onSettingsRequested: Plasmoid.internalAction("configure").trigger()
+    }
+
+    SiriWindow {
+        id: siriWindow
+
+        backend: spotlightBackend
+        chat: aiChat
+
+        onSettingsRequested: Plasmoid.internalAction("configure").trigger()
     }
 
     Window {
@@ -5478,6 +5692,10 @@ PlasmoidItem {
                     item = trashOverlayItem;
                 } else if (index === root.powerButtonDockIndex) {
                     item = powerOverlayItem;
+                } else if (index === root.spotlightDockIndex) {
+                    item = spotlightOverlayItem;
+                } else if (index === root.siriDockIndex) {
+                    item = siriOverlayItem;
                 }
                 // Repeater.itemAt() is statically typed as Item, while every
                 // Dock item has currentScale.
@@ -5696,7 +5914,7 @@ PlasmoidItem {
                 width: overlayBackgroundSurface.width
                 height: overlayBackgroundSurface.height
                 z: 1
-                excludedItems: [trashOverlayItem, powerOverlayItem]
+                excludedItems: [trashOverlayItem, powerOverlayItem, spotlightOverlayItem, siriOverlayItem]
             }
 
             Rectangle {
@@ -6081,6 +6299,44 @@ PlasmoidItem {
                     visible: root.showPowerButton
                     inOverlay: true
                     dockIndex: root.powerButtonDockIndex
+                    displayScale: root.scaleForIndex(dockIndex,
+                        root.lastPointerMain, root.overlayZoomActive,
+                        overlayContent.mainLength, root.maxScale,
+                        root.baseIconSize)
+                    displayCrossExtent: root.maximumIconSize
+                    x: root.isVertical ? 0
+                        : overlayContent.centerForVisualIndex(dockIndex)
+                            - scaledSize / 2
+                    y: root.isVertical
+                        ? overlayContent.centerForVisualIndex(dockIndex)
+                            - scaledSize / 2 : 0
+                }
+
+                SpotlightDelegate {
+                    id: spotlightOverlayItem
+
+                    visible: root.showSpotlightButton
+                    inOverlay: true
+                    dockIndex: root.spotlightDockIndex
+                    displayScale: root.scaleForIndex(dockIndex,
+                        root.lastPointerMain, root.overlayZoomActive,
+                        overlayContent.mainLength, root.maxScale,
+                        root.baseIconSize)
+                    displayCrossExtent: root.maximumIconSize
+                    x: root.isVertical ? 0
+                        : overlayContent.centerForVisualIndex(dockIndex)
+                            - scaledSize / 2
+                    y: root.isVertical
+                        ? overlayContent.centerForVisualIndex(dockIndex)
+                            - scaledSize / 2 : 0
+                }
+
+                SiriDelegate {
+                    id: siriOverlayItem
+
+                    visible: root.showSiriButton
+                    inOverlay: true
+                    dockIndex: root.siriDockIndex
                     displayScale: root.scaleForIndex(dockIndex,
                         root.lastPointerMain, root.overlayZoomActive,
                         overlayContent.mainLength, root.maxScale,

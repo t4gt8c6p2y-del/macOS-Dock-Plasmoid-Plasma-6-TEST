@@ -47,6 +47,14 @@ couleurs du thème Qt.
 - Zone de flou précisément arrondie, sans fond rectangulaire au survol
 - Interface complète en allemand, anglais américain et français selon la langue du système
 
+## Spotlight et Siri IA
+
+- **Spotlight** : une barre « Rechercher ou demander » et un panneau de résultats inspirés de macOS 27, ouverts avec la touche Windows, Alt+Espace, en tapant sur le bureau ou depuis l'icône du Dock. Le fond en verre suit les réglages Liquid Glass. Le bouton à gauche de la barre alterne entre *défaut* (apps, puis IA) → *apps* → *fichiers* → *presse-papiers* ; un double clic revient au défaut. Une catégorie Favoris (étoile) est disponible.
+- **Siri IA** : une app de discussion avec historique des conversations (Gemini, GLM via OpenCode, ou tout service compatible OpenAI).
+- **Identifiants** : stockés uniquement dans la configuration locale de Plasma (`~/.config`), jamais dans le dépôt, et exclus de « Copier le style ». À saisir dans les réglages, onglet *Identifiants*.
+- `install.sh` copie `spotlight-integration.sh` dans `~/.local/share/macosdock/` et l'exécute : la touche Windows ouvre le Spotlight et KRunner est masqué. Annulation : `~/.local/share/macosdock/spotlight-integration.sh disable`, ou ignorer l'étape avec `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh`. Déconnectez-vous puis reconnectez-vous une fois.
+- Le modèle GLM gratuit n'est accessible que par la commande `opencode` (opencode.ai) ; Gemini demande une clé gratuite sur aistudio.google.com/apikey.
+
 ## Prérequis
 
 - KDE Plasma 6
