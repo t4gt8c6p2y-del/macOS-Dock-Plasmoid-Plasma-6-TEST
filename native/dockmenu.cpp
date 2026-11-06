@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QApplication>
 #include <QIcon>
+#include <QKeySequence>
 #include <QLinearGradient>
 #include <QMenu>
 #include <QtMath>
@@ -392,6 +393,16 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
 
         QAction *action = menu->addAction(icon, text);
         action->setEnabled(enabled);
+        if (map.contains(QStringLiteral("checked"))) {
+            action->setCheckable(true);
+            action->setChecked(map.value(QStringLiteral("checked")).toBool());
+        }
+        const QString shortcut = map.value(QStringLiteral("shortcut")).toString();
+        if (!shortcut.isEmpty()) {
+            // Affiché à droite de l'entrée ; ne sert qu'à l'affichage.
+            action->setShortcut(QKeySequence(shortcut));
+            action->setShortcutContext(Qt::WidgetShortcut);
+        }
         connect(action, &QAction::triggered, this, [this, id]() {
             Q_EMIT triggered(id);
         });

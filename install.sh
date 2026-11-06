@@ -146,6 +146,24 @@ trap - EXIT
 printf '%s\n' "$MSG_SUCCESS"
 printf '%s\n' "$MSG_ADD"
 
+# Lanceurs « Spotlight » et « Siri IA » : de vraies entrées d'applications,
+# épinglées au Dock comme les autres (donc déplaçables où l'on veut).
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+for tool in spotlight siri; do
+    install -Dm644 "$SCRIPT_DIR/data/macosdock-$tool.desktop" \
+        "$DATA_HOME/applications/macosdock-$tool.desktop"
+    install -Dm644 "$SCRIPT_DIR/contents/ui/icons/$tool.svg" \
+        "$DATA_HOME/icons/hicolor/scalable/apps/macosdock-$tool.svg"
+done
+# Index des applications : le Dock doit connaître les deux lanceurs avant de
+# les épingler.
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    kbuildsycoca6 >/dev/null 2>&1 || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1 && [[ -f "$DATA_HOME/icons/hicolor/index.theme" ]]; then
+    gtk-update-icon-cache -q -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
+fi
+
 # Spotlight : le script est copié dans le dossier de données du Dock (le
 # plasmoïde l'y retrouve pour activer/désactiver l'option des réglages) et
 # appliqué une fois. MACOSDOCK_SKIP_SPOTLIGHT=1 ignore cette étape.

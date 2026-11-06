@@ -205,11 +205,6 @@ Window {
         }
         var rects = [{ "x": 0, "y": 0, "width": Math.round(win.width),
             "height": Math.round(win.height), "radius": 22 }];
-        if (menu.opened) {
-            rects.push({ "x": Math.round(menu.boxRect.x), "y": Math.round(menu.boxRect.y),
-                "width": Math.round(menu.boxRect.width), "height": Math.round(menu.boxRect.height),
-                "radius": 14 });
-        }
         var key = JSON.stringify(rects);
         if (key === glassKey && (++glassTicks % 15) !== 0) {
             return;
@@ -797,13 +792,14 @@ Window {
             }
         }
 
-        GlassMenu {
-            id: menu
+    }
 
-            theme: win.glassTheme
-            onActivated: function (entryId) {
-                win.handleMenu(entryId);
-            }
+    NativeGlassMenu {
+        id: menu
+
+        window: win
+        onActivated: function (entryId) {
+            win.handleMenu(entryId);
         }
     }
 }

@@ -18,6 +18,8 @@ class QWindow;
  *
  * Le contenu est décrit par une liste de dictionnaires :
  *   { id, text, icon, enabled }              entrée
+ *   { ..., checked }                         entrée à cocher
+ *   { ..., shortcut }                        raccourci affiché (« Ctrl+1 »)
  *   { id, text, icon, enabled, children }    sous-menu
  *   { separator: true }                      trait de séparation
  */

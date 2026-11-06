@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Spotlight
+Name[fr]=Spotlight
+Name[de]=Spotlight
+GenericName=Search
+GenericName[fr]=Recherche
+GenericName[de]=Suche
+Comment=Search apps, files and the clipboard, or ask an AI
+Comment[fr]=Rechercher des apps, des fichiers et le presse-papiers, ou interroger une IA
+Comment[de]=Apps, Dateien und die Zwischenablage durchsuchen oder eine KI fragen
+Icon=macosdock-spotlight
+Exec=dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.toggle
+Terminal=false
+StartupNotify=false
+Categories=Utility;
+X-MacOSDock-Tool=true

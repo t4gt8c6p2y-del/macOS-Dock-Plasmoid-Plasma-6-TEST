@@ -9,9 +9,10 @@ import "SpotlightMath.js" as SpotlightMath
 // Alt+Espace ou en tapant sur le bureau (voir SpotlightBackend).
 //
 // Le bouton à gauche de la barre change de mode à chaque clic :
-//   rien (par défaut : applications, puis l'assistant IA si rien ne correspond)
-//   -> Applications -> Fichiers -> Presse-papiers -> rien ;
-// un double clic revient toujours au mode par défaut.
+//   Applications (par défaut : la grille s'ouvre tout de suite ; si rien ne
+//   correspond à la saisie, la question part vers l'assistant IA)
+//   -> Fichiers -> Presse-papiers -> Applications ;
+// un double clic revient toujours aux applications.
 //
 // Le fond de la barre et du panneau est celui des menus du clic droit : presque
 // transparent, avec un liseré, le flou / Liquid Glass étant demandé à KWin
@@ -33,7 +34,7 @@ Window {
 
     // --- État --------------------------------------------------------------------
     // 0 = par défaut, 1 = applications, 2 = fichiers, 3 = presse-papiers
-    property int mode: 0
+    property int mode: 1
     property string query: ""
     // Vrai : le panneau montre la conversation avec l'assistant.
     property bool aiView: false
@@ -54,7 +55,8 @@ Window {
     // --- Dimensions (celles de la capture de macOS 27) -------------------------
     readonly property int columns: 7
     readonly property real cellWidth: 98
-    readonly property real cellHeight: 90
+    readonly property real cellHeight: 104
+    readonly property real iconSize: 64
     readonly property real barWidth: 444
     readonly property real barHeight: 72
     readonly property real panelWidth: 720
@@ -64,7 +66,7 @@ Window {
     readonly property color accent: "#007AFF"
 
     readonly property bool gridMode: mode === 1 && query.trim().length === 0 && !aiView
-    readonly property bool panelWanted: aiView || mode !== 0 || query.trim().length > 0
+    readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
         if (!panelWanted) {
             return 0;
@@ -92,9 +94,8 @@ Window {
     ]
 
     readonly property string placeholder: aiView ? i18n("Ask a follow-up…")
-        : (mode === 1 ? i18n("Applications")
-            : (mode === 2 ? i18n("Files")
-                : (mode === 3 ? i18n("Clipboard") : i18n("Search or Ask"))))
+        : (mode === 2 ? i18n("Files")
+            : (mode === 3 ? i18n("Clipboard") : i18n("Applications")))
 
     // --- Fenêtre : un calque plein écran, au-dessus de tout -------------------
     flags: Qt.FramelessWindowHint
@@ -123,14 +124,19 @@ Window {
     // --- Ouverture / fermeture ---------------------------------------------------
     function openSpotlight(initialText) {
         glassTheme = glassBlur.theme();
-        moreMenu.opened = false;
-        contextMenu.opened = false;
+        moreMenu.close();
+        contextMenu.close();
         refreshApps();
-        mode = 0;
         aiView = false;
         query = initialText !== undefined ? String(initialText) : "";
         if (chat) {
             chat.startNew();
+        }
+        if (mode !== 1) {
+            mode = 1;
+        } else {
+            resetGridSelection();
+            appsList.contentY = 0;
         }
         rebuildResults();
         visible = true;
@@ -139,8 +145,8 @@ Window {
     }
 
     function closeSpotlight() {
-        moreMenu.opened = false;
-        contextMenu.opened = false;
+        moreMenu.close();
+        contextMenu.close();
         visible = false;
     }
 
@@ -464,33 +470,22 @@ Window {
             selectedIndex = -1;
             return;
         }
-        if (mode === 0) {
+        if (mode === 1) {
             if (text.length > 0) {
                 var calculation = SpotlightMath.evaluate(text);
                 if (calculation) {
                     list.push({ "kind": "calc", "text": text, "value": calculation.text });
                 }
-                var apps = matchApps(text, 6);
+                var apps = matchApps(text, 40);
                 if (apps.length > 0) {
                     list.push({ "kind": "header", "text": i18n("Applications") });
                     for (i = 0; i < apps.length; ++i) {
                         list.push({ "kind": "app", "app": apps[i] });
                     }
                 }
+                // Rien ne correspond : la question part vers l'assistant IA.
                 if (chat) {
                     list.push({ "kind": "ai", "text": text });
-                }
-            }
-        } else if (mode === 1) {
-            if (text.length > 0) {
-                var found = matchApps(text, 40);
-                if (found.length === 0) {
-                    list.push({ "kind": "info", "text": i18n("No results") });
-                } else {
-                    list.push({ "kind": "header", "text": i18n("Applications") });
-                    for (i = 0; i < found.length; ++i) {
-                        list.push({ "kind": "app", "app": found[i] });
-                    }
                 }
             }
         } else if (mode === 2) {
@@ -670,7 +665,7 @@ Window {
             }
         } else if (selectedIndex >= 0 && selectedIndex < results.length) {
             activateEntry(results[selectedIndex], reveal);
-        } else if (mode === 0 && chat && query.trim().length > 0) {
+        } else if (mode === 1 && chat && query.trim().length > 0) {
             askAi(query);
         }
     }
@@ -728,7 +723,7 @@ Window {
     }
 
     function openMoreMenu() {
-        contextMenu.opened = false;
+        contextMenu.close();
         moreMenu.entries = moreEntries();
         var anchor = moreButton.mapToItem(null, moreButton.width, moreButton.height + 6);
         moreMenu.openAt(anchor.x, anchor.y, true);
@@ -758,7 +753,7 @@ Window {
     }
 
     function openContextMenu(target, sceneX, sceneY) {
-        moreMenu.opened = false;
+        moreMenu.close();
         contextTarget = target;
         var entries = [];
         if (target.kind === "app") {
@@ -830,26 +825,15 @@ Window {
         if (!visible) {
             return;
         }
+        // Seul le panneau reçoit le flou / Liquid Glass de KWin. La barre de
+        // recherche est un fond sombre quasi opaque (comme sur macOS) et les
+        // menus sont des fenêtres natives qui ont leur propre verre.
         var rects = [];
-        var bar = itemRect(barSurface, barSurface.radius);
-        if (bar) {
-            rects.push(bar);
-        }
         if (panelSurface.height > 8) {
             var panel = itemRect(panelSurface, panelSurface.radius);
             if (panel) {
                 rects.push(panel);
             }
-        }
-        if (moreMenu.opened) {
-            rects.push({ "x": Math.round(moreMenu.boxRect.x), "y": Math.round(moreMenu.boxRect.y),
-                "width": Math.round(moreMenu.boxRect.width),
-                "height": Math.round(moreMenu.boxRect.height), "radius": 14 });
-        }
-        if (contextMenu.opened) {
-            rects.push({ "x": Math.round(contextMenu.boxRect.x), "y": Math.round(contextMenu.boxRect.y),
-                "width": Math.round(contextMenu.boxRect.width),
-                "height": Math.round(contextMenu.boxRect.height), "radius": 14 });
         }
         // On ne renvoie la liste à KWin que si elle a changé (et, de temps en
         // temps, par sécurité : la surface peut être créée après le premier envoi).
@@ -882,22 +866,30 @@ Window {
         }
 
         // ---- La barre de recherche ----
-        GlassSurface {
+        // Fond sombre quasi opaque, sans verre liquide ni flou (comme sur la
+        // capture de macOS) : presque noir en haut, un peu plus clair en bas,
+        // avec un liseré très fin.
+        Rectangle {
             id: barSurface
 
-            theme: win.glassTheme
             radius: win.barHeight / 2
             width: win.barWidth
             height: win.barHeight
             x: Math.round((win.width - width) / 2)
             y: win.stageTop
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.rgba(0.03, 0.03, 0.05, 0.95) }
+                GradientStop { position: 1.0; color: Qt.rgba(0.15, 0.14, 0.20, 0.86) }
+            }
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.14)
 
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
             }
 
-            // Bouton de mode : rien, Applications, Fichiers, Presse-papiers.
+            // Bouton de mode : Applications, Fichiers, Presse-papiers.
             Item {
                 id: modeButton
 
@@ -919,11 +911,10 @@ Window {
 
                 SpotlightGlyph {
                     anchors.centerIn: parent
-                    visible: win.mode !== 0
                     kind: win.mode === 1 ? "apps" : (win.mode === 2 ? "files" : "clipboard")
                     size: 26
-                    lineWidth: 1.6
-                    color: Qt.rgba(1, 1, 1, 0.82)
+                    lineWidth: 1.9
+                    color: Qt.rgba(1, 1, 1, 0.85)
                 }
 
                 HoverHandler {
@@ -933,12 +924,12 @@ Window {
                 }
 
                 TapHandler {
-                    // Un double clic (deux taps rapprochés) revient au mode par défaut.
+                    // Un double clic (deux taps rapprochés) revient aux applications.
                     onTapped: {
                         if (tapCount >= 2) {
-                            win.setMode(0);
+                            win.setMode(1);
                         } else {
-                            win.setMode((win.mode + 1) % 4);
+                            win.setMode(win.mode >= 3 ? 1 : win.mode + 1);
                         }
                     }
                 }
@@ -1001,7 +992,7 @@ Window {
                             && win.gridMode) {
                         win.gridMove(0, event.key === Qt.Key_Right ? 1 : -1);
                         event.accepted = true;
-                    } else if (control && event.key >= Qt.Key_0 && event.key <= Qt.Key_3) {
+                    } else if (control && event.key >= Qt.Key_1 && event.key <= Qt.Key_3) {
                         win.setMode(event.key - Qt.Key_0);
                         event.accepted = true;
                     } else if (control && event.key === Qt.Key_R) {
@@ -1074,6 +1065,14 @@ Window {
             id: panelSurface
 
             theme: win.glassTheme
+            // Fond un peu plus sombre qu'un menu, liseré plus fin et bord
+            // intérieur lumineux plus large : l'effet Liquid Glass de KWin
+            // ne travaille que sur une bande étroite du rebord.
+            darkening: 0.22
+            rimScale: 0.55
+            bezelSize: 14
+            bezelStrength: 0.16
+            bezelColor: "#DCE6FF"
             radius: 30
             width: win.panelWidth
             height: win.panelTargetHeight
@@ -1244,14 +1243,14 @@ Window {
                                 Kirigami.Icon {
                                     x: Math.round((parent.width - width) / 2)
                                     y: 8
-                                    width: 52
-                                    height: 52
+                                    width: win.iconSize
+                                    height: win.iconSize
                                     source: cell.modelData.icon
                                 }
 
                                 Text {
                                     x: 4
-                                    y: 64
+                                    y: 8 + win.iconSize + 6
                                     width: parent.width - 8
                                     height: 20
                                     horizontalAlignment: Text.AlignHCenter
@@ -1283,17 +1282,35 @@ Window {
                         }
                     }
                 }
+            }
 
-                // Barre de défilement fine, comme sur la capture.
+            // Barre de défilement : un rail sombre collé au bord droit du panneau
+            // et une poignée grise, comme sur la capture.
+            Item {
+                id: scrollRail
+
+                visible: win.gridMode && appsList.contentHeight > appsList.height
+                anchors.right: parent.right
+                anchors.rightMargin: 5
+                y: appsList.y + 4
+                width: 12
+                height: appsList.height - 8
+
                 Rectangle {
-                    visible: appsList.contentHeight > appsList.height
-                    x: parent.width - 6
-                    y: appsList.height * (appsList.contentY / Math.max(1, appsList.contentHeight))
-                    width: 4
-                    height: Math.max(28, appsList.height * appsList.height
+                    anchors.fill: parent
+                    radius: 6
+                    color: Qt.rgba(0, 0, 0, 0.28)
+                }
+
+                Rectangle {
+                    x: 2
+                    width: 8
+                    radius: 4
+                    height: Math.max(36, parent.height * appsList.height
                         / Math.max(1, appsList.contentHeight))
-                    radius: 2
-                    color: Qt.rgba(1, 1, 1, 0.35)
+                    y: (parent.height - height) * appsList.contentY
+                        / Math.max(1, appsList.contentHeight - appsList.height)
+                    color: Qt.rgba(1, 1, 1, 0.42)
                 }
             }
 
@@ -1623,24 +1640,27 @@ Window {
             }
         }
 
-        GlassMenu {
-            id: moreMenu
+    }
 
-            theme: win.glassTheme
-            onActivated: function (entryId) {
-                win.handleMoreMenu(entryId);
-            }
-            onDismissed: win.focusField()
+    // Menus natifs : ce sont des fenêtres à part, donc avec leur propre
+    // flou et leur propre effet Liquid Glass (comme le clic droit du Dock).
+    NativeGlassMenu {
+        id: moreMenu
+
+        window: win
+        onActivated: function (entryId) {
+            win.handleMoreMenu(entryId);
         }
+        onDismissed: win.focusField()
+    }
 
-        GlassMenu {
-            id: contextMenu
+    NativeGlassMenu {
+        id: contextMenu
 
-            theme: win.glassTheme
-            onActivated: function (entryId) {
-                win.handleContextMenu(entryId);
-            }
-            onDismissed: win.focusField()
+        window: win
+        onActivated: function (entryId) {
+            win.handleContextMenu(entryId);
         }
+        onDismissed: win.focusField()
     }
 }

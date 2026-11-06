@@ -1421,3 +1421,7 @@ msgstr "Siri KI"
 #: contents/ui/main.qml:4715
 msgid "New Conversation"
 msgstr "Neue Unterhaltung"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Both are ordinary pinned icons: drag them anywhere in the Dock. Unticking a box removes the icon, ticking it again pins it back at the start."
+msgstr "Das sind ganz normale angeheftete Symbole: Ziehe sie im Dock an eine beliebige Stelle. Wird ein Haken entfernt, verschwindet das Symbol; setzt du ihn wieder, wird es am Anfang angeheftet."

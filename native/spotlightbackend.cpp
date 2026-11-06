@@ -515,7 +515,9 @@ QVariantList SpotlightBackend::applications() const
     QVariantList result;
     for (const KService::Ptr &service : services) {
         const QString id = service->storageId();
-        if (id.isEmpty() || seen.contains(id)) {
+        // Les lanceurs « Spotlight » et « Siri IA » du Dock n'ont rien à faire
+        // dans la grille du Spotlight lui-même.
+        if (id.isEmpty() || id.startsWith(QLatin1String("macosdock-")) || seen.contains(id)) {
             continue;
         }
         seen.insert(id);

@@ -1345,6 +1345,13 @@ KCM.SimpleKCM {
                     }
                 }
 
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Both are ordinary pinned icons: drag them anywhere in the Dock. Unticking a box removes the icon, ticking it again pins it back at the start.")
+                    opacity: 0.78
+                }
+
                 QQC2.CheckBox {
                     id: replaceLauncherCheckBox
 

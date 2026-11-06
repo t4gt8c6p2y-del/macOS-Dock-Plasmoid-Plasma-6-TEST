@@ -1423,3 +1423,7 @@ msgstr "Siri IA"
 #: contents/ui/main.qml:4715
 msgid "New Conversation"
 msgstr "Nouvelle conversation"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Both are ordinary pinned icons: drag them anywhere in the Dock. Unticking a box removes the icon, ticking it again pins it back at the start."
+msgstr "Ce sont des icônes épinglées ordinaires : faites-les glisser où vous voulez dans le Dock. Décocher une case retire l’icône, la cocher de nouveau la remet au début."

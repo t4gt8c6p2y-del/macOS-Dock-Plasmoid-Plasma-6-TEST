@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Siri AI
+Name[fr]=Siri IA
+Name[de]=Siri KI
+GenericName=AI assistant
+GenericName[fr]=Assistant IA
+GenericName[de]=KI-Assistent
+Comment=Chat with Gemini, GLM or another AI and keep the history
+Comment[fr]=Discuter avec Gemini, GLM ou une autre IA et garder l’historique
+Comment[de]=Mit Gemini, GLM oder einer anderen KI chatten und den Verlauf behalten
+Icon=macosdock-siri
+Exec=dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.openAssistant
+Terminal=false
+StartupNotify=false
+Categories=Utility;
+X-MacOSDock-Tool=true
