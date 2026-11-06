@@ -233,8 +233,8 @@
       Spotlight (barre « Search or Ask » façon macOS 27) et application
       « Siri IA » : icônes du Dock, favoris du Spotlight, assistant IA.
     -->
-    <entry name="toolLaunchersSeeded" type="Bool">
-      <default>false</default>
+    <entry name="toolLauncherSeedVersion" type="Int">
+      <default>0</default>
     </entry>
     <entry name="showSpotlightButton" type="Bool">
       <default>true</default>

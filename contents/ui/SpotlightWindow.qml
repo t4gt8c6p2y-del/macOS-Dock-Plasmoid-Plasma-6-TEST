@@ -27,6 +27,13 @@ Window {
     // Identifiants (desktopId) des applications favorites.
     property var favorites: []
     property bool assistantEnabled: true
+    // Fond d'écran et lecteur de couleurs (venant de main.qml) : les liserés
+    // de la barre et du panneau prennent la couleur du fond, comme le Dock.
+    property var wallpaperInfo: ({ "source": "", "fillMode": 2, "width": 0, "height": 0 })
+    property var colorSampler: null
+    property bool colorFromWallpaper: true
+    // Opacité des liserés (0,5 x l'intensité de la bordure du Dock).
+    property real ringOpacity: 0.5
 
     signal favoritesChangeRequested(var ids)
     signal assistantRequested(bool freshConversation)
@@ -877,12 +884,25 @@ Window {
             height: win.barHeight
             x: Math.round((win.width - width) / 2)
             y: win.stageTop
+            // Couleurs relevées sur la capture de macOS : noir presque pur en
+            // haut, gris-bleu sombre en bas.
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Qt.rgba(0.03, 0.03, 0.05, 0.95) }
-                GradientStop { position: 1.0; color: Qt.rgba(0.15, 0.14, 0.20, 0.86) }
+                GradientStop { position: 0.00; color: Qt.rgba(0.008, 0.008, 0.016, 0.97) }
+                GradientStop { position: 0.21; color: Qt.rgba(0.040, 0.043, 0.063, 0.95) }
+                GradientStop { position: 0.50; color: Qt.rgba(0.110, 0.114, 0.145, 0.93) }
+                GradientStop { position: 0.77; color: Qt.rgba(0.180, 0.180, 0.235, 0.91) }
+                GradientStop { position: 1.00; color: Qt.rgba(0.245, 0.245, 0.315, 0.89) }
             }
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.14)
+
+            WallpaperRing {
+                anchors.fill: parent
+                radius: barSurface.radius
+                ringOpacity: Math.min(1, win.ringOpacity * 0.8)
+                colorFromWallpaper: win.colorFromWallpaper
+                wallpaperInfo: win.wallpaperInfo
+                colorSampler: win.colorSampler
+                active: win.visible
+            }
 
             MouseArea {
                 anchors.fill: parent
@@ -914,7 +934,7 @@ Window {
                     kind: win.mode === 1 ? "apps" : (win.mode === 2 ? "files" : "clipboard")
                     size: 26
                     lineWidth: 1.9
-                    color: Qt.rgba(1, 1, 1, 0.85)
+                    color: Qt.rgba(1, 1, 1, 0.66)
                 }
 
                 HoverHandler {
@@ -942,6 +962,22 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - 64 - 56
                 color: "white"
+                cursorDelegate: Item {
+                    width: 2
+                    // Barre blanche brillante avec un léger halo, comme sur macOS.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 7
+                        height: parent.height + 2
+                        radius: 3.5
+                        color: Qt.rgba(1, 1, 1, 0.16)
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 1
+                        color: "white"
+                    }
+                }
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
                 selectedTextColor: "white"
                 font.pixelSize: 22
@@ -957,7 +993,7 @@ Window {
                     visible: field.text.length === 0 && field.preeditText.length === 0
                     text: win.placeholder
                     font: field.font
-                    color: Qt.rgba(1, 1, 1, 0.5)
+                    color: Qt.rgba(1, 1, 1, 0.58)
                 }
 
                 Keys.onPressed: function (event) {
@@ -1065,14 +1101,11 @@ Window {
             id: panelSurface
 
             theme: win.glassTheme
-            // Fond un peu plus sombre qu'un menu, liseré plus fin et bord
-            // intérieur lumineux plus large : l'effet Liquid Glass de KWin
-            // ne travaille que sur une bande étroite du rebord.
-            darkening: 0.22
-            rimScale: 0.55
-            bezelSize: 14
-            bezelStrength: 0.16
-            bezelColor: "#DCE6FF"
+            // Fond un peu plus sombre qu'un menu. Le liseré blanc du thème est
+            // remplacé par WallpaperRing (couleur du fond d'écran, sans dégradé
+            // de lumière).
+            darkening: 0.18
+            rimScale: 0
             radius: 30
             width: win.panelWidth
             height: win.panelTargetHeight
@@ -1082,6 +1115,16 @@ Window {
 
             Behavior on height {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+
+            WallpaperRing {
+                anchors.fill: parent
+                radius: panelSurface.radius
+                ringOpacity: win.ringOpacity
+                colorFromWallpaper: win.colorFromWallpaper
+                wallpaperInfo: win.wallpaperInfo
+                colorSampler: win.colorSampler
+                active: win.visible && panelSurface.visible
             }
 
             MouseArea {

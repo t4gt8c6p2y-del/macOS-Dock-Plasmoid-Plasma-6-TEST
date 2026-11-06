@@ -809,6 +809,7 @@ PlasmoidItem {
         interval: root.wallpaperInfo.source.length > 0 ? 20000 : 4000
         repeat: true
         running: root.glassEnabled
+            || root.showSpotlightButton || root.spotlightReplaceLauncher
             || (root.borderColorFromWallpaper
                 && (root.borderStrength > 0.001
                     || root.borderLightIntensity > 0.001))
@@ -3232,26 +3233,59 @@ PlasmoidItem {
     readonly property string spotlightLauncherUrl: "applications:macosdock-spotlight.desktop"
     readonly property string siriLauncherUrl: "applications:macosdock-siri.desktop"
 
-    // Ajoute ou retire l'un des deux lanceurs. À l'ajout il est placé en tête
-    // du Dock ; ensuite on le déplace comme n'importe quelle application.
-    function syncToolLauncher(url, wanted) {
+    // Ajoute ou retire les lanceurs Spotlight et Siri IA en UNE seule
+    // affectation de la liste (deux affectations successives pouvaient
+    // s'écraser l'une l'autre). À l'ajout ils sont placés en tête du Dock ;
+    // ensuite on les déplace comme n'importe quelle application.
+    property int toolSyncRetries: 0
+
+    function toolLaunchersWanted() {
         var launchers = (tasksModel.launcherList || []).slice();
-        var position = launchers.indexOf(url);
-        if (wanted && position === -1) {
-            launchers.unshift(url);
-            tasksModel.launcherList = launchers;
-        } else if (!wanted && position !== -1) {
-            launchers.splice(position, 1);
-            tasksModel.launcherList = launchers;
+        var changed = false;
+        var wanted = [
+            [siriLauncherUrl, showSiriButton],
+            [spotlightLauncherUrl, showSpotlightButton]
+        ];
+        for (var i = 0; i < wanted.length; ++i) {
+            var position = launchers.indexOf(wanted[i][0]);
+            if (wanted[i][1] && position === -1) {
+                launchers.unshift(wanted[i][0]);
+                changed = true;
+            } else if (!wanted[i][1] && position !== -1) {
+                launchers.splice(position, 1);
+                changed = true;
+            }
         }
+        return changed ? launchers : null;
     }
 
     function syncToolLaunchers() {
         if (!taskModelReady) {
             return;
         }
-        syncToolLauncher(siriLauncherUrl, showSiriButton);
-        syncToolLauncher(spotlightLauncherUrl, showSpotlightButton);
+        var launchers = toolLaunchersWanted();
+        if (launchers) {
+            tasksModel.launcherList = launchers;
+            // Plasma refuse en silence un lanceur qu'il ne connaît pas encore
+            // (index des applications pas à jour) : on revérifie un peu plus tard.
+            toolSyncRetries = 0;
+            toolLauncherCheck.restart();
+        }
+    }
+
+    Timer {
+        id: toolLauncherCheck
+
+        interval: 2500
+        repeat: false
+        onTriggered: {
+            var launchers = root.toolLaunchersWanted();
+            if (launchers && root.toolSyncRetries < 3) {
+                ++root.toolSyncRetries;
+                tasksModel.launcherList = launchers;
+                toolLauncherCheck.restart();
+            }
+        }
     }
 
     onShowSpotlightButtonChanged: syncToolLaunchers()
@@ -3355,8 +3389,10 @@ PlasmoidItem {
             root.taskModelReady = true;
             // Première utilisation : Spotlight et Siri IA sont épinglés une fois.
             // Si on les retire ensuite du Dock, ils ne reviennent pas tout seuls.
-            if (!Plasmoid.configuration.toolLaunchersSeeded) {
-                Plasmoid.configuration.toolLaunchersSeeded = true;
+            // (version 2 : corrige une première version qui pouvait oublier
+            // l'un des deux ; elle ne rajoute que ce qui manque.)
+            if (Plasmoid.configuration.toolLauncherSeedVersion < 2) {
+                Plasmoid.configuration.toolLauncherSeedVersion = 2;
                 root.syncToolLaunchers();
             }
             root.scheduleTaskLayoutRefresh();
@@ -5349,6 +5385,10 @@ PlasmoidItem {
         backend: spotlightBackend
         chat: aiChat
         favorites: Plasmoid.configuration.spotlightFavorites || []
+        wallpaperInfo: root.wallpaperInfo
+        colorSampler: wallpaperLocator
+        colorFromWallpaper: root.borderColorFromWallpaper
+        ringOpacity: 0.5 * Math.min(1, root.borderStrength)
         assistantEnabled: root.showSiriButton
 
         onFavoritesChangeRequested: (ids) => {

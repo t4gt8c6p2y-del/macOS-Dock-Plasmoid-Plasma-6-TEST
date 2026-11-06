@@ -18,8 +18,13 @@ Item {
     width: size
     height: size
 
+    // Formes pleines (sans trait) : le logo « Applications » est le contour
+    // du pictogramme de la capture macOS, vectorisé à partir de l'image.
+    readonly property var solidPaths: ({
+        "apps": "M5.69 17.83 L5.16 17.73 L4.65 17.86 L4.26 18.20 L3.85 18.84 L3.66 19.33 L3.67 19.77 L3.90 20.19 L4.28 20.51 L4.76 20.60 L5.24 20.38 L5.77 19.85 L6.22 19.07 L6.39 18.66 L6.36 18.36 L6.11 18.07 Z M13.93 9.13 L13.71 9.35 L13.57 9.67 L13.51 10.82 L13.65 11.62 L14.14 12.69 L15.74 15.59 L18.19 19.73 L18.61 20.22 L18.98 20.50 L19.37 20.60 L19.74 20.52 L19.99 20.33 L20.16 20.07 L20.26 19.73 L20.27 19.33 L20.13 18.75 L19.52 17.59 L19.45 17.29 L19.50 17.00 L19.66 16.78 L19.92 16.63 L21.10 16.47 L21.53 16.28 L21.73 16.04 L21.86 15.71 L21.88 15.41 L21.79 15.11 L21.47 14.73 L21.02 14.54 L20.17 14.44 L18.35 14.41 L17.95 14.30 L17.59 14.09 L16.96 13.40 L14.56 9.42 L14.25 9.13 Z M14.21 3.54 L13.84 3.37 L13.37 3.41 L13.06 3.58 L12.47 4.11 L12.10 4.22 L11.63 4.09 L10.84 3.56 L10.50 3.42 L10.07 3.45 L9.69 3.68 L9.51 4.02 L9.54 4.45 L10.44 6.20 L10.59 6.68 L10.58 7.30 L10.32 7.92 L7.65 12.38 L6.70 13.83 L6.23 14.19 L5.65 14.41 L3.38 14.45 L2.94 14.51 L2.56 14.65 L2.23 14.93 L2.08 15.32 L2.13 15.80 L2.38 16.20 L2.89 16.46 L3.74 16.52 L12.91 16.52 L13.48 16.46 L13.83 16.27 L13.98 15.96 L13.92 15.54 L13.71 15.13 L13.37 14.81 L13.00 14.63 L12.47 14.51 L10.55 14.41 L10.16 14.34 L9.75 14.06 L9.63 13.83 L9.59 13.53 L9.65 13.22 L9.81 12.87 L14.30 4.94 L14.44 4.54 L14.47 4.14 L14.40 3.81 Z"
+    })
+
     readonly property var paths: ({
-        "apps": "M12.9 4 L6.4 15.6 M6 17.9 L5.4 19.2 M10.2 4 L19.4 19.9 M2.8 15.4 H21.4",
         "files": "M7 3.6 H13.4 L18.2 8.4 V19 A1.4 1.4 0 0 1 16.8 20.4 H7 A1.4 1.4 0 0 1 5.6 19 V5 A1.4 1.4 0 0 1 7 3.6 Z M13.4 3.6 V8.4 H18.2",
         "clipboard": "M9 5.2 H7 A1.6 1.6 0 0 0 5.4 6.8 V19 A1.6 1.6 0 0 0 7 20.6 H17 A1.6 1.6 0 0 0 18.6 19 V6.8 A1.6 1.6 0 0 0 17 5.2 H15 M9.6 3.4 H14.4 A1 1 0 0 1 15.4 4.4 V5.6 A1 1 0 0 1 14.4 6.6 H9.6 A1 1 0 0 1 8.6 5.6 V4.4 A1 1 0 0 1 9.6 3.4 Z",
         "star": "M12 3.8 L14.5 9.1 L20.3 9.8 L16 13.8 L17.2 19.6 L12 16.7 L6.8 19.6 L8 13.8 L3.7 9.8 L9.5 9.1 Z",
@@ -43,6 +48,19 @@ Item {
         height: glyph.size
         layer.enabled: true
         layer.samples: 4
+
+        ShapePath {
+            scale: Qt.size(glyph.size / 24, glyph.size / 24)
+            strokeColor: "transparent"
+            strokeWidth: 0
+            fillColor: glyph.color
+            fillRule: ShapePath.WindingFill
+
+            PathSvg {
+                path: glyph.solidPaths[glyph.kind] !== undefined
+                    ? glyph.solidPaths[glyph.kind] : ""
+            }
+        }
 
         ShapePath {
             scale: Qt.size(glyph.size / 24, glyph.size / 24)
