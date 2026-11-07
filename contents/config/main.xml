@@ -259,15 +259,6 @@
     <entry name="spotlightGlassStrength" type="Double">
       <default>1.0</default>
     </entry>
-    <entry name="spotlightGlassProfile" type="Double">
-      <default>1.0</default>
-    </entry>
-    <entry name="spotlightGlassDispersion" type="Double">
-      <default>0.25</default>
-    </entry>
-    <entry name="spotlightGlassRim" type="Double">
-      <default>1.0</default>
-    </entry>
     <entry name="spotlightBorderStrength" type="Double">
       <default>0.8</default>
     </entry>

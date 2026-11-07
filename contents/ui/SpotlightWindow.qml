@@ -84,7 +84,7 @@ Window {
     readonly property real panelWidth: 720
     // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
     readonly property real panelMaxHeight:
-        Math.max(300, Math.min(550, height - stageTop - barHeight - stageGap - 28))
+        Math.max(300, Math.min(520, height - stageTop - barHeight - stageGap - 28))
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -161,6 +161,7 @@ Window {
         } else {
             resetGridSelection();
             appsList.contentY = 0;
+            pillsArea.contentX = 0;
         }
         rebuildResults();
         visible = true;
@@ -612,6 +613,7 @@ Window {
         if (mode === 1) {
             resetGridSelection();
             appsList.contentY = 0;
+            pillsArea.contentX = 0;
         } else if (mode === 2) {
             recentFileList = backend ? backend.recentFiles(20) : [];
             if (query.trim().length >= 2) {
@@ -1327,7 +1329,11 @@ Window {
                     maskSpreadAtMin: 1.0
                 }
 
-            ListView {
+            // Flickable (et non ListView) : la hauteur totale est connue d'avance
+            // (voir sectionHeight). Un ListView l'estimait au fil du défilement :
+            // la poignée grossissait et, en revenant, un grand vide apparaissait
+            // en haut de la liste.
+            Flickable {
                 id: appsList
 
                 x: 12
@@ -1336,7 +1342,10 @@ Window {
                 height: parent.height
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                model: win.sections
+                flickableDirection: Flickable.VerticalFlick
+                contentWidth: width
+                contentHeight: win.sectionOffset(win.sections.length)
+                onContentHeightChanged: returnToBounds()
 
                 NumberAnimation {
                     id: scrollAnimation
@@ -1346,6 +1355,12 @@ Window {
                     duration: 240
                     easing.type: Easing.OutCubic
                 }
+
+                Column {
+                    width: appsList.width
+
+                Repeater {
+                    model: win.sections
 
                 delegate: Item {
                     id: sectionItem
@@ -1444,6 +1459,8 @@ Window {
                             }
                         }
                     }
+                }
+                }
                 }
             }
 
