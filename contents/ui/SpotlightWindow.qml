@@ -1019,34 +1019,35 @@ Window {
                 id: caretGlow
 
                 readonly property real caretX: field.x + field.cursorRectangle.x + 1
-                x: caretX - 16
-                y: field.y + field.cursorRectangle.y - 7
-                width: 32
-                height: field.cursorRectangle.height + 14
+                x: caretX - 14
+                y: field.y + field.cursorRectangle.y - 8
+                width: 28
+                height: field.cursorRectangle.height + 16
                 visible: field.activeFocus && field.cursorRectangle.x >= -1
                     && field.cursorRectangle.x <= field.width
                 opacity: barSurface.caretLit ? 1 : 0
                 layer.enabled: true
                 layer.effect: MultiEffect {
                     blurEnabled: true
-                    blur: 0.65
+                    blur: 0.3
                     blurMax: 16
-                    saturation: 0.15
                 }
 
                 Behavior on opacity {
                     NumberAnimation { duration: 120 }
                 }
 
+                // Trait fin (comme le curseur) : c'est son flou qui fait la
+                // petite lueur autour du trait blanc.
                 Rectangle {
-                    x: 12
-                    y: 5
-                    width: 8
-                    height: parent.height - 10
+                    x: 13
+                    y: 7
+                    width: 3
+                    height: parent.height - 14
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(0.45, 0.88, 1.0, 0.95) }
-                        GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.65) }
-                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.60, 0.22, 1.0) }
+                        GradientStop { position: 0.0; color: Qt.rgba(0.45, 0.88, 1.0, 1.0) }
+                        GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.8) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.62, 0.25, 1.0) }
                     }
                 }
             }
