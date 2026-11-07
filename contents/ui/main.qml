@@ -5443,7 +5443,7 @@ PlasmoidItem {
         wallpaperInfo: root.wallpaperInfo
         backdropWindows: root.backdropWindows
         liveBackdrop: root.spotlightLiveBackdrop
-        glassBlur: root.spotlightGlassBlur
+        glassBlurPx: root.spotlightGlassBlur
         glassTint: root.spotlightGlassTint
         glassThickness: root.spotlightGlassThickness
         glassStrength: root.spotlightGlassStrength

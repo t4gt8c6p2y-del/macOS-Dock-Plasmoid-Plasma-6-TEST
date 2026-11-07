@@ -35,7 +35,9 @@ Window {
     property var wallpaperInfo: ({ "source": "", "fillMode": 2, "width": 0, "height": 0 })
     property var backdropWindows: []
     property bool liveBackdrop: true
-    property real glassBlur: 14
+    // Rayon du flou en px (nommé ainsi : « glassBlur » est l'identifiant de
+    // l'objet GlassBlur plus bas ; un même nom donnait un flou nul).
+    property real glassBlurPx: 14
     property real glassTint: 0.3
     property real glassThickness: 34
     property real glassStrength: 1.0
@@ -78,7 +80,9 @@ Window {
     readonly property real barWidth: 444
     readonly property real barHeight: 80
     readonly property real panelWidth: 720
-    readonly property real panelMaxHeight: 500
+    // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
+    readonly property real panelMaxHeight:
+        Math.max(300, Math.min(600, height - stageTop - barHeight - stageGap - 28))
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -830,7 +834,7 @@ Window {
         "screenWidth": Number(wallpaperInfo.width || 0),
         "screenHeight": Number(wallpaperInfo.height || 0),
         "radius": 30,
-        "blur": glassBlur,
+        "blur": glassBlurPx,
         "refraction": true,
         "thickness": glassThickness,
         "strength": glassStrength,
@@ -891,11 +895,11 @@ Window {
             // Couleurs relevées sur la capture de macOS : noir presque pur en
             // haut, gris-bleu sombre en bas.
             gradient: Gradient {
-                GradientStop { position: 0.00; color: Qt.rgba(0.008, 0.008, 0.016, 1) }
-                GradientStop { position: 0.21; color: Qt.rgba(0.040, 0.043, 0.063, 1) }
-                GradientStop { position: 0.50; color: Qt.rgba(0.110, 0.114, 0.145, 1) }
-                GradientStop { position: 0.77; color: Qt.rgba(0.180, 0.180, 0.235, 1) }
-                GradientStop { position: 1.00; color: Qt.rgba(0.245, 0.245, 0.315, 1) }
+                GradientStop { position: 0.00; color: Qt.rgba(0.000, 0.000, 0.004, 1) }
+                GradientStop { position: 0.21; color: Qt.rgba(0.018, 0.020, 0.032, 1) }
+                GradientStop { position: 0.50; color: Qt.rgba(0.070, 0.073, 0.098, 1) }
+                GradientStop { position: 0.77; color: Qt.rgba(0.118, 0.118, 0.158, 1) }
+                GradientStop { position: 1.00; color: Qt.rgba(0.165, 0.165, 0.222, 1) }
             }
 
             // Liseré fin : chaque point prend la couleur de ce qui est derrière
@@ -980,9 +984,10 @@ Window {
 
                     // Clignote par nos soins (le clignotement de Qt est coupé sur
                     // Wayland/Plasma). Le curseur reste allumé tant qu'on tape.
+                    // Simple trait blanc, sans halo ni dégradé.
                     property bool lit: true
 
-                    width: 3
+                    width: 2
                     opacity: lit ? 1 : 0
 
                     Behavior on opacity {
@@ -1011,32 +1016,8 @@ Window {
                         }
                     }
 
-                    // Lueur irisée (cyan en haut, chaud en bas) comme sur macOS.
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 17
-                        height: parent.height + 8
-                        radius: 8.5
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(0.55, 0.86, 1.0, 0.10) }
-                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.05) }
-                            GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.70, 0.40, 0.16) }
-                        }
-                    }
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: 9
-                        height: parent.height + 4
-                        radius: 4.5
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(0.60, 0.88, 1.0, 0.30) }
-                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.14) }
-                            GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.72, 0.42, 0.42) }
-                        }
-                    }
                     Rectangle {
                         anchors.fill: parent
-                        radius: 1.5
                         color: "#FFFFFF"
                     }
                 }
@@ -1419,6 +1400,17 @@ Window {
                 }
             }
 
+            }
+
+            // Trait de séparation sous les catégories (comme sur macOS) : les
+            // applications défilent dessous et sont coupées net à cet endroit.
+            Rectangle {
+                visible: win.gridMode
+                x: 18
+                y: appsClip.y
+                width: panelSurface.width - 36
+                height: 1
+                color: Qt.rgba(1, 1, 1, 0.17)
             }
 
             // Masque de la grille : mêmes coins arrondis que le panneau.
