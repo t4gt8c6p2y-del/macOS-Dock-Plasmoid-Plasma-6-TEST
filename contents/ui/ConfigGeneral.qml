@@ -103,6 +103,9 @@ KCM.SimpleKCM {
     property alias cfg_spotlightGlassBlur: spotlightGlassBlurSlider.value
     property alias cfg_spotlightGlassTint: spotlightGlassTintSlider.value
     property alias cfg_spotlightGlassDarken: spotlightGlassDarkenSlider.value
+    property alias cfg_spotlightGlassProfile: spotlightGlassProfileSlider.value
+    property alias cfg_spotlightGlassDispersion: spotlightGlassDispersionSlider.value
+    property alias cfg_spotlightGlassRim: spotlightGlassRimSlider.value
     property alias cfg_spotlightGlassThickness: spotlightGlassThicknessSlider.value
     property alias cfg_spotlightGlassStrength: spotlightGlassStrengthSlider.value
     property alias cfg_spotlightBorderStrength: spotlightBorderStrengthSlider.value
@@ -200,6 +203,9 @@ KCM.SimpleKCM {
     property int cfg_spotlightGlassBlurDefault: 14
     property real cfg_spotlightGlassTintDefault: 0.3
     property real cfg_spotlightGlassDarkenDefault: 0
+    property real cfg_spotlightGlassProfileDefault: 1.0
+    property real cfg_spotlightGlassDispersionDefault: 0.25
+    property real cfg_spotlightGlassRimDefault: 1.0
     property int cfg_spotlightGlassThicknessDefault: 34
     property real cfg_spotlightGlassStrengthDefault: 1.0
     property real cfg_spotlightBorderStrengthDefault: 0.8
@@ -258,7 +264,8 @@ KCM.SimpleKCM {
     // « Réinitialiser ».
     readonly property var spotlightGlassKeys: [
         "spotlightLiveBackdrop", "spotlightGlassBlur", "spotlightGlassTint",
-        "spotlightGlassDarken",
+        "spotlightGlassDarken", "spotlightGlassProfile", "spotlightGlassDispersion",
+        "spotlightGlassRim",
         "spotlightGlassThickness", "spotlightGlassStrength",
         "spotlightBorderStrength", "spotlightBorderWidth"
     ]
@@ -1820,6 +1827,57 @@ KCM.SimpleKCM {
 
                     QQC2.Label {
                         text: Math.round(spotlightGlassStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge profile:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassProfileSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 3
+                        stepSize: 0.1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: spotlightGlassProfileSlider.value.toFixed(1)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Colored fringes:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassDispersionSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassDispersionSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge highlight:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassRimSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassRimSlider.value * 100) + "%"
                     }
                 }
 

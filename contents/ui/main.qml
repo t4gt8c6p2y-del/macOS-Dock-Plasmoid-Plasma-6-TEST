@@ -128,6 +128,12 @@ PlasmoidItem {
         Plasmoid.configuration.spotlightGlassTint, 0.3, 0, 1)
     readonly property real spotlightGlassDarken: boundedNumber(
         Plasmoid.configuration.spotlightGlassDarken, 0, 0, 1)
+    readonly property real spotlightGlassProfile: boundedNumber(
+        Plasmoid.configuration.spotlightGlassProfile, 1.0, 0.5, 3)
+    readonly property real spotlightGlassDispersion: boundedNumber(
+        Plasmoid.configuration.spotlightGlassDispersion, 0.25, 0, 1)
+    readonly property real spotlightGlassRim: boundedNumber(
+        Plasmoid.configuration.spotlightGlassRim, 1.0, 0, 2)
     readonly property real spotlightGlassThickness: boundedNumber(
         Plasmoid.configuration.spotlightGlassThickness, 34, 4, 90)
     readonly property real spotlightGlassStrength: boundedNumber(
@@ -5440,6 +5446,9 @@ PlasmoidItem {
         glassDarken: root.spotlightGlassDarken
         glassThickness: root.spotlightGlassThickness
         glassStrength: root.spotlightGlassStrength
+        glassProfile: root.spotlightGlassProfile
+        glassDispersion: root.spotlightGlassDispersion
+        glassRim: root.spotlightGlassRim
         borderStrength: root.spotlightBorderStrength
         borderWidth: root.spotlightBorderWidth
         assistantEnabled: root.showSiriButton

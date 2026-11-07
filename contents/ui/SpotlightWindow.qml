@@ -998,7 +998,6 @@ Window {
 
                     // Clignote par nos soins (le clignotement de Qt est coupé sur
                     // Wayland/Plasma). Le curseur reste allumé tant qu'on tape.
-                    // Simple trait blanc, sans halo ni dégradé.
                     property bool lit: true
 
                     width: 2
@@ -1030,9 +1029,42 @@ Window {
                         }
                     }
 
+                    // Lueur douce (floutée, sans bords) : cyan clair en haut,
+                    // orangée en bas, légèrement à gauche du trait, comme sur
+                    // macOS.
+                    Item {
+                        x: -11
+                        y: -5
+                        width: 24
+                        height: parent.height + 10
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 0.55
+                            blurMax: 14
+                        }
+
+                        Rectangle {
+                            x: 8
+                            y: 3
+                            width: 5
+                            height: parent.height - 6
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: Qt.rgba(0.62, 0.90, 1.0, 0.85) }
+                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.45) }
+                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.68, 0.38, 0.95) }
+                            }
+                        }
+                    }
+
+                    // Le trait : blanc, très légèrement chaud vers le bas.
                     Rectangle {
                         anchors.fill: parent
-                        color: "#FFFFFF"
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: "#FFFFFF" }
+                            GradientStop { position: 0.7; color: "#FFFFFF" }
+                            GradientStop { position: 1.0; color: "#FFE9CC" }
+                        }
                     }
                 }
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
