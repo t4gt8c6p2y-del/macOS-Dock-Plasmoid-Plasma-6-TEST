@@ -2,40 +2,60 @@
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#E9E9ED"/>
+      <stop offset="1" stop-color="#EEEEF1"/>
     </linearGradient>
-    <clipPath id="ball"><circle cx="128" cy="130" r="86"/></clipPath>
-    <radialGradient id="dark" cx="0.5" cy="0.15" r="0.9">
-      <stop offset="0" stop-color="#4A4B52"/>
-      <stop offset="0.55" stop-color="#26272C"/>
-      <stop offset="1" stop-color="#121316"/>
-    </radialGradient>
-    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8E8F96"/>
-      <stop offset="0.45" stop-color="#C9CACF"/>
-      <stop offset="1" stop-color="#F4F4F6"/>
+    <!-- Anneau : presque noir bleuté en haut, brun-gris en bas à gauche, bleu-gris en bas à droite -->
+    <linearGradient id="ringV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#04141C"/>
+      <stop offset="0.45" stop-color="#1B2A2E"/>
+      <stop offset="1" stop-color="#5A5E66"/>
     </linearGradient>
-    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#6EA8FF" stop-opacity="0"/>
-      <stop offset="0.12" stop-color="#7CC1FF"/>
-      <stop offset="0.45" stop-color="#FFFFFF"/>
-      <stop offset="0.75" stop-color="#FFB46B"/>
-      <stop offset="1" stop-color="#FF8A4C" stop-opacity="0"/>
+    <linearGradient id="ringH" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7A6A62" stop-opacity="0.75"/>
+      <stop offset="0.5" stop-color="#7A6A62" stop-opacity="0"/>
+      <stop offset="0.55" stop-color="#3E6286" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3E6286" stop-opacity="0.8"/>
     </linearGradient>
-    <radialGradient id="rimlight" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0.82" stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.35"/>
-    </radialGradient>
-    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFD84A" stop-opacity="0"/>
+      <stop offset="0.3" stop-color="#F6E27A"/>
+      <stop offset="0.55" stop-color="#9FE3F4"/>
+      <stop offset="0.8" stop-color="#B8A6FF"/>
+      <stop offset="1" stop-color="#7DB8FF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hole" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFBFC"/>
+      <stop offset="1" stop-color="#EDEDEF"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4"/></filter>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur stdDeviation="3"/></filter>
+    <!-- Coordonnées de l'anneau : repère 990 x 990 réduit à 256 -->
+    <g id="holes">
+      <path d="M195 505 A305 305 0 0 1 800 520 C730 550 640 545 560 510 C480 470 390 455 320 480 C270 495 230 515 195 505 Z"/>
+      <path d="M280 620 C300 560 400 540 470 560 C540 580 650 615 735 615 C755 700 700 800 500 810 C360 815 270 740 280 620 Z"/>
+    </g>
   </defs>
   <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
-  <rect x="8.5" y="8.5" width="239" height="239" rx="55.5" fill="none" stroke="#000000" stroke-opacity="0.08"/>
-  <g clip-path="url(#ball)">
-    <rect x="30" y="40" width="200" height="200" fill="url(#dark)"/>
-    <path d="M30 128 C 70 112 100 118 128 136 C 156 154 190 150 230 128 V 240 H 30 Z" fill="url(#silver)"/>
-    <path d="M30 128 C 70 112 100 118 128 136 C 156 154 190 150 230 128" fill="none" stroke="url(#wave)" stroke-width="7" stroke-linecap="round" filter="url(#soft)"/>
-    <path d="M30 128 C 70 112 100 118 128 136 C 156 154 190 150 230 128" fill="none" stroke="url(#wave)" stroke-width="2.6" stroke-linecap="round"/>
-    <circle cx="128" cy="130" r="86" fill="url(#rimlight)"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="55.5" fill="none" stroke="#000000" stroke-opacity="0.07"/>
+  <g transform="translate(26 24) scale(0.2) translate(0 0)">
+    <!-- ombre douce sous l'anneau -->
+    <circle cx="497" cy="505" r="385" fill="#000" opacity="0.05" filter="url(#drop)"/>
+    <!-- disque sombre percé de deux ouvertures -->
+    <path fill-rule="evenodd" fill="url(#ringV)"
+      d="M497 112 A385 385 0 1 1 496.9 112 Z
+         M195 505 A305 305 0 0 1 800 520 C730 550 640 545 560 510 C480 470 390 455 320 480 C270 495 230 515 195 505 Z
+         M280 620 C300 560 400 540 470 560 C540 580 650 615 735 615 C755 700 700 800 500 810 C360 815 270 740 280 620 Z"/>
+    <path fill-rule="evenodd" fill="url(#ringH)"
+      d="M497 112 A385 385 0 1 1 496.9 112 Z
+         M195 505 A305 305 0 0 1 800 520 C730 550 640 545 560 510 C480 470 390 455 320 480 C270 495 230 515 195 505 Z
+         M280 620 C300 560 400 540 470 560 C540 580 650 615 735 615 C755 700 700 800 500 810 C360 815 270 740 280 620 Z"/>
+    <!-- ouvertures claires -->
+    <path fill="url(#hole)" d="M195 505 A305 305 0 0 1 800 520 C730 550 640 545 560 510 C480 470 390 455 320 480 C270 495 230 515 195 505 Z"/>
+    <path fill="url(#hole)" d="M280 620 C300 560 400 540 470 560 C540 580 650 615 735 615 C755 700 700 800 500 810 C360 815 270 740 280 620 Z"/>
+    <!-- lueur irisée en bas de l'anneau -->
+    <path d="M330 845 C420 905 560 905 650 840" fill="none" stroke="url(#glow)" stroke-width="30" stroke-linecap="round" filter="url(#soft)"/>
+    <path d="M345 842 C430 890 555 890 640 836" fill="none" stroke="url(#glow)" stroke-width="9" stroke-linecap="round" opacity="0.9"/>
+    <!-- filet clair le long de la vague -->
+    <path d="M330 548 C410 538 470 560 540 588 C610 612 690 620 735 612" fill="none" stroke="#C9EEF8" stroke-opacity="0.8" stroke-width="7" stroke-linecap="round" filter="url(#soft)"/>
   </g>
-  <circle cx="128" cy="130" r="86" fill="none" stroke="#000000" stroke-opacity="0.22" stroke-width="1.5"/>
 </svg>

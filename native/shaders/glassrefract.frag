@@ -20,6 +20,10 @@ layout(std140, binding = 0) uniform buf {
     float dispersion;
     float profile;
     float rim;
+    // Spotlight : fade > 0.5 estompe le verre vers l'intérieur (bande lumineuse
+    // posée au-dessus du verre KWin) ; shade assombrit (0..1). Le Dock laisse 0.
+    float fade;
+    float shade;
 } ubuf;
 
 layout(binding = 1) uniform sampler2D source;
@@ -78,5 +82,12 @@ void main()
         rgb += (vec3(alpha) - rgb) * add;
     }
 
-    fragColor = vec4(rgb, alpha) * coverage * ubuf.qt_Opacity;
+    float band = 1.0;
+    if (ubuf.fade > 0.5) {
+        // Plein au bord, transparent à partir de l'épaisseur de la lentille.
+        band = (1.0 - smoothstep(0.25 * thick, thick, depth)) * 0.94;
+        rgb *= 1.0 - clamp(ubuf.shade, 0.0, 1.0);
+    }
+
+    fragColor = vec4(rgb, alpha) * coverage * band * ubuf.qt_Opacity;
 }

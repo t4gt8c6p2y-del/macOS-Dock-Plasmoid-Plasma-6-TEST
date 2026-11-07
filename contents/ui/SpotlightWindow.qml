@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import org.kde.kirigami as Kirigami
 import org.kde.layershell as LayerShell
 import "effects" as DockEffects
@@ -71,6 +72,17 @@ Window {
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
+
+    // Zone « liquide » élargie. Le Liquid Glass de KWin ne déforme que les
+    // quelques pixels du bord (réglage global de l'application Liquid Glass, que
+    // l'on ne touche pas). Le Spotlight ajoute donc, au-dessus du verre KWin, une
+    // bande de réfraction plus large qui s'estompe vers l'intérieur.
+    // lensThickness : largeur de la bande en px (0 = désactivée) ;
+    // lensStrength : force de la déformation (0..1).
+    readonly property real lensThickness: 56
+    readonly property real lensStrength: 0.55
+    // Position du panneau à l'écran (le calque couvre tout l'écran).
+    property point panelOrigin: Qt.point(0, 0)
 
     readonly property bool gridMode: mode === 1 && query.trim().length === 0 && !aiView
     readonly property bool panelWanted: true
@@ -828,9 +840,31 @@ Window {
         };
     }
 
+    readonly property var lensConfig: ({
+        "fadeMs": 120,
+        "source": String(wallpaperInfo.source || ""),
+        "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
+        "screenWidth": Number(wallpaperInfo.width || 0),
+        "screenHeight": Number(wallpaperInfo.height || 0),
+        "radius": 30,
+        "blur": 4,
+        "refraction": true,
+        "thickness": lensThickness,
+        "strength": lensStrength,
+        "dispersion": 0.25,
+        "profile": 1,
+        "rim": 0,
+        "fade": 1,
+        "shade": 0.18
+    })
+
     function updateGlass() {
         if (!visible) {
             return;
+        }
+        var origin = panelSurface.mapToItem(null, 0, 0);
+        if (Math.abs(origin.x - panelOrigin.x) > 0.5 || Math.abs(origin.y - panelOrigin.y) > 0.5) {
+            panelOrigin = Qt.point(origin.x, origin.y);
         }
         // Seul le panneau reçoit le flou / Liquid Glass de KWin. La barre de
         // recherche est un fond sombre quasi opaque (comme sur macOS) et les
@@ -887,11 +921,11 @@ Window {
             // Couleurs relevées sur la capture de macOS : noir presque pur en
             // haut, gris-bleu sombre en bas.
             gradient: Gradient {
-                GradientStop { position: 0.00; color: Qt.rgba(0.008, 0.008, 0.016, 0.97) }
-                GradientStop { position: 0.21; color: Qt.rgba(0.040, 0.043, 0.063, 0.95) }
-                GradientStop { position: 0.50; color: Qt.rgba(0.110, 0.114, 0.145, 0.93) }
-                GradientStop { position: 0.77; color: Qt.rgba(0.180, 0.180, 0.235, 0.91) }
-                GradientStop { position: 1.00; color: Qt.rgba(0.245, 0.245, 0.315, 0.89) }
+                GradientStop { position: 0.00; color: Qt.rgba(0.008, 0.008, 0.016, 1) }
+                GradientStop { position: 0.21; color: Qt.rgba(0.040, 0.043, 0.063, 1) }
+                GradientStop { position: 0.50; color: Qt.rgba(0.110, 0.114, 0.145, 1) }
+                GradientStop { position: 0.77; color: Qt.rgba(0.180, 0.180, 0.235, 1) }
+                GradientStop { position: 1.00; color: Qt.rgba(0.245, 0.245, 0.315, 1) }
             }
 
             WallpaperRing {
@@ -963,19 +997,27 @@ Window {
                 width: parent.width - 64 - 56
                 color: "white"
                 cursorDelegate: Item {
-                    width: 2
-                    // Barre blanche brillante avec un léger halo, comme sur macOS.
+                    width: 3
+                    // Curseur blanc éclatant (cœur pur + deux halos) : même
+                    // éclat que les reflets du Liquid Glass / de Siri.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 13
+                        height: parent.height + 6
+                        radius: 6.5
+                        color: Qt.rgba(1, 1, 1, 0.10)
+                    }
                     Rectangle {
                         anchors.centerIn: parent
                         width: 7
-                        height: parent.height + 2
+                        height: parent.height + 3
                         radius: 3.5
-                        color: Qt.rgba(1, 1, 1, 0.16)
+                        color: Qt.rgba(1, 1, 1, 0.30)
                     }
                     Rectangle {
                         anchors.fill: parent
-                        radius: 1
-                        color: "white"
+                        radius: 1.5
+                        color: "#FFFFFF"
                     }
                 }
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
@@ -1117,6 +1159,47 @@ Window {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
 
+            // Bande de réfraction élargie (voir lensThickness) : même moteur que le
+            // verre du Dock, chargé à part ; s'il est indisponible, on garde
+            // seulement le verre de KWin.
+            Loader {
+                id: lensLoader
+
+                anchors.fill: parent
+                active: win.visible && win.lensThickness > 0
+                    && String(win.wallpaperInfo.source || "") !== ""
+                    && !lensBroken
+                property bool lensBroken: false
+                source: "GlassGpu.qml"
+                onLoaded: {
+                    item.cfg = Qt.binding(function() {
+                        return win.lensConfig;
+                    });
+                    item.originX = Qt.binding(function() {
+                        return win.panelOrigin.x;
+                    });
+                    item.originY = Qt.binding(function() {
+                        return win.panelOrigin.y;
+                    });
+                }
+                onStatusChanged: {
+                    if (status === Loader.Error) {
+                        lensLoader.lensBroken = true;
+                    }
+                }
+            }
+
+            Connections {
+                target: lensLoader.item
+                ignoreUnknownSignals: true
+
+                function onShaderFailedChanged() {
+                    if (lensLoader.item && lensLoader.item.shaderFailed) {
+                        lensLoader.lensBroken = true;
+                    }
+                }
+            }
+
             WallpaperRing {
                 anchors.fill: parent
                 radius: panelSurface.radius
@@ -1205,15 +1288,32 @@ Window {
                 }
             }
 
-            // Grille des applications, par catégorie.
+            // Grille des applications, par catégorie. Aucune marge en bas : les
+            // applications sont coupées net par la bordure arrondie du panneau
+            // (masque aux mêmes coins que le panneau).
+            Item {
+                id: appsClip
+
+                visible: win.gridMode
+                x: 0
+                y: 54
+                width: parent.width
+                height: parent.height - 54
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: appsMask
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1.0
+                }
+
             ListView {
                 id: appsList
 
-                visible: win.gridMode
                 x: 12
-                y: 54
+                y: 0
                 width: parent.width - 24
-                height: parent.height - 54 - 14
+                height: parent.height
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 model: win.sections
@@ -1327,6 +1427,29 @@ Window {
                 }
             }
 
+            }
+
+            // Masque de la grille : mêmes coins arrondis que le panneau.
+            Item {
+                id: appsMask
+
+                visible: false
+                layer.enabled: true
+                x: 0
+                y: appsClip.y
+                width: appsClip.width
+                height: appsClip.height
+
+                Rectangle {
+                    x: 0
+                    y: -appsClip.y
+                    width: parent.width
+                    height: panelSurface.height
+                    radius: panelSurface.radius
+                    color: "black"
+                }
+            }
+
             // Barre de défilement : un rail sombre collé au bord droit du panneau
             // et une poignée grise, comme sur la capture.
             Item {
@@ -1335,9 +1458,9 @@ Window {
                 visible: win.gridMode && appsList.contentHeight > appsList.height
                 anchors.right: parent.right
                 anchors.rightMargin: 5
-                y: appsList.y + 4
+                y: appsClip.y + 4
                 width: 12
-                height: appsList.height - 8
+                height: appsClip.height - 4 - 24
 
                 Rectangle {
                     anchors.fill: parent
