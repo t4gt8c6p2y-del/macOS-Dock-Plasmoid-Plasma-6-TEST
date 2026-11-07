@@ -986,6 +986,71 @@ Window {
                 }
             }
 
+            // Clignotement du curseur (le clignotement de Qt est coupé sur
+            // Wayland/Plasma) : allumé en continu pendant la frappe.
+            property bool caretLit: true
+
+            Timer {
+                id: blinkTimer
+
+                interval: 530
+                repeat: true
+                running: field.activeFocus && win.visible
+                onRunningChanged: barSurface.caretLit = true
+                onTriggered: barSurface.caretLit = !barSurface.caretLit
+            }
+
+            Connections {
+                target: field
+                function onTextChanged() {
+                    barSurface.caretLit = true;
+                    blinkTimer.restart();
+                }
+                function onCursorPositionChanged() {
+                    barSurface.caretLit = true;
+                    blinkTimer.restart();
+                }
+            }
+
+            // Lueur du curseur : floutée, sans bords, des deux côtés du trait
+            // (cyan en haut, orange en bas). Hors du champ pour ne pas être
+            // coupée à gauche.
+            Item {
+                id: caretGlow
+
+                readonly property real caretX: field.x + field.cursorRectangle.x + 1
+                x: caretX - 16
+                y: field.y + field.cursorRectangle.y - 7
+                width: 32
+                height: field.cursorRectangle.height + 14
+                visible: field.activeFocus && field.cursorRectangle.x >= -1
+                    && field.cursorRectangle.x <= field.width
+                opacity: barSurface.caretLit ? 1 : 0
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: 0.65
+                    blurMax: 16
+                    saturation: 0.15
+                }
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 120 }
+                }
+
+                Rectangle {
+                    x: 12
+                    y: 5
+                    width: 8
+                    height: parent.height - 10
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(0.45, 0.88, 1.0, 0.95) }
+                        GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.65) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.60, 0.22, 1.0) }
+                    }
+                }
+            }
+
             TextInput {
                 id: field
 
@@ -996,96 +1061,17 @@ Window {
                 cursorDelegate: Item {
                     id: caret
 
-                    // Clignote par nos soins (le clignotement de Qt est coupé sur
-                    // Wayland/Plasma). Le curseur reste allumé tant qu'on tape.
-                    property bool lit: true
-
+                    // Le trait seul : la lueur est dessinée à part (caretGlow),
+                    // car le champ coupe tout ce qui dépasse de son cadre, donc
+                    // la lueur de gauche disparaissait au début du texte.
                     width: 2
-                    opacity: lit ? 1 : 0
+                    opacity: barSurface.caretLit ? 1 : 0
 
                     Behavior on opacity {
                         NumberAnimation { duration: 120 }
                     }
 
-                    Timer {
-                        id: blinkTimer
-
-                        interval: 530
-                        repeat: true
-                        running: field.activeFocus && win.visible
-                        onRunningChanged: caret.lit = true
-                        onTriggered: caret.lit = !caret.lit
-                    }
-
-                    Connections {
-                        target: field
-                        function onTextChanged() {
-                            caret.lit = true;
-                            blinkTimer.restart();
-                        }
-                        function onCursorPositionChanged() {
-                            caret.lit = true;
-                            blinkTimer.restart();
-                        }
-                    }
-
-                    // Lueur floutée (sans bords), des DEUX côtés du trait : cyan
-                    // vif en haut, orange vif en bas. Deux couches : un large
-                    // halo coloré et un cœur plus serré, plus lumineux.
-                    Item {
-                        x: -19
-                        y: -9
-                        width: 40
-                        height: parent.height + 18
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            blurEnabled: true
-                            blur: 0.75
-                            blurMax: 20
-                            brightness: 0.15
-                            saturation: 0.35
-                        }
-
-                        Rectangle {
-                            x: 14
-                            y: 6
-                            width: 12
-                            height: parent.height - 12
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(0.20, 0.82, 1.0, 1.0) }
-                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.75) }
-                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.50, 0.10, 1.0) }
-                            }
-                        }
-                    }
-
-                    Item {
-                        x: -11
-                        y: -5
-                        width: 24
-                        height: parent.height + 10
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            blurEnabled: true
-                            blur: 0.4
-                            blurMax: 12
-                            saturation: 0.3
-                        }
-
-                        Rectangle {
-                            x: 8
-                            y: 3
-                            width: 8
-                            height: parent.height - 6
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(0.55, 0.95, 1.0, 1.0) }
-                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.9) }
-                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.65, 0.25, 1.0) }
-                            }
-                        }
-                    }
-
-                    // Le trait : blanc, très légèrement chaud vers le bas.
+                    // Blanc, très légèrement chaud vers le bas.
                     Rectangle {
                         anchors.fill: parent
                         gradient: Gradient {
