@@ -39,6 +39,8 @@ Window {
     // l'objet GlassBlur plus bas ; un même nom donnait un flou nul).
     property real glassBlurPx: 14
     property real glassTint: 0.3
+    // Voile noir supplémentaire (0..1) : assombrit l'arrière-plan du Spotlight.
+    property real glassDarken: 0
     property real glassThickness: 34
     property real glassStrength: 1.0
     property real glassProfile: 1.0
@@ -82,7 +84,7 @@ Window {
     readonly property real panelWidth: 720
     // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
     readonly property real panelMaxHeight:
-        Math.max(300, Math.min(600, height - stageTop - barHeight - stageGap - 28))
+        Math.max(300, Math.min(550, height - stageTop - barHeight - stageGap - 28))
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -843,8 +845,18 @@ Window {
         "rim": glassRim,
         "ringWidth": borderWidth,
         "ringStrength": borderStrength,
-        "tint": Qt.vector4d(0.03, 0.05, 0.11, glassTint)
+        "tint": panelTint
     })
+
+    // Teinte bleu nuit, puis voile noir (glassDarken) : composés en une seule
+    // couleur pour le shader.
+    readonly property vector4d panelTint: {
+        var a = Math.min(1, Math.max(0, glassTint));
+        var d = Math.min(1, Math.max(0, glassDarken));
+        var outA = 1 - (1 - a) * (1 - d);
+        var k = outA > 0.0001 ? a * (1 - d) / outA : 0;
+        return Qt.vector4d(0.03 * k, 0.05 * k, 0.11 * k, outA);
+    }
 
     // La barre de recherche reste opaque : le verre ne dessine que son liseré.
     readonly property var barGlassCfg: ({
@@ -1189,7 +1201,7 @@ Window {
             }
 
             // Pastilles de catégories (étoile des favoris en premier).
-            Item {
+            Flickable {
                 id: pillsArea
 
                 visible: win.gridMode
@@ -1198,8 +1210,37 @@ Window {
                 width: parent.width - 28
                 height: 30
                 clip: true
+                contentWidth: pillsRow.width
+                contentHeight: 30
+                flickableDirection: Flickable.HorizontalFlick
+                boundsBehavior: Flickable.StopAtBounds
+
+                // Fait apparaître une pastille entière.
+                function reveal(item) {
+                    var maxX = Math.max(0, contentWidth - width);
+                    if (item.x < contentX) {
+                        contentX = Math.max(0, item.x - 6);
+                    } else if (item.x + item.width > contentX + width) {
+                        contentX = Math.min(maxX, item.x + item.width - width + 6);
+                    }
+                }
+
+                // Molette de la souris (verticale) ou du pavé tactile : défile
+                // les catégories sur le côté.
+                WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: (event) => {
+                        var delta = event.angleDelta.x !== 0
+                            ? event.angleDelta.x : event.angleDelta.y;
+                        var maxX = Math.max(0, pillsArea.contentWidth - pillsArea.width);
+                        pillsArea.contentX = Math.min(maxX,
+                            Math.max(0, pillsArea.contentX - delta));
+                    }
+                }
 
                 Row {
+                    id: pillsRow
+
                     spacing: 6
 
                     Repeater {
@@ -1224,6 +1265,12 @@ Window {
 
                             Behavior on color {
                                 ColorAnimation { duration: 100 }
+                            }
+
+                            onActiveChanged: {
+                                if (active) {
+                                    pillsArea.reveal(pill);
+                                }
                             }
 
                             SpotlightGlyph {
@@ -1439,7 +1486,7 @@ Window {
             Item {
                 id: scrollRail
 
-                visible: win.gridMode && appsList.contentHeight > appsList.height
+                visible: win.gridMode && appsList.visibleArea.heightRatio < 0.995
                 anchors.right: parent.right
                 anchors.rightMargin: 5
                 y: appsClip.y + 4
@@ -1456,10 +1503,14 @@ Window {
                     x: 2
                     width: 8
                     radius: 4
-                    height: Math.max(36, parent.height * appsList.height
-                        / Math.max(1, appsList.contentHeight))
-                    y: (parent.height - height) * appsList.contentY
-                        / Math.max(1, appsList.contentHeight - appsList.height)
+                    // visibleArea tient compte des hauteurs estimées de la liste
+                    // (la poignée ne grossit plus en défilant) ; tout est borné
+                    // pour que la poignée reste dans le rail.
+                    height: Math.min(parent.height, Math.max(36,
+                        parent.height * appsList.visibleArea.heightRatio))
+                    y: (parent.height - height) * Math.min(1, Math.max(0,
+                        appsList.visibleArea.yPosition
+                        / Math.max(0.0001, 1 - appsList.visibleArea.heightRatio)))
                     color: Qt.rgba(1, 1, 1, 0.42)
                 }
             }

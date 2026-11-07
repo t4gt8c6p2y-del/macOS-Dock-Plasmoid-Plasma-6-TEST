@@ -250,6 +250,9 @@
     <entry name="spotlightGlassTint" type="Double">
       <default>0.3</default>
     </entry>
+    <entry name="spotlightGlassDarken" type="Double">
+      <default>0</default>
+    </entry>
     <entry name="spotlightGlassThickness" type="Int">
       <default>34</default>
     </entry>

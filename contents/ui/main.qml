@@ -126,6 +126,8 @@ PlasmoidItem {
         Plasmoid.configuration.spotlightGlassBlur, 14, 0, 60)
     readonly property real spotlightGlassTint: boundedNumber(
         Plasmoid.configuration.spotlightGlassTint, 0.3, 0, 1)
+    readonly property real spotlightGlassDarken: boundedNumber(
+        Plasmoid.configuration.spotlightGlassDarken, 0, 0, 1)
     readonly property real spotlightGlassThickness: boundedNumber(
         Plasmoid.configuration.spotlightGlassThickness, 34, 4, 90)
     readonly property real spotlightGlassStrength: boundedNumber(
@@ -5445,6 +5447,7 @@ PlasmoidItem {
         liveBackdrop: root.spotlightLiveBackdrop
         glassBlurPx: root.spotlightGlassBlur
         glassTint: root.spotlightGlassTint
+        glassDarken: root.spotlightGlassDarken
         glassThickness: root.spotlightGlassThickness
         glassStrength: root.spotlightGlassStrength
         glassProfile: root.spotlightGlassProfile

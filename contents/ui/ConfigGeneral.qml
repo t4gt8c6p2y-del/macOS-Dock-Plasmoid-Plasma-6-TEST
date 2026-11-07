@@ -103,6 +103,7 @@ KCM.SimpleKCM {
     property alias cfg_spotlightLiveBackdrop: spotlightLiveBackdropCheck.checked
     property alias cfg_spotlightGlassBlur: spotlightGlassBlurSlider.value
     property alias cfg_spotlightGlassTint: spotlightGlassTintSlider.value
+    property alias cfg_spotlightGlassDarken: spotlightGlassDarkenSlider.value
     property alias cfg_spotlightGlassThickness: spotlightGlassThicknessSlider.value
     property alias cfg_spotlightGlassStrength: spotlightGlassStrengthSlider.value
     property alias cfg_spotlightGlassProfile: spotlightGlassProfileSlider.value
@@ -203,6 +204,7 @@ KCM.SimpleKCM {
     property bool cfg_spotlightLiveBackdropDefault: true
     property int cfg_spotlightGlassBlurDefault: 14
     property real cfg_spotlightGlassTintDefault: 0.3
+    property real cfg_spotlightGlassDarkenDefault: 0
     property int cfg_spotlightGlassThicknessDefault: 34
     property real cfg_spotlightGlassStrengthDefault: 1.0
     property real cfg_spotlightGlassProfileDefault: 1.0
@@ -265,6 +267,7 @@ KCM.SimpleKCM {
     // « Réinitialiser ».
     readonly property var spotlightGlassKeys: [
         "spotlightLiveBackdrop", "spotlightGlassBlur", "spotlightGlassTint",
+        "spotlightGlassDarken",
         "spotlightGlassThickness", "spotlightGlassStrength",
         "spotlightGlassProfile", "spotlightGlassDispersion", "spotlightGlassRim",
         "spotlightBorderStrength", "spotlightBorderWidth"
@@ -1955,6 +1958,23 @@ KCM.SimpleKCM {
 
                     QQC2.Label {
                         text: Math.round(spotlightGlassBlurSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Darken background:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassDarkenSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassDarkenSlider.value * 100) + "%"
                     }
                 }
 

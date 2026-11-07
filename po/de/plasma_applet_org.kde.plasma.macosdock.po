@@ -1452,3 +1452,6 @@ msgstr "Rand"
 
 msgid "Each part of the border takes the color of what is behind it: if half of the background is blue and the other half red, the border is half blue and half red. A window placed behind the Spotlight changes the border too."
 msgstr "Jeder Teil des Rands übernimmt die Farbe dessen, was dahinter liegt: Ist die eine Hälfte des Hintergrunds blau und die andere rot, ist der Rand halb blau, halb rot. Ein Fenster hinter Spotlight ändert den Rand ebenfalls."
+
+msgid "Darken background:"
+msgstr "Hintergrund abdunkeln:"
