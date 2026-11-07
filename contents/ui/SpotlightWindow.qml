@@ -1029,9 +1029,36 @@ Window {
                         }
                     }
 
-                    // Lueur douce (floutée, sans bords) : cyan clair en haut,
-                    // orangée en bas, légèrement à gauche du trait, comme sur
-                    // macOS.
+                    // Lueur floutée (sans bords), des DEUX côtés du trait : cyan
+                    // vif en haut, orange vif en bas. Deux couches : un large
+                    // halo coloré et un cœur plus serré, plus lumineux.
+                    Item {
+                        x: -19
+                        y: -9
+                        width: 40
+                        height: parent.height + 18
+                        layer.enabled: true
+                        layer.effect: MultiEffect {
+                            blurEnabled: true
+                            blur: 0.75
+                            blurMax: 20
+                            brightness: 0.15
+                            saturation: 0.35
+                        }
+
+                        Rectangle {
+                            x: 14
+                            y: 6
+                            width: 12
+                            height: parent.height - 12
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: Qt.rgba(0.20, 0.82, 1.0, 1.0) }
+                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.75) }
+                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.50, 0.10, 1.0) }
+                            }
+                        }
+                    }
+
                     Item {
                         x: -11
                         y: -5
@@ -1040,19 +1067,20 @@ Window {
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             blurEnabled: true
-                            blur: 0.55
-                            blurMax: 14
+                            blur: 0.4
+                            blurMax: 12
+                            saturation: 0.3
                         }
 
                         Rectangle {
                             x: 8
                             y: 3
-                            width: 5
+                            width: 8
                             height: parent.height - 6
                             gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(0.62, 0.90, 1.0, 0.85) }
-                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.45) }
-                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.68, 0.38, 0.95) }
+                                GradientStop { position: 0.0; color: Qt.rgba(0.55, 0.95, 1.0, 1.0) }
+                                GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.9) }
+                                GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.65, 0.25, 1.0) }
                             }
                         }
                     }
