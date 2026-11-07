@@ -20,6 +20,14 @@ layout(std140, binding = 0) uniform buf {
     float dispersion;
     float profile;
     float rim;
+    // Liseré pris dans ce qui se trouve derrière (Spotlight) : largeur en
+    // pixels, intensité (0 = aucun : le Dock ne s'en sert pas) et « seulement le
+    // liseré » (la barre du Spotlight n'a que le liseré, sur son fond opaque).
+    float ringWidth;
+    float ringStrength;
+    float ringOnly;
+    // Teinte posée sur le verre : rgb + opacité (0 = aucune).
+    vec4 tint;
 } ubuf;
 
 layout(binding = 1) uniform sampler2D source;
@@ -76,6 +84,30 @@ void main()
         float facing = abs(n.x * -0.5 + n.y * -0.85);
         float add = clamp(ubuf.rim * 0.35 * glow * (0.3 + 0.7 * facing), 0.0, 1.0);
         rgb += (vec3(alpha) - rgb) * add;
+    }
+
+    vec3 backdrop = rgb;
+    rgb = mix(rgb, ubuf.tint.rgb, clamp(ubuf.tint.a, 0.0, 1.0));
+
+    if (ubuf.ringStrength > 0.0 && ubuf.ringWidth > 0.0) {
+        // Chaque point du liseré prend la couleur de ce qui est derrière, au
+        // même endroit : moitié bleu / moitié rouge derrière = liseré moitié
+        // bleu / moitié rouge. Même teinte que le liseré du Dock : saturée,
+        // lumineuse (valeur 0,95) ; un fond gris donne un liseré blanc.
+        float m = clamp(ubuf.ringWidth - depth, 0.0, 1.0);
+        float mx = max(backdrop.r, max(backdrop.g, backdrop.b));
+        vec3 c = backdrop / max(mx, 0.05);
+        float l = dot(c, vec3(0.299, 0.587, 0.114));
+        c = clamp(mix(vec3(l), c, 1.4), 0.0, 1.0) * 0.95;
+        float k = m * clamp(ubuf.ringStrength, 0.0, 1.0);
+        if (ubuf.ringOnly > 0.5) {
+            fragColor = vec4(c * k, k) * coverage * ubuf.qt_Opacity;
+            return;
+        }
+        rgb = mix(rgb, c, k);
+    } else if (ubuf.ringOnly > 0.5) {
+        fragColor = vec4(0.0);
+        return;
     }
 
     fragColor = vec4(rgb, alpha) * coverage * ubuf.qt_Opacity;

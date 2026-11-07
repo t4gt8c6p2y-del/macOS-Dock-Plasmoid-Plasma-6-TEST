@@ -100,6 +100,16 @@ KCM.SimpleKCM {
     property alias cfg_showSpotlightButton: showSpotlightButtonCheckBox.checked
     property alias cfg_showSiriButton: showSiriButtonCheckBox.checked
     property alias cfg_spotlightIconImage: spotlightIconImageField.text
+    property alias cfg_spotlightLiveBackdrop: spotlightLiveBackdropCheck.checked
+    property alias cfg_spotlightGlassBlur: spotlightGlassBlurSlider.value
+    property alias cfg_spotlightGlassTint: spotlightGlassTintSlider.value
+    property alias cfg_spotlightGlassThickness: spotlightGlassThicknessSlider.value
+    property alias cfg_spotlightGlassStrength: spotlightGlassStrengthSlider.value
+    property alias cfg_spotlightGlassProfile: spotlightGlassProfileSlider.value
+    property alias cfg_spotlightGlassDispersion: spotlightGlassDispersionSlider.value
+    property alias cfg_spotlightGlassRim: spotlightGlassRimSlider.value
+    property alias cfg_spotlightBorderStrength: spotlightBorderStrengthSlider.value
+    property alias cfg_spotlightBorderWidth: spotlightBorderWidthSlider.value
     property alias cfg_siriIconImage: siriIconImageField.text
     property alias cfg_spotlightReplaceLauncher: replaceLauncherCheckBox.checked
     property var cfg_spotlightFavorites: []
@@ -190,6 +200,16 @@ KCM.SimpleKCM {
     property bool cfg_showSpotlightButtonDefault: true
     property bool cfg_showSiriButtonDefault: true
     property string cfg_spotlightIconImageDefault: ""
+    property bool cfg_spotlightLiveBackdropDefault: true
+    property int cfg_spotlightGlassBlurDefault: 14
+    property real cfg_spotlightGlassTintDefault: 0.3
+    property int cfg_spotlightGlassThicknessDefault: 34
+    property real cfg_spotlightGlassStrengthDefault: 1.0
+    property real cfg_spotlightGlassProfileDefault: 1.0
+    property real cfg_spotlightGlassDispersionDefault: 0.25
+    property real cfg_spotlightGlassRimDefault: 1.0
+    property real cfg_spotlightBorderStrengthDefault: 0.8
+    property real cfg_spotlightBorderWidthDefault: 1.5
     property string cfg_siriIconImageDefault: ""
     property bool cfg_spotlightReplaceLauncherDefault: true
     property var cfg_spotlightFavoritesDefault: []
@@ -241,6 +261,14 @@ KCM.SimpleKCM {
         "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
         "desktopSwitcherLabelMode": [0, 1]
     })
+    // Réglages du verre du Spotlight (onglet « Spotlight ») : remis à zéro avec
+    // « Réinitialiser ».
+    readonly property var spotlightGlassKeys: [
+        "spotlightLiveBackdrop", "spotlightGlassBlur", "spotlightGlassTint",
+        "spotlightGlassThickness", "spotlightGlassStrength",
+        "spotlightGlassProfile", "spotlightGlassDispersion", "spotlightGlassRim",
+        "spotlightBorderStrength", "spotlightBorderWidth"
+    ]
     readonly property var styleBooleanKeys: [
         "useThemeBackground", "hideOnMaximized", "showFolderView",
         "autoOpenFolderWithOpenDocument", "autoOpenAppGroupWithRunningApp",
@@ -394,7 +422,7 @@ KCM.SimpleKCM {
         var keys = Object.keys(styleNumberRanges).concat(
             styleBooleanKeys, ["customBackgroundColor", "indicatorColor",
                 "wallpaperBlurImage", "folderIconImage",
-                "spotlightIconImage", "siriIconImage"]);
+                "spotlightIconImage", "siriIconImage"].concat(spotlightGlassKeys));
         for (var i = 0; i < keys.length; ++i) {
             var key = keys[i];
             var fallback = configPage["cfg_" + key + "Default"];
@@ -543,6 +571,10 @@ KCM.SimpleKCM {
 
             QQC2.TabButton {
                 text: i18n("Credentials")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Spotlight")
             }
         }
 
@@ -1884,6 +1916,193 @@ KCM.SimpleKCM {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: i18n("Any service compatible with the OpenAI chat API works (OpenRouter, Groq, Mistral, a local Ollama at http://localhost:11434/v1…).")
+                    opacity: 0.78
+                }
+            }
+
+            // Onglet Spotlight : verre (Liquid Glass) propre au Spotlight.
+            Kirigami.FormLayout {
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("The Spotlight draws its own glass, like the Dock does, but with its own settings: it does not use KWin or the external Liquid Glass application, and it never changes the Dock glass.")
+                    opacity: 0.78
+                }
+
+                QQC2.CheckBox {
+                    id: spotlightLiveBackdropCheck
+
+                    Kirigami.FormData.label: i18n("Live background:")
+                    text: i18n("Show the windows behind the Spotlight through the glass and the border")
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Glass")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Background blur:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassBlurSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 60
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassBlurSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Tint:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassTintSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassTintSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge thickness:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassThicknessSlider
+                        Layout.fillWidth: true
+                        from: 4
+                        to: 90
+                        stepSize: 1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassThicknessSlider.value) + i18n(" px")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Lens strength:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassStrengthSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge profile:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassProfileSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 3
+                        stepSize: 0.1
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: spotlightGlassProfileSlider.value.toFixed(1)
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Colored fringes:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassDispersionSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassDispersionSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Edge highlight:")
+
+                    QQC2.Slider {
+                        id: spotlightGlassRimSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 2
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightGlassRimSlider.value * 100) + "%"
+                    }
+                }
+
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Border")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Border intensity:")
+
+                    QQC2.Slider {
+                        id: spotlightBorderStrengthSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        stepSize: 0.05
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: Math.round(spotlightBorderStrengthSlider.value * 100) + "%"
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Border width:")
+
+                    QQC2.Slider {
+                        id: spotlightBorderWidthSlider
+                        Layout.fillWidth: true
+                        from: 0.5
+                        to: 4
+                        stepSize: 0.5
+                        live: true
+                    }
+
+                    QQC2.Label {
+                        text: spotlightBorderWidthSlider.value.toFixed(1) + i18n(" px")
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Each part of the border takes the color of what is behind it: if half of the background is blue and the other half red, the border is half blue and half red. A window placed behind the Spotlight changes the border too.")
                     opacity: 0.78
                 }
             }

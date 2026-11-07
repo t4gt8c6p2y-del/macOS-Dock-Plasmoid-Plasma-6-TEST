@@ -1439,3 +1439,18 @@ msgstr "Choisir l’image de l’icône de Spotlight"
 
 msgid "Choose the icon image for Siri AI"
 msgstr "Choisir l’image de l’icône de Siri IA"
+
+msgid "The Spotlight draws its own glass, like the Dock does, but with its own settings: it does not use KWin or the external Liquid Glass application, and it never changes the Dock glass."
+msgstr "Le Spotlight dessine lui-même son verre, comme le Dock, mais avec ses propres réglages : il n’utilise ni KWin ni l’application Liquid Glass externe, et ne modifie jamais le verre du Dock."
+
+msgid "Show the windows behind the Spotlight through the glass and the border"
+msgstr "Montrer les fenêtres derrière le Spotlight à travers le verre et la bordure"
+
+msgid "Tint:"
+msgstr "Teinte :"
+
+msgid "Border"
+msgstr "Bordure"
+
+msgid "Each part of the border takes the color of what is behind it: if half of the background is blue and the other half red, the border is half blue and half red. A window placed behind the Spotlight changes the border too."
+msgstr "Chaque partie de la bordure prend la couleur de ce qui se trouve derrière : si la moitié de l’arrière-plan est bleue et l’autre rouge, la bordure est moitié bleue, moitié rouge. Une fenêtre placée derrière le Spotlight change aussi la bordure."

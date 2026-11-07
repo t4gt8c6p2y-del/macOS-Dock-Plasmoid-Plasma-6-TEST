@@ -28,13 +28,23 @@ Window {
     // Identifiants (desktopId) des applications favorites.
     property var favorites: []
     property bool assistantEnabled: true
-    // Fond d'écran et lecteur de couleurs (venant de main.qml) : les liserés
-    // de la barre et du panneau prennent la couleur du fond, comme le Dock.
+    // Le Spotlight dessine lui-même son verre (moteur du verre du Dock, mais
+    // avec ses propres réglages : onglet « Spotlight »). Il n'utilise ni KWin ni
+    // l'effet Liquid Glass de l'application externe, et ne touche pas au verre
+    // du Dock. Fond d'écran (venant de main.qml) ; fenêtres derrière, en direct.
     property var wallpaperInfo: ({ "source": "", "fillMode": 2, "width": 0, "height": 0 })
-    property var colorSampler: null
-    property bool colorFromWallpaper: true
-    // Opacité des liserés (0,5 x l'intensité de la bordure du Dock).
-    property real ringOpacity: 0.5
+    property var backdropWindows: []
+    property bool liveBackdrop: true
+    property real glassBlur: 14
+    property real glassTint: 0.3
+    property real glassThickness: 34
+    property real glassStrength: 1.0
+    property real glassProfile: 1.0
+    property real glassDispersion: 0.25
+    property real glassRim: 1.0
+    // Liseré : chaque point prend la couleur de ce qui est derrière lui.
+    property real borderStrength: 0.8
+    property real borderWidth: 1.5
 
     signal favoritesChangeRequested(var ids)
     signal assistantRequested(bool freshConversation)
@@ -66,9 +76,9 @@ Window {
     readonly property real cellHeight: 104
     readonly property real iconSize: 64
     readonly property real barWidth: 444
-    readonly property real barHeight: 72
+    readonly property real barHeight: 80
     readonly property real panelWidth: 720
-    readonly property real panelMaxHeight: 443
+    readonly property real panelMaxHeight: 500
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -176,7 +186,6 @@ Window {
             stage.opacity = 0;
             fadeIn.restart();
         } else {
-            glassKey = "";
             glassBlur.clear(win);
             if (backend) {
                 backend.cancelFileSearch();
@@ -812,53 +821,47 @@ Window {
     }
 
     // --- Flou demandé à KWin ---------------------------------------------------------------
-    property string glassKey: ""
-    property int glassTicks: 0
+    // Configuration du verre du panneau (voir GlassGpu) : flou, Liquid Glass,
+    // teinte et liseré calculés dans le shader.
+    readonly property var panelGlassCfg: ({
+        "fadeMs": 140,
+        "source": String(wallpaperInfo.source || ""),
+        "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
+        "screenWidth": Number(wallpaperInfo.width || 0),
+        "screenHeight": Number(wallpaperInfo.height || 0),
+        "radius": 30,
+        "blur": glassBlur,
+        "refraction": true,
+        "thickness": glassThickness,
+        "strength": glassStrength,
+        "dispersion": glassDispersion,
+        "profile": glassProfile,
+        "rim": glassRim,
+        "ringWidth": borderWidth,
+        "ringStrength": borderStrength,
+        "tint": Qt.vector4d(0.03, 0.05, 0.11, glassTint)
+    })
 
-    function itemRect(item, radius) {
-        if (!item || !item.visible || item.width < 1 || item.height < 1) {
-            return null;
-        }
-        var origin = item.mapToItem(null, 0, 0);
-        return {
-            "x": Math.round(origin.x),
-            "y": Math.round(origin.y),
-            "width": Math.round(item.width),
-            "height": Math.round(item.height),
-            "radius": radius
-        };
-    }
-
-    function updateGlass() {
-        if (!visible) {
-            return;
-        }
-        // Seul le panneau reçoit le flou / Liquid Glass de KWin. La barre de
-        // recherche est un fond sombre quasi opaque (comme sur macOS) et les
-        // menus sont des fenêtres natives qui ont leur propre verre.
-        var rects = [];
-        if (panelSurface.height > 8) {
-            var panel = itemRect(panelSurface, panelSurface.radius);
-            if (panel) {
-                rects.push(panel);
-            }
-        }
-        // On ne renvoie la liste à KWin que si elle a changé (et, de temps en
-        // temps, par sécurité : la surface peut être créée après le premier envoi).
-        var key = JSON.stringify(rects);
-        if (key === glassKey && (++glassTicks % 15) !== 0) {
-            return;
-        }
-        glassKey = key;
-        glassBlur.apply(win, rects);
-    }
-
-    Timer {
-        interval: 33
-        repeat: true
-        running: win.visible
-        onTriggered: win.updateGlass()
-    }
+    // La barre de recherche reste opaque : le verre ne dessine que son liseré.
+    readonly property var barGlassCfg: ({
+        "fadeMs": 140,
+        "source": String(wallpaperInfo.source || ""),
+        "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
+        "screenWidth": Number(wallpaperInfo.width || 0),
+        "screenHeight": Number(wallpaperInfo.height || 0),
+        "radius": barHeight / 2,
+        "blur": 6,
+        "refraction": true,
+        "thickness": 8,
+        "strength": 0,
+        "dispersion": 0,
+        "profile": 1,
+        "rim": 0,
+        "ringWidth": borderWidth,
+        "ringStrength": borderStrength * 0.8,
+        "ringOnly": true
+    })
+    readonly property var liveWindows: liveBackdrop ? backdropWindows : []
 
     // --- Interface ---------------------------------------------------------------------------
     Item {
@@ -895,14 +898,23 @@ Window {
                 GradientStop { position: 1.00; color: Qt.rgba(0.245, 0.245, 0.315, 1) }
             }
 
-            WallpaperRing {
+            // Liseré fin : chaque point prend la couleur de ce qui est derrière
+            // la barre (fond d'écran ou fenêtre), en direct.
+            GlassLayer {
+                id: barGlass
+
                 anchors.fill: parent
-                radius: barSurface.radius
-                ringOpacity: Math.min(1, win.ringOpacity * 0.8)
-                colorFromWallpaper: win.colorFromWallpaper
-                wallpaperInfo: win.wallpaperInfo
-                colorSampler: win.colorSampler
-                active: win.visible
+                windows: win.liveWindows
+                originX: barSurface.x
+                originY: barSurface.y
+                Component.onCompleted: configure(win.barGlassCfg)
+
+                Connections {
+                    target: win
+                    function onBarGlassCfgChanged() {
+                        barGlass.configure(win.barGlassCfg);
+                    }
+                }
             }
 
             MouseArea {
@@ -1147,16 +1159,11 @@ Window {
         }
 
         // ---- Le panneau de résultats ----
-        GlassSurface {
+        Item {
             id: panelSurface
 
-            theme: win.glassTheme
-            // Fond un peu plus sombre qu'un menu. Le liseré blanc du thème est
-            // remplacé par WallpaperRing (couleur du fond d'écran, sans dégradé
-            // de lumière).
-            darkening: 0.18
-            rimScale: 0
-            radius: 30
+            // Rayon des coins (le verre et le masque de la grille l'utilisent).
+            readonly property real radius: 30
             width: win.panelWidth
             height: win.panelTargetHeight
             visible: height > 1
@@ -1167,14 +1174,32 @@ Window {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
 
-            WallpaperRing {
+            // Teinte de secours : avant que le verre soit prêt, ou si le chemin
+            // GPU est indisponible (shader non compilé).
+            Rectangle {
                 anchors.fill: parent
                 radius: panelSurface.radius
-                ringOpacity: win.ringOpacity
-                colorFromWallpaper: win.colorFromWallpaper
-                wallpaperInfo: win.wallpaperInfo
-                colorSampler: win.colorSampler
-                active: win.visible && panelSurface.visible
+                color: Qt.rgba(0.03, 0.05, 0.11, Math.min(1, win.glassTint + 0.25))
+                visible: panelGlass.gpuBroken || !panelGlass.ready
+            }
+
+            // Le verre du Spotlight : fond d'écran et fenêtres derrière, floutés
+            // et déformés sur les bords, teinte et liseré compris.
+            GlassLayer {
+                id: panelGlass
+
+                anchors.fill: parent
+                windows: win.liveWindows
+                originX: panelSurface.x
+                originY: panelSurface.y
+                Component.onCompleted: configure(win.panelGlassCfg)
+
+                Connections {
+                    target: win
+                    function onPanelGlassCfgChanged() {
+                        panelGlass.configure(win.panelGlassCfg);
+                    }
+                }
             }
 
             MouseArea {

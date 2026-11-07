@@ -255,6 +255,12 @@ Item {
                 ? 1 : gpu.cfg.profile)
             property real rim: Number(gpu.cfg.rim === undefined
                 ? 1 : gpu.cfg.rim)
+            // Réservés au Spotlight (le Dock laisse 0 : aucun effet).
+            property real ringWidth: Number(gpu.cfg.ringWidth || 0)
+            property real ringStrength: Number(gpu.cfg.ringStrength || 0)
+            property real ringOnly: gpu.cfg.ringOnly ? 1 : 0
+            property vector4d tint: gpu.cfg.tint !== undefined
+                ? gpu.cfg.tint : Qt.vector4d(0, 0, 0, 0)
 
             fragmentShader: Qt.resolvedUrl("effects/glassrefract.frag.qsb")
 

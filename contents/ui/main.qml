@@ -117,6 +117,29 @@ PlasmoidItem {
             ? true : Boolean(Plasmoid.configuration.liveBackdrop)
     readonly property bool glassEnabled:
         wallpaperBlur > 0.001 || liquidGlass
+    // Verre du Spotlight : ses propres réglages (onglet « Spotlight »), sans
+    // lien avec le verre du Dock ni avec l'effet KWin de l'application externe.
+    readonly property bool spotlightLiveBackdrop:
+        Plasmoid.configuration.spotlightLiveBackdrop === undefined
+            ? true : Boolean(Plasmoid.configuration.spotlightLiveBackdrop)
+    readonly property real spotlightGlassBlur: boundedNumber(
+        Plasmoid.configuration.spotlightGlassBlur, 14, 0, 60)
+    readonly property real spotlightGlassTint: boundedNumber(
+        Plasmoid.configuration.spotlightGlassTint, 0.3, 0, 1)
+    readonly property real spotlightGlassThickness: boundedNumber(
+        Plasmoid.configuration.spotlightGlassThickness, 34, 4, 90)
+    readonly property real spotlightGlassStrength: boundedNumber(
+        Plasmoid.configuration.spotlightGlassStrength, 1.0, 0, 2)
+    readonly property real spotlightGlassProfile: boundedNumber(
+        Plasmoid.configuration.spotlightGlassProfile, 1.0, 0.5, 3)
+    readonly property real spotlightGlassDispersion: boundedNumber(
+        Plasmoid.configuration.spotlightGlassDispersion, 0.25, 0, 1)
+    readonly property real spotlightGlassRim: boundedNumber(
+        Plasmoid.configuration.spotlightGlassRim, 1.0, 0, 2)
+    readonly property real spotlightBorderStrength: boundedNumber(
+        Plasmoid.configuration.spotlightBorderStrength, 0.8, 0, 1)
+    readonly property real spotlightBorderWidth: boundedNumber(
+        Plasmoid.configuration.spotlightBorderWidth, 1.5, 0.5, 4)
     // Curseur de flou 2 % .. 100 % -> rayon de 1 à 60 pixels.
     readonly property real glassBlurRadius: wallpaperBlur * 60
     readonly property real glassThickness: boundedNumber(
@@ -1704,7 +1727,9 @@ PlasmoidItem {
     function updateBackdropWindows() {
         backdropUpdatePending = false;
         var screen = baseWindow ? baseWindow.screen : null;
-        if (!glassEnabled || !liveBackdrop || !screen) {
+        var dockWants = glassEnabled && liveBackdrop;
+        var spotlightWants = spotlightWindow.visible && spotlightLiveBackdrop;
+        if (!(dockWants || spotlightWants) || !screen) {
             if (backdropWindowsKey !== "") {
                 backdropWindows = [];
                 backdropWindowsKey = "";
@@ -1798,6 +1823,16 @@ PlasmoidItem {
 
     onGlassEnabledChanged: scheduleBackdropUpdate()
     onLiveBackdropChanged: scheduleBackdropUpdate()
+    onSpotlightLiveBackdropChanged: scheduleBackdropUpdate()
+
+    Connections {
+        target: spotlightWindow
+
+        // Le Spotlight ouvert montre les fenêtres derrière son verre.
+        function onVisibleChanged() {
+            root.scheduleBackdropUpdate();
+        }
+    }
 
     function isGroup(row) {
         return Boolean(taskRole(modelIndex(row),
@@ -5406,9 +5441,17 @@ PlasmoidItem {
         chat: aiChat
         favorites: Plasmoid.configuration.spotlightFavorites || []
         wallpaperInfo: root.wallpaperInfo
-        colorSampler: wallpaperLocator
-        colorFromWallpaper: root.borderColorFromWallpaper
-        ringOpacity: 0.5 * Math.min(1, root.borderStrength)
+        backdropWindows: root.backdropWindows
+        liveBackdrop: root.spotlightLiveBackdrop
+        glassBlur: root.spotlightGlassBlur
+        glassTint: root.spotlightGlassTint
+        glassThickness: root.spotlightGlassThickness
+        glassStrength: root.spotlightGlassStrength
+        glassProfile: root.spotlightGlassProfile
+        glassDispersion: root.spotlightGlassDispersion
+        glassRim: root.spotlightGlassRim
+        borderStrength: root.spotlightBorderStrength
+        borderWidth: root.spotlightBorderWidth
         assistantEnabled: root.showSiriButton
 
         onFavoritesChangeRequested: (ids) => {

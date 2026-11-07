@@ -240,6 +240,37 @@
       <default>true</default>
     </entry>
     <!-- Icônes personnalisées (fichier local) de Spotlight et de Siri IA ; vide = icône par défaut. -->
+    <!-- Onglet « Spotlight » : verre propre au Spotlight (indépendant du Dock et de KWin). -->
+    <entry name="spotlightLiveBackdrop" type="Bool">
+      <default>true</default>
+    </entry>
+    <entry name="spotlightGlassBlur" type="Int">
+      <default>14</default>
+    </entry>
+    <entry name="spotlightGlassTint" type="Double">
+      <default>0.3</default>
+    </entry>
+    <entry name="spotlightGlassThickness" type="Int">
+      <default>34</default>
+    </entry>
+    <entry name="spotlightGlassStrength" type="Double">
+      <default>1.0</default>
+    </entry>
+    <entry name="spotlightGlassProfile" type="Double">
+      <default>1.0</default>
+    </entry>
+    <entry name="spotlightGlassDispersion" type="Double">
+      <default>0.25</default>
+    </entry>
+    <entry name="spotlightGlassRim" type="Double">
+      <default>1.0</default>
+    </entry>
+    <entry name="spotlightBorderStrength" type="Double">
+      <default>0.8</default>
+    </entry>
+    <entry name="spotlightBorderWidth" type="Double">
+      <default>1.5</default>
+    </entry>
     <entry name="spotlightIconImage" type="String">
       <default></default>
     </entry>
