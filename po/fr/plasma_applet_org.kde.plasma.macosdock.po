@@ -1427,3 +1427,15 @@ msgstr "Nouvelle conversation"
 #: contents/ui/ConfigGeneral.qml
 msgid "Both are ordinary pinned icons: drag them anywhere in the Dock. Unticking a box removes the icon, ticking it again pins it back at the start."
 msgstr "Ce sont des icônes épinglées ordinaires : faites-les glisser où vous voulez dans le Dock. Décocher une case retire l’icône, la cocher de nouveau la remet au début."
+
+msgid "Spotlight app icon:"
+msgstr "Icône de l’application Spotlight :"
+
+msgid "Siri AI app icon:"
+msgstr "Icône de l’application Siri IA :"
+
+msgid "Choose the icon image for Spotlight"
+msgstr "Choisir l’image de l’icône de Spotlight"
+
+msgid "Choose the icon image for Siri AI"
+msgstr "Choisir l’image de l’icône de Siri IA"

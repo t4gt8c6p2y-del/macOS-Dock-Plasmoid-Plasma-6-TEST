@@ -3273,6 +3273,18 @@ PlasmoidItem {
         }
     }
 
+    // Au démarrage (et après ./install.sh qui remet les icônes par défaut) :
+    // réapplique les icônes personnalisées des lanceurs Spotlight / Siri IA.
+    Timer {
+        interval: 2000
+        running: true
+        repeat: false
+        onTriggered: {
+            spotlightBackend.applyToolIcon("spotlight", root.spotlightIconImage);
+            spotlightBackend.applyToolIcon("siri", root.siriIconImage);
+        }
+    }
+
     Timer {
         id: toolLauncherCheck
 
@@ -3295,6 +3307,14 @@ PlasmoidItem {
             siriWindow.closeSiri();
         }
     }
+
+    // Icônes personnalisées (fichier local) des lanceurs Spotlight et Siri IA.
+    readonly property string spotlightIconImage:
+        String(Plasmoid.configuration.spotlightIconImage || "")
+    readonly property string siriIconImage:
+        String(Plasmoid.configuration.siriIconImage || "")
+    onSpotlightIconImageChanged: spotlightBackend.applyToolIcon("spotlight", spotlightIconImage)
+    onSiriIconImageChanged: spotlightBackend.applyToolIcon("siri", siriIconImage)
 
     // Super / Alt+Espace / frappe sur le bureau : intégration du lanceur.
     onSpotlightReplaceLauncherChanged:

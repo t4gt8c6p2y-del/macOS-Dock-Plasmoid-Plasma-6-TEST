@@ -239,6 +239,13 @@
     <entry name="showSpotlightButton" type="Bool">
       <default>true</default>
     </entry>
+    <!-- Icônes personnalisées (fichier local) de Spotlight et de Siri IA ; vide = icône par défaut. -->
+    <entry name="spotlightIconImage" type="String">
+      <default></default>
+    </entry>
+    <entry name="siriIconImage" type="String">
+      <default></default>
+    </entry>
     <entry name="showSiriButton" type="Bool">
       <default>true</default>
     </entry>

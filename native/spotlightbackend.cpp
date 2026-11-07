@@ -849,6 +849,103 @@ bool SpotlightBackend::saveText(const QString &name, const QString &text)
     return file.commit();
 }
 
+bool SpotlightBackend::applyToolIcon(const QString &tool, const QString &source)
+{
+    if (tool != QLatin1String("spotlight") && tool != QLatin1String("siri")) {
+        return false;
+    }
+    const QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + QStringLiteral("/applications/macosdock-") + tool + QStringLiteral(".desktop");
+    if (!QFileInfo::exists(desktopPath)) {
+        return false;
+    }
+
+    // Anciennes copies d'icône personnalisée.
+    const QString iconDir = dataDirectory() + QStringLiteral("/icons");
+    QDir().mkpath(iconDir);
+    const QStringList old = QDir(iconDir).entryList({tool + QStringLiteral(".*")}, QDir::Files);
+
+    QString wanted = QStringLiteral("macosdock-") + tool;
+    QString local = source.trimmed();
+    if (local.startsWith(QLatin1String("file:"))) {
+        local = QUrl(local).toLocalFile();
+    }
+    QString copied;
+    if (!local.isEmpty()) {
+        static const QSet<QString> allowed{QStringLiteral("png"), QStringLiteral("svg"),
+            QStringLiteral("svgz"), QStringLiteral("jpg"), QStringLiteral("jpeg"),
+            QStringLiteral("webp"), QStringLiteral("bmp"), QStringLiteral("ico"),
+            QStringLiteral("xpm")};
+        const QFileInfo info(local);
+        const QString suffix = info.suffix().toLower();
+        if (!info.isFile() || !allowed.contains(suffix)) {
+            return false;
+        }
+        // Même image qu'une copie existante : on la réutilise (rien à recharger).
+        QFile sourceFile(info.absoluteFilePath());
+        if (!sourceFile.open(QIODevice::ReadOnly)) {
+            return false;
+        }
+        const QByteArray sourceData = sourceFile.readAll();
+        sourceFile.close();
+        for (const QString &name : old) {
+            QFile existing(iconDir + QLatin1Char('/') + name);
+            if (existing.open(QIODevice::ReadOnly) && existing.readAll() == sourceData) {
+                copied = existing.fileName();
+                break;
+            }
+        }
+        if (copied.isEmpty()) {
+            // Nom différent à chaque changement : le Dock recharge ainsi l'image.
+            copied = iconDir + QLatin1Char('/') + tool + QLatin1Char('.')
+                + QString::number(QDateTime::currentSecsSinceEpoch()) + QLatin1Char('.') + suffix;
+            if (!QFile::copy(info.absoluteFilePath(), copied)) {
+                return false;
+            }
+        }
+        wanted = copied;
+    }
+    for (const QString &name : old) {
+        const QString path = iconDir + QLatin1Char('/') + name;
+        if (path != copied) {
+            QFile::remove(path);
+        }
+    }
+
+    QFile in(desktopPath);
+    if (!in.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    const QStringList lines = QString::fromUtf8(in.readAll()).split(QLatin1Char('\n'));
+    in.close();
+    QStringList out;
+    bool changed = false;
+    bool replaced = false;
+    for (const QString &line : lines) {
+        if (!replaced && line.startsWith(QLatin1String("Icon="))) {
+            const QString next = QStringLiteral("Icon=") + wanted;
+            changed = changed || next != line;
+            out << next;
+            replaced = true;
+        } else {
+            out << line;
+        }
+    }
+    if (!replaced || !changed) {
+        return replaced;
+    }
+    QSaveFile file(desktopPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+    file.write(out.join(QLatin1Char('\n')).toUtf8());
+    if (!file.commit()) {
+        return false;
+    }
+    QProcess::startDetached(QStringLiteral("kbuildsycoca6"), {});
+    return true;
+}
+
 void SpotlightBackend::applyLauncherIntegration(bool enabled)
 {
     const QString script = dataDirectory() + QStringLiteral("/spotlight-integration.sh");

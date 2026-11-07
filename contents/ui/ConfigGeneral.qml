@@ -99,6 +99,8 @@ KCM.SimpleKCM {
     // partie du style copié (voir styleBooleanKeys) ni de la réinitialisation.
     property alias cfg_showSpotlightButton: showSpotlightButtonCheckBox.checked
     property alias cfg_showSiriButton: showSiriButtonCheckBox.checked
+    property alias cfg_spotlightIconImage: spotlightIconImageField.text
+    property alias cfg_siriIconImage: siriIconImageField.text
     property alias cfg_spotlightReplaceLauncher: replaceLauncherCheckBox.checked
     property var cfg_spotlightFavorites: []
     property alias cfg_aiProvider: aiProviderCombo.currentIndex
@@ -187,6 +189,8 @@ KCM.SimpleKCM {
     property bool cfg_showKdeConnectRecentSharesDefault: true
     property bool cfg_showSpotlightButtonDefault: true
     property bool cfg_showSiriButtonDefault: true
+    property string cfg_spotlightIconImageDefault: ""
+    property string cfg_siriIconImageDefault: ""
     property bool cfg_spotlightReplaceLauncherDefault: true
     property var cfg_spotlightFavoritesDefault: []
     property int cfg_aiProviderDefault: 0
@@ -389,7 +393,8 @@ KCM.SimpleKCM {
     function resetSettings() {
         var keys = Object.keys(styleNumberRanges).concat(
             styleBooleanKeys, ["customBackgroundColor", "indicatorColor",
-                "wallpaperBlurImage", "folderIconImage"]);
+                "wallpaperBlurImage", "folderIconImage",
+                "spotlightIconImage", "siriIconImage"]);
         for (var i = 0; i < keys.length; ++i) {
             var key = keys[i];
             var fallback = configPage["cfg_" + key + "Default"];
@@ -1343,6 +1348,92 @@ KCM.SimpleKCM {
                         id: showSiriButtonCheckBox
                         text: i18n("Show Siri AI app")
                     }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Spotlight app icon:")
+                    Layout.fillWidth: true
+
+                    Kirigami.Icon {
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                        source: spotlightIconImageField.text.length > 0
+                            ? spotlightIconImageField.text : "macosdock-spotlight"
+                    }
+
+                    QQC2.TextField {
+                        id: spotlightIconImageField
+
+                        Layout.fillWidth: true
+                        placeholderText: i18n("Default icon")
+                        selectByMouse: true
+                    }
+
+                    QQC2.Button {
+                        text: i18n("Choose…")
+                        icon.name: "document-open"
+                        onClicked: spotlightIconDialog.open()
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-clear"
+                        enabled: spotlightIconImageField.text.length > 0
+                        onClicked: spotlightIconImageField.text = ""
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Use the default icon")
+                    }
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Siri AI app icon:")
+                    Layout.fillWidth: true
+
+                    Kirigami.Icon {
+                        Layout.preferredWidth: Kirigami.Units.iconSizes.medium
+                        Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                        source: siriIconImageField.text.length > 0
+                            ? siriIconImageField.text : "macosdock-siri"
+                    }
+
+                    QQC2.TextField {
+                        id: siriIconImageField
+
+                        Layout.fillWidth: true
+                        placeholderText: i18n("Default icon")
+                        selectByMouse: true
+                    }
+
+                    QQC2.Button {
+                        text: i18n("Choose…")
+                        icon.name: "document-open"
+                        onClicked: siriIconDialog.open()
+                    }
+
+                    QQC2.Button {
+                        icon.name: "edit-clear"
+                        enabled: siriIconImageField.text.length > 0
+                        onClicked: siriIconImageField.text = ""
+
+                        QQC2.ToolTip.visible: hovered
+                        QQC2.ToolTip.text: i18n("Use the default icon")
+                    }
+                }
+
+                FileDialog {
+                    id: spotlightIconDialog
+
+                    title: i18n("Choose the icon image for Spotlight")
+                    nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)")]
+                    onAccepted: spotlightIconImageField.text = String(selectedFile)
+                }
+
+                FileDialog {
+                    id: siriIconDialog
+
+                    title: i18n("Choose the icon image for Siri AI")
+                    nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)")]
+                    onAccepted: siriIconImageField.text = String(selectedFile)
                 }
 
                 QQC2.Label {

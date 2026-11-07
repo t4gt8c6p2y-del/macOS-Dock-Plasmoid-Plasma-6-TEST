@@ -73,17 +73,6 @@ Window {
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
 
-    // Zone « liquide » élargie. Le Liquid Glass de KWin ne déforme que les
-    // quelques pixels du bord (réglage global de l'application Liquid Glass, que
-    // l'on ne touche pas). Le Spotlight ajoute donc, au-dessus du verre KWin, une
-    // bande de réfraction plus large qui s'estompe vers l'intérieur.
-    // lensThickness : largeur de la bande en px (0 = désactivée) ;
-    // lensStrength : force de la déformation (0..1).
-    readonly property real lensThickness: 56
-    readonly property real lensStrength: 0.55
-    // Position du panneau à l'écran (le calque couvre tout l'écran).
-    property point panelOrigin: Qt.point(0, 0)
-
     readonly property bool gridMode: mode === 1 && query.trim().length === 0 && !aiView
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
@@ -840,31 +829,9 @@ Window {
         };
     }
 
-    readonly property var lensConfig: ({
-        "fadeMs": 120,
-        "source": String(wallpaperInfo.source || ""),
-        "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
-        "screenWidth": Number(wallpaperInfo.width || 0),
-        "screenHeight": Number(wallpaperInfo.height || 0),
-        "radius": 30,
-        "blur": 4,
-        "refraction": true,
-        "thickness": lensThickness,
-        "strength": lensStrength,
-        "dispersion": 0.25,
-        "profile": 1,
-        "rim": 0,
-        "fade": 1,
-        "shade": 0.18
-    })
-
     function updateGlass() {
         if (!visible) {
             return;
-        }
-        var origin = panelSurface.mapToItem(null, 0, 0);
-        if (Math.abs(origin.x - panelOrigin.x) > 0.5 || Math.abs(origin.y - panelOrigin.y) > 0.5) {
-            panelOrigin = Qt.point(origin.x, origin.y);
         }
         // Seul le panneau reçoit le flou / Liquid Glass de KWin. La barre de
         // recherche est un fond sombre quasi opaque (comme sur macOS) et les
@@ -997,22 +964,63 @@ Window {
                 width: parent.width - 64 - 56
                 color: "white"
                 cursorDelegate: Item {
+                    id: caret
+
+                    // Clignote par nos soins (le clignotement de Qt est coupé sur
+                    // Wayland/Plasma). Le curseur reste allumé tant qu'on tape.
+                    property bool lit: true
+
                     width: 3
-                    // Curseur blanc éclatant (cœur pur + deux halos) : même
-                    // éclat que les reflets du Liquid Glass / de Siri.
+                    opacity: lit ? 1 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 120 }
+                    }
+
+                    Timer {
+                        id: blinkTimer
+
+                        interval: 530
+                        repeat: true
+                        running: field.activeFocus && win.visible
+                        onRunningChanged: caret.lit = true
+                        onTriggered: caret.lit = !caret.lit
+                    }
+
+                    Connections {
+                        target: field
+                        function onTextChanged() {
+                            caret.lit = true;
+                            blinkTimer.restart();
+                        }
+                        function onCursorPositionChanged() {
+                            caret.lit = true;
+                            blinkTimer.restart();
+                        }
+                    }
+
+                    // Lueur irisée (cyan en haut, chaud en bas) comme sur macOS.
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 13
-                        height: parent.height + 6
-                        radius: 6.5
-                        color: Qt.rgba(1, 1, 1, 0.10)
+                        width: 17
+                        height: parent.height + 8
+                        radius: 8.5
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(0.55, 0.86, 1.0, 0.10) }
+                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.05) }
+                            GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.70, 0.40, 0.16) }
+                        }
                     }
                     Rectangle {
                         anchors.centerIn: parent
-                        width: 7
-                        height: parent.height + 3
-                        radius: 3.5
-                        color: Qt.rgba(1, 1, 1, 0.30)
+                        width: 9
+                        height: parent.height + 4
+                        radius: 4.5
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(0.60, 0.88, 1.0, 0.30) }
+                            GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.14) }
+                            GradientStop { position: 1.0; color: Qt.rgba(1.0, 0.72, 0.42, 0.42) }
+                        }
                     }
                     Rectangle {
                         anchors.fill: parent
@@ -1157,47 +1165,6 @@ Window {
 
             Behavior on height {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-            }
-
-            // Bande de réfraction élargie (voir lensThickness) : même moteur que le
-            // verre du Dock, chargé à part ; s'il est indisponible, on garde
-            // seulement le verre de KWin.
-            Loader {
-                id: lensLoader
-
-                anchors.fill: parent
-                active: win.visible && win.lensThickness > 0
-                    && String(win.wallpaperInfo.source || "") !== ""
-                    && !lensBroken
-                property bool lensBroken: false
-                source: "GlassGpu.qml"
-                onLoaded: {
-                    item.cfg = Qt.binding(function() {
-                        return win.lensConfig;
-                    });
-                    item.originX = Qt.binding(function() {
-                        return win.panelOrigin.x;
-                    });
-                    item.originY = Qt.binding(function() {
-                        return win.panelOrigin.y;
-                    });
-                }
-                onStatusChanged: {
-                    if (status === Loader.Error) {
-                        lensLoader.lensBroken = true;
-                    }
-                }
-            }
-
-            Connections {
-                target: lensLoader.item
-                ignoreUnknownSignals: true
-
-                function onShaderFailedChanged() {
-                    if (lensLoader.item && lensLoader.item.shaderFailed) {
-                        lensLoader.lensBroken = true;
-                    }
-                }
             }
 
             WallpaperRing {

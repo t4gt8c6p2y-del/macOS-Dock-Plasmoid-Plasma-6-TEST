@@ -255,11 +255,6 @@ Item {
                 ? 1 : gpu.cfg.profile)
             property real rim: Number(gpu.cfg.rim === undefined
                 ? 1 : gpu.cfg.rim)
-            // Réservés au Spotlight (le Dock laisse 0).
-            property real fade: Number(gpu.cfg.fade === undefined
-                ? 0 : gpu.cfg.fade)
-            property real shade: Number(gpu.cfg.shade === undefined
-                ? 0 : gpu.cfg.shade)
 
             fragmentShader: Qt.resolvedUrl("effects/glassrefract.frag.qsb")
 

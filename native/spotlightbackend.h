@@ -146,6 +146,13 @@ public:
     /** Applique (ou annule) l'intégration au système : touche Windows, KRunner. */
     Q_INVOKABLE void applyLauncherIntegration(bool enabled);
 
+    /**
+     * Change l'icône du lanceur « spotlight » ou « siri » dans le Dock : copie
+     * l'image choisie (chemin ou URL file://) dans le dossier de données et la
+     * référence dans le .desktop. Chemin vide : icône par défaut.
+     */
+    Q_INVOKABLE bool applyToolIcon(const QString &tool, const QString &source);
+
     // Appelés par les services D-Bus.
     void emitToggle();
     void emitShow();

@@ -1425,3 +1425,15 @@ msgstr "Neue Unterhaltung"
 #: contents/ui/ConfigGeneral.qml
 msgid "Both are ordinary pinned icons: drag them anywhere in the Dock. Unticking a box removes the icon, ticking it again pins it back at the start."
 msgstr "Das sind ganz normale angeheftete Symbole: Ziehe sie im Dock an eine beliebige Stelle. Wird ein Haken entfernt, verschwindet das Symbol; setzt du ihn wieder, wird es am Anfang angeheftet."
+
+msgid "Spotlight app icon:"
+msgstr "Symbol der Spotlight-App:"
+
+msgid "Siri AI app icon:"
+msgstr "Symbol der Siri-KI-App:"
+
+msgid "Choose the icon image for Spotlight"
+msgstr "Bild für das Spotlight-Symbol wählen"
+
+msgid "Choose the icon image for Siri AI"
+msgstr "Bild für das Siri-KI-Symbol wählen"
