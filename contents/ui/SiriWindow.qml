@@ -1,6 +1,4 @@
 import QtQuick
-import org.kde.layershell as LayerShell
-import "effects" as DockEffects
 
 // « Siri IA » : l'application de conversation du Dock, à la manière de
 // l'app Siri de macOS 27. À gauche, l'historique des discussions (liste
@@ -8,74 +6,81 @@ import "effects" as DockEffects
 // avec Gemini, GLM ou le fournisseur personnalisé. L'historique est partagé
 // avec les réponses données depuis le Spotlight.
 //
-// La fenêtre est un calque de Plasma (comme les autres bulles du Dock) : elle
-// n'ajoute donc pas d'entrée parasite au gestionnaire de tâches. Elle se
-// déplace en glissant la barre du haut.
+// C'est une vraie fenêtre d'application (et non plus un calque de Plasma) :
+// KWin la réduit, la maximise, la redimensionne et la déplace comme n'importe
+// quelle autre. Les boutons rouge / orange / vert de la barre du haut
+// appellent ces fonctions du compositeur. La fenêtre est créée une fois au
+// chargement du Dock et seulement masquée à la fermeture : elle se rouvre
+// donc instantanément. Le fond est noir.
 Window {
     id: win
 
     property var backend: null
     property var chat: null
-    property var glassTheme: ({})
 
     signal settingsRequested()
 
     readonly property color accent: "#0A84FF"
     readonly property real screenWidth: screen ? screen.width : 1920
     readonly property real screenHeight: screen ? screen.height : 1080
-    property bool large: false
-    property real posX: 0
-    property real posY: 0
+    // Vrai quand KWin a maximisé la fenêtre (plus de coins arrondis ni de liseré).
+    readonly property bool maximized: visibility === Window.Maximized
+        || visibility === Window.FullScreen
+    // Dernier état « agrandi » connu : une fenêtre maximisée puis réduite doit
+    // revenir maximisée.
+    property bool wasMaximized: false
+    property bool sized: false
     property string contextConversation: ""
-    property bool searching: false
 
     readonly property real normalWidth: Math.min(940, screenWidth - 40)
     readonly property real normalHeight: Math.min(620, screenHeight - 60)
     readonly property real sidebarWidth: 280
     readonly property real titleBarHeight: 52
 
-    flags: Qt.FramelessWindowHint
+    flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
     visible: false
     title: "Siri IA"
-    width: large ? Math.min(screenWidth - 80, 1280) : normalWidth
-    height: large ? Math.min(screenHeight - 100, 860) : normalHeight
-
-    LayerShell.Window.scope: "macosdock-siri"
-    LayerShell.Window.anchors: LayerShell.Window.AnchorTop | LayerShell.Window.AnchorLeft
-    LayerShell.Window.margins.left: Math.round(posX)
-    LayerShell.Window.margins.top: Math.round(posY)
-    LayerShell.Window.exclusionZone: -1
-    LayerShell.Window.layer: LayerShell.Window.LayerTop
-    LayerShell.Window.keyboardInteractivity: LayerShell.Window.KeyboardInteractivityOnDemand
-    LayerShell.Window.activateOnShow: true
-    LayerShell.Window.wantsToBeOnActiveScreen: true
-
-    DockEffects.GlassBlur {
-        id: glassBlur
-    }
-
-    function clampPosition() {
-        posX = Math.max(0, Math.min(screenWidth - width, posX));
-        posY = Math.max(0, Math.min(screenHeight - height, posY));
-    }
+    minimumWidth: 640
+    minimumHeight: 420
+    // Taille de départ ; elle est ensuite adaptée à l'écran (openSiri) puis
+    // laissée à l'utilisateur et au compositeur.
+    width: 940
+    height: 620
 
     function openSiri(freshConversation) {
-        glassTheme = glassBlur.theme();
-        if (chat && freshConversation) {
-            chat.startNew();
+        if (chat) {
+            if (freshConversation) {
+                chat.startNew();
+            }
+            chat.selectAvailableProvider();
+            chat.refreshGeminiModels(false);
+        }
+        if (!sized) {
+            width = normalWidth;
+            height = normalHeight;
+            sized = true;
         }
         if (!visible) {
-            posX = (screenWidth - width) / 2;
-            posY = Math.max(24, (screenHeight - height) / 2 - 20);
             visible = true;
+            if (wasMaximized) {
+                showMaximized();
+            }
+        } else if (visibility === Window.Minimized) {
+            // Fenêtre réduite : on la restaure dans l'état où elle était.
+            if (wasMaximized) {
+                showMaximized();
+            } else {
+                showNormal();
+            }
         }
+        raise();
         requestActivate();
         Qt.callLater(focusInput);
     }
 
     function closeSiri() {
-        menu.opened = false;
+        menu.close();
         visible = false;
     }
 
@@ -87,18 +92,75 @@ Window {
         }
     }
 
+    function minimizeSiri() {
+        menu.close();
+        showMinimized();
+    }
+
+    function toggleMaximize() {
+        menu.close();
+        if (maximized) {
+            showNormal();
+        } else {
+            showMaximized();
+        }
+    }
+
     function focusInput() {
         input.forceActiveFocus();
     }
 
-    onWidthChanged: clampPosition()
-    onHeightChanged: clampPosition()
+    onVisibilityChanged: {
+        if (visibility === Window.Maximized) {
+            wasMaximized = true;
+        } else if (visibility === Window.Windowed) {
+            wasMaximized = false;
+        }
+    }
 
     onVisibleChanged: {
-        if (!visible) {
-            glassKey = "";
-            glassBlur.clear(win);
+        if (visible) {
+            appear.restart();
+        } else {
+            appear.stop();
+            frame.scale = 1;
+            frame.opacity = 1;
         }
+    }
+
+    // Ouverture : la fenêtre grossit légèrement en apparaissant (c'est aussi
+    // l'arrivée de la conversation agrandie depuis le Spotlight).
+    ParallelAnimation {
+        id: appear
+
+        NumberAnimation {
+            target: frame
+            property: "scale"
+            from: 0.93
+            to: 1
+            duration: 260
+            easing.type: Easing.OutCubic
+        }
+
+        NumberAnimation {
+            target: frame
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: 200
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    // Raccourcis habituels d'une application.
+    Shortcut {
+        sequence: "Ctrl+W"
+        onActivated: win.closeSiri()
+    }
+
+    Shortcut {
+        sequence: "Ctrl+M"
+        onActivated: win.minimizeSiri()
     }
 
     function send() {
@@ -135,12 +197,39 @@ Window {
     // 0 = fournisseurs, 1 = conversation (clic droit)
     property int menuKind: 0
 
+    // Menu de l'IA : seules les IA utilisables y figurent (clé API renseignée,
+    // CLI OpenCode trouvé, fournisseur personnalisé configuré). Pour Gemini,
+    // chaque modèle que la clé peut utiliser est une entrée.
     function openProviderMenu() {
+        if (!chat) {
+            return;
+        }
         menuKind = 0;
+        chat.refreshGeminiModels(false);
         var entries = [];
-        for (var i = 0; i < chat.providerCount; ++i) {
-            entries.push({ "id": "provider" + i, "text": chat.providerName(i),
-                "glyph": "sparkle", "checked": chat.activeProvider === i });
+        if (chat.providerReady(0)) {
+            var models = chat.geminiModelChoices();
+            var currentModel = chat.currentGeminiModel();
+            for (var i = 0; i < models.length; ++i) {
+                entries.push({ "id": "gemini:" + models[i], "text": chat.geminiLabel(models[i]),
+                    "glyph": "sparkle",
+                    "checked": chat.activeProvider === 0 && models[i] === currentModel });
+            }
+        }
+        var others = [];
+        for (var index = 1; index < chat.providerCount; ++index) {
+            if (chat.providerReady(index)) {
+                others.push({ "id": "provider" + index, "text": chat.providerName(index),
+                    "glyph": "sparkle", "checked": chat.activeProvider === index });
+            }
+        }
+        if (entries.length > 0 && others.length > 0) {
+            entries.push({ "separator": true });
+        }
+        entries = entries.concat(others);
+        if (entries.length === 0) {
+            entries.push({ "id": "none", "text": i18n("No AI available"), "glyph": "",
+                "enabled": false });
         }
         entries.push({ "separator": true });
         entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
@@ -165,7 +254,9 @@ Window {
 
     function handleMenu(id) {
         if (menuKind === 0) {
-            if (id.indexOf("provider") === 0) {
+            if (id.indexOf("gemini:") === 0) {
+                chat.setGeminiModel(id.substring(7));
+            } else if (id.indexOf("provider") === 0) {
                 chat.setActiveProvider(Number(id.substring(8)));
             } else if (id === "settings") {
                 settingsRequested();
@@ -195,47 +286,20 @@ Window {
         return ["#8E8E93", "#636366"];
     }
 
-    // --- Flou demandé à KWin ---------------------------------------------------------
-    property string glassKey: ""
-    property int glassTicks: 0
-
-    function updateGlass() {
-        if (!visible) {
-            return;
-        }
-        var rects = [{ "x": 0, "y": 0, "width": Math.round(win.width),
-            "height": Math.round(win.height), "radius": 22 }];
-        var key = JSON.stringify(rects);
-        if (key === glassKey && (++glassTicks % 15) !== 0) {
-            return;
-        }
-        glassKey = key;
-        glassBlur.apply(win, rects);
-    }
-
-    Timer {
-        interval: 33
-        repeat: true
-        running: win.visible
-        onTriggered: win.updateGlass()
-    }
-
     // --- Interface ----------------------------------------------------------------------
-    GlassSurface {
+    // Fond noir (plus de verre ni de flou). Coins arrondis et fin liseré tant
+    // que la fenêtre n'est pas maximisée.
+    Rectangle {
         id: frame
 
         anchors.fill: parent
-        theme: win.glassTheme
-        radius: 22
+        radius: win.maximized ? 0 : 18
+        color: "#000000"
+        border.width: win.maximized ? 0 : 1
+        border.color: Qt.rgba(1, 1, 1, 0.16)
+        antialiasing: true
 
         Keys.onEscapePressed: win.closeSiri()
-
-        // Voile léger pour que le texte reste lisible sur un fond clair.
-        Rectangle {
-            anchors.fill: parent
-            radius: frame.radius
-            color: Qt.rgba(0, 0, 0, 0.18)
-        }
 
         // ---- Barre du haut : boutons de fenêtre et déplacement ----
         Item {
@@ -246,26 +310,26 @@ Window {
             width: parent.width
             height: win.titleBarHeight
 
-            MouseArea {
-                id: dragArea
-
-                property real pressX: 0
-                property real pressY: 0
-
+            // Zone de déplacement : c'est KWin qui déplace la fenêtre (on la
+            // glisse comme n'importe quelle fenêtre, y compris pour la sortir de
+            // l'état maximisé) ; un double clic la maximise ou la restaure.
+            Item {
                 anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
-                onPressed: function (mouse) {
-                    pressX = mouse.x;
-                    pressY = mouse.y;
-                }
-                onPositionChanged: function (mouse) {
-                    if (pressed) {
-                        win.posX += mouse.x - pressX;
-                        win.posY += mouse.y - pressY;
-                        win.clampPosition();
+
+                DragHandler {
+                    target: null
+                    grabPermissions: PointerHandler.CanTakeOverFromAnything
+                    onActiveChanged: {
+                        if (active) {
+                            win.startSystemMove();
+                        }
                     }
                 }
-                onDoubleClicked: win.large = !win.large
+
+                TapHandler {
+                    acceptedButtons: Qt.LeftButton
+                    onDoubleTapped: win.toggleMaximize()
+                }
             }
 
             Row {
@@ -295,9 +359,12 @@ Window {
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -3
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (light.modelData.action === "zoom") {
-                                    win.large = !win.large;
+                                    win.toggleMaximize();
+                                } else if (light.modelData.action === "hide") {
+                                    win.minimizeSiri();
                                 } else {
                                     win.closeSiri();
                                 }
@@ -310,7 +377,7 @@ Window {
             // Titre de la conversation, au-dessus du volet de droite.
             Text {
                 x: win.sidebarWidth + 24
-                width: parent.width - win.sidebarWidth - 24 - 170
+                width: Math.max(40, parent.width - win.sidebarWidth - 24 - providerChip.width - 36)
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 text: win.chat && win.chat.current ? win.chat.current.title : "Siri IA"
@@ -339,7 +406,8 @@ Window {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: win.chat ? win.chat.providerName(win.chat.activeProvider) : ""
+                        // Pour Gemini : avec le modèle (« Gemini 3.8 Flash »).
+                        text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
                         font.pixelSize: 13
                         color: Qt.rgba(1, 1, 1, 0.92)
                     }
@@ -792,6 +860,92 @@ Window {
             }
         }
 
+    }
+
+    // --- Redimensionnement ---------------------------------------------------------
+    // La fenêtre n'a pas de bordure du système : de fines poignées sur les
+    // bords et les coins laissent KWin la redimensionner (inactives quand la
+    // fenêtre est maximisée).
+    component ResizeHandle: MouseArea {
+        required property int edges
+
+        enabled: !win.maximized
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton
+        z: 100
+        onPressed: win.startSystemResize(edges)
+    }
+
+    ResizeHandle {
+        edges: Qt.LeftEdge
+        x: 0
+        y: 12
+        width: 6
+        height: win.height - 24
+        cursorShape: Qt.SizeHorCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.RightEdge
+        x: win.width - 6
+        y: 12
+        width: 6
+        height: win.height - 24
+        cursorShape: Qt.SizeHorCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.TopEdge
+        x: 12
+        y: 0
+        width: win.width - 24
+        height: 6
+        cursorShape: Qt.SizeVerCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.BottomEdge
+        x: 12
+        y: win.height - 6
+        width: win.width - 24
+        height: 6
+        cursorShape: Qt.SizeVerCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.TopEdge | Qt.LeftEdge
+        x: 0
+        y: 0
+        width: 12
+        height: 12
+        cursorShape: Qt.SizeFDiagCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.TopEdge | Qt.RightEdge
+        x: win.width - 12
+        y: 0
+        width: 12
+        height: 12
+        cursorShape: Qt.SizeBDiagCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.BottomEdge | Qt.LeftEdge
+        x: 0
+        y: win.height - 12
+        width: 12
+        height: 12
+        cursorShape: Qt.SizeBDiagCursor
+    }
+
+    ResizeHandle {
+        edges: Qt.BottomEdge | Qt.RightEdge
+        x: win.width - 12
+        y: win.height - 12
+        width: 12
+        height: 12
+        cursorShape: Qt.SizeFDiagCursor
     }
 
     NativeGlassMenu {

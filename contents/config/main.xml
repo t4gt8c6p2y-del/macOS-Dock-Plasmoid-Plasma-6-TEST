@@ -303,6 +303,10 @@
     <entry name="geminiModel" type="String">
       <default>gemini-3.8-flash</default>
     </entry>
+    <!-- Recherche web de Gemini (Grounding with Google Search). -->
+    <entry name="geminiWebSearch" type="Bool">
+      <default>true</default>
+    </entry>
     <entry name="glmBackend" type="Int">
       <default>0</default>
     </entry>

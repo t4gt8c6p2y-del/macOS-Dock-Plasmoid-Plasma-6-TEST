@@ -56,6 +56,7 @@ ListView {
 
         readonly property bool isUser: modelData.role === "user"
         readonly property bool isError: modelData.error === true
+        readonly property var sourceList: Array.isArray(modelData.sources) ? modelData.sources : []
 
         width: view.width - view.leftMargin - view.rightMargin
         height: isUser ? userBubble.height : assistantColumn.height
@@ -116,12 +117,51 @@ ListView {
                 selectedTextColor: "white"
             }
 
+            // Pages citées par la recherche web de Gemini : un clic ouvre la page.
+            Flow {
+                visible: !row.isError && row.sourceList.length > 0
+                width: parent.width
+                spacing: 8
+
+                Text {
+                    text: i18n("Sources:")
+                    font.pixelSize: 12
+                    color: Qt.rgba(1, 1, 1, 0.42)
+                }
+
+                Repeater {
+                    model: row.sourceList
+
+                    delegate: Text {
+                        id: sourceLink
+
+                        required property var modelData
+
+                        text: sourceLink.modelData.title
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                        width: Math.min(implicitWidth, row.width - 60)
+                        color: sourceArea.containsMouse ? "white" : "#6CB6FF"
+
+                        MouseArea {
+                            id: sourceArea
+
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally(sourceLink.modelData.uri)
+                        }
+                    }
+                }
+            }
+
             Row {
                 spacing: 10
                 visible: !row.isError
 
                 Text {
-                    text: row.modelData.provider !== undefined ? view.providerNameFor(row.modelData.provider) : ""
+                    text: row.modelData.label ? String(row.modelData.label)
+                        : (row.modelData.provider !== undefined ? view.providerNameFor(row.modelData.provider) : "")
                     font.pixelSize: 12
                     color: Qt.rgba(1, 1, 1, 0.42)
                 }

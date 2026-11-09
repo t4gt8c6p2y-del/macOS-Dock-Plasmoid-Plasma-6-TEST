@@ -5416,6 +5416,8 @@ PlasmoidItem {
             Plasmoid.configuration.aiProvider, 0, 0, 2))
         geminiKey: String(Plasmoid.configuration.geminiApiKey || "")
         geminiModel: String(Plasmoid.configuration.geminiModel || "gemini-3.8-flash")
+        geminiWebSearch: Plasmoid.configuration.geminiWebSearch === undefined
+            ? true : Boolean(Plasmoid.configuration.geminiWebSearch)
         glmBackend: Math.round(root.boundedNumber(
             Plasmoid.configuration.glmBackend, 0, 0, 1))
         glmModel: String(Plasmoid.configuration.glmModel || "glm-5.3-flash-free")
@@ -5429,6 +5431,11 @@ PlasmoidItem {
 
         onProviderChosen: (index) => {
             Plasmoid.configuration.aiProvider = index;
+        }
+
+        // Modèle Gemini choisi dans Siri IA : il est mémorisé dans les réglages.
+        onGeminiModelChosen: (model) => {
+            Plasmoid.configuration.geminiModel = model;
         }
     }
 

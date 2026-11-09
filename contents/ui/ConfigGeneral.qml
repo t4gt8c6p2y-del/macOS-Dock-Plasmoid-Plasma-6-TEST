@@ -116,6 +116,7 @@ KCM.SimpleKCM {
     property alias cfg_aiProvider: aiProviderCombo.currentIndex
     property alias cfg_geminiApiKey: geminiKeyField.text
     property alias cfg_geminiModel: geminiModelField.text
+    property alias cfg_geminiWebSearch: geminiWebSearchCheckBox.checked
     property alias cfg_glmBackend: glmBackendCombo.currentIndex
     property alias cfg_glmModel: glmModelField.text
     property alias cfg_glmApiKey: glmKeyField.text
@@ -216,6 +217,7 @@ KCM.SimpleKCM {
     property int cfg_aiProviderDefault: 0
     property string cfg_geminiApiKeyDefault: ""
     property string cfg_geminiModelDefault: "gemini-3.8-flash"
+    property bool cfg_geminiWebSearchDefault: true
     property int cfg_glmBackendDefault: 0
     property string cfg_glmModelDefault: "glm-5.3-flash-free"
     property string cfg_glmApiKeyDefault: ""
@@ -1999,6 +2001,20 @@ KCM.SimpleKCM {
                         wrapMode: Text.WordWrap
                         opacity: 0.85
                     }
+                }
+
+                QQC2.CheckBox {
+                    id: geminiWebSearchCheckBox
+
+                    Kirigami.FormData.label: i18n("Web search:")
+                    text: i18n("Let Gemini search the web (Google Search)")
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Without web search, Gemini only knows what it learned during training and may wrongly claim that a recent model or product does not exist. With it, Gemini looks things up before answering and lists the pages it used. The free tier limits the number of searches per day.")
+                    opacity: 0.78
                 }
 
                 QQC2.Label {

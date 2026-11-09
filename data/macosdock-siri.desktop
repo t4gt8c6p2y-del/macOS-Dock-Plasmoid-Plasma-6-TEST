@@ -13,6 +13,8 @@ Comment[de]=Mit Gemini, GLM oder einer anderen KI chatten und den Verlauf behalt
 Icon=macosdock-siri
 Exec=dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.openAssistant
 Terminal=false
+# Siri IA est une fenêtre de plasmashell : ce nom la rattache à ce lanceur du Dock.
+StartupWMClass=org.kde.plasmashell
 StartupNotify=false
 Categories=Utility;
 X-MacOSDock-Tool=true

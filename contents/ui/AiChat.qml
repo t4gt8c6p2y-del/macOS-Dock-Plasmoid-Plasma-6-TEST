@@ -23,6 +23,10 @@ Item {
     property int defaultProvider: 0
     property string geminiKey: ""
     property string geminiModel: "gemini-3.8-flash"
+    // Recherche web de Gemini (« Grounding with Google Search ») : sans elle, le
+    // modèle répond de mémoire et peut affirmer à tort qu'un modèle ou un
+    // produit récent « n'existe pas ».
+    property bool geminiWebSearch: true
     // 0 = CLI OpenCode (modèles gratuits), 1 = API HTTP avec clé.
     property int glmBackend: 0
     property string glmModel: "glm-5.3-flash-free"
@@ -41,7 +45,45 @@ Item {
     property int activeProvider: defaultProvider
     onDefaultProviderChanged: activeProvider = defaultProvider
     signal providerChosen(int index)
+    // Modèle Gemini choisi dans l'interface : main.qml l'écrit dans les réglages
+    // (la propriété geminiModel y reste liée, d'où un signal plutôt qu'une
+    // affectation directe).
+    signal geminiModelChosen(string model)
     signal answered(string conversationId)
+
+    // Les IA utilisables dépendent des clés et du CLI : dès que l'un d'eux
+    // change, on vérifie que l'IA active existe encore. Pas pendant le
+    // chargement initial des réglages (ils arrivent un par un : l'IA choisie
+    // par défaut paraîtrait à tort inutilisable et serait remplacée).
+    property bool settled: false
+
+    function providerSettingsChanged() {
+        if (settled) {
+            selectAvailableProvider();
+        }
+    }
+
+    onGeminiKeyChanged: {
+        geminiModels = [];
+        geminiModelsKey = "";
+        providerSettingsChanged();
+    }
+    onGlmBackendChanged: providerSettingsChanged()
+    onGlmKeyChanged: providerSettingsChanged()
+    onCustomUrlChanged: providerSettingsChanged()
+    onCustomModelChanged: providerSettingsChanged()
+
+    Component.onCompleted: Qt.callLater(function () {
+        chat.settled = true;
+        chat.selectAvailableProvider();
+    })
+
+    // --- Modèles Gemini disponibles pour la clé ------------------------------------
+    property var geminiModels: []
+    property bool geminiModelsLoading: false
+    // Clé pour laquelle la liste a été chargée, et heure du chargement.
+    property string geminiModelsKey: ""
+    property double geminiModelsTime: 0
 
     // --- État ------------------------------------------------------------------
     property var conversations: []
@@ -108,6 +150,161 @@ Item {
         return providerProblem(index).length === 0;
     }
 
+    // Les IA utilisables : clé présente (Gemini, GLM par API), CLI trouvé (GLM
+    // gratuit) ou fournisseur personnalisé renseigné.
+    function availableProviders() {
+        var list = [];
+        for (var i = 0; i < providerCount; ++i) {
+            if (providerReady(i)) {
+                list.push(i);
+            }
+        }
+        return list;
+    }
+
+    // Si l'IA active n'est pas utilisable mais qu'une autre l'est, on passe sur
+    // celle-ci (sans toucher aux réglages : c'est un simple choix du moment).
+    function selectAvailableProvider() {
+        if (providerReady(activeProvider)) {
+            return;
+        }
+        var list = availableProviders();
+        if (list.length > 0) {
+            activeProvider = list[0];
+        }
+    }
+
+    // --- Modèles Gemini ----------------------------------------------------------------
+    function currentGeminiModel() {
+        var model = String(geminiModel).trim();
+        return model.length > 0 ? model : "gemini-3.8-flash";
+    }
+
+    // « gemini-3.8-flash-lite » -> « Gemini 3.8 Flash Lite »
+    function geminiLabel(id) {
+        var parts = String(id).replace(/^models\//, "").split("-");
+        return parts.map(function (part) {
+            return /^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.substring(1);
+        }).join(" ");
+    }
+
+    // Nom affiché pour un fournisseur : pour Gemini, avec le modèle utilisé.
+    function providerLabel(index) {
+        return index === 0 ? geminiLabel(currentGeminiModel()) : providerName(index);
+    }
+
+    // Modèles de conversation que la clé peut utiliser (les plus récents
+    // d'abord). Le modèle réglé est toujours présent, même si la liste n'a pas
+    // (encore) pu être chargée.
+    function geminiModelChoices() {
+        var list = geminiModels.slice();
+        var current = currentGeminiModel();
+        if (list.indexOf(current) < 0) {
+            list.unshift(current);
+        }
+        return list;
+    }
+
+    function filterGeminiModels(models) {
+        var ids = [];
+        for (var i = 0; i < models.length; ++i) {
+            var methods = models[i].supportedGenerationMethods || [];
+            if (methods.indexOf("generateContent") < 0) {
+                continue;
+            }
+            var id = String(models[i].name).replace(/^models\//, "");
+            if (!/^gemini-/.test(id)
+                    || /(image|tts|audio|live|embedding|robotics|computer-use|veo|imagen|aqa|vision)/.test(id)
+                    || /(-latest|-\d{3})$/.test(id)) {
+                continue;
+            }
+            if (ids.indexOf(id) < 0) {
+                ids.push(id);
+            }
+        }
+        var version = function (id) {
+            var match = /^gemini-(\d+(?:\.\d+)?)/.exec(id);
+            return match ? parseFloat(match[1]) : 0;
+        };
+        ids.sort(function (a, b) {
+            var difference = version(b) - version(a);
+            if (difference !== 0) {
+                return difference;
+            }
+            return a < b ? -1 : (a > b ? 1 : 0);
+        });
+        return ids.slice(0, 14);
+    }
+
+    // Charge la liste des modèles Gemini de la clé (une requête, mise en
+    // mémoire dix minutes).
+    function refreshGeminiModels(force) {
+        var key = String(geminiKey).trim();
+        if (key.length === 0) {
+            geminiModels = [];
+            geminiModelsKey = "";
+            return;
+        }
+        if (geminiModelsLoading) {
+            return;
+        }
+        if (!force && geminiModelsKey === key && Date.now() - geminiModelsTime < 600000) {
+            return;
+        }
+        geminiModelsLoading = true;
+        var request = new XMLHttpRequest();
+        request.open("GET", "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200");
+        request.setRequestHeader("x-goog-api-key", key);
+        request.timeout = 15000;
+        request.onreadystatechange = function () {
+            if (request.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            chat.geminiModelsLoading = false;
+            if (String(chat.geminiKey).trim() !== key || request.status !== 200) {
+                return;
+            }
+            try {
+                var payload = JSON.parse(request.responseText);
+                chat.geminiModels = chat.filterGeminiModels(payload.models || []);
+                chat.geminiModelsKey = key;
+                chat.geminiModelsTime = Date.now();
+            } catch (error) {
+                console.warn("macOS Dock: unreadable Gemini model list:", error);
+            }
+        };
+        request.send();
+    }
+
+    // Choix d'un modèle Gemini dans l'interface : il devient le modèle réglé
+    // et Gemini l'IA active.
+    function setGeminiModel(id) {
+        geminiModelChosen(String(id));
+        setActiveProvider(0);
+    }
+
+    // Consignes données au modèle. La date et le nom du modèle l'empêchent de
+    // se croire dans le passé ; la dernière phrase vise l'erreur « Gemini 3.5
+    // Flash Lite n'existe pas » (le modèle ne connaissait pas des versions
+    // sorties après son entraînement, ou prétendait chercher sur internet).
+    function fullSystemPrompt(modelId, canSearch) {
+        var text = systemPrompt + " Today's date is " + Qt.formatDate(new Date(), "yyyy-MM-dd") + ".";
+        if (String(modelId).length > 0) {
+            text += " You are running as the model \"" + modelId + "\".";
+        }
+        text += " Your training data stops before today: models, products, versions and events "
+            + "released since then exist even if you have never heard of them. Never say that "
+            + "something does not exist just because you do not know it.";
+        if (canSearch) {
+            text += " You can search the web: do so for recent or uncertain facts, and only say "
+                + "you searched when you really did.";
+        } else {
+            text += " If you cannot verify something, say so, and never pretend to have searched "
+                + "the web.";
+        }
+        return text;
+    }
+
     // --- Conversations ---------------------------------------------------------
     function newId() {
         return Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36);
@@ -132,6 +329,7 @@ Item {
 
     function startNew() {
         currentId = "";
+        selectAvailableProvider();
     }
 
     function select(id) {
@@ -289,8 +487,8 @@ Item {
             finishAnswer(conversation.id, providerIndex, false, problem);
             return true;
         }
-        send(requestMessages(conversation), providerIndex, function (ok, answer) {
-            chat.finishAnswer(conversation.id, providerIndex, ok, answer);
+        send(requestMessages(conversation), providerIndex, function (ok, answer, sources) {
+            chat.finishAnswer(conversation.id, providerIndex, ok, answer, sources);
         });
         return true;
     }
@@ -314,7 +512,7 @@ Item {
         busyConversationId = "";
     }
 
-    function finishAnswer(conversationId, providerIndex, ok, answer) {
+    function finishAnswer(conversationId, providerIndex, ok, answer, sources) {
         busy = false;
         busyConversationId = "";
         var conversation = conversationById(conversationId);
@@ -326,6 +524,10 @@ Item {
             "text": String(answer),
             "time": Date.now(),
             "provider": providerIndex,
+            // Nom affiché sous la réponse (pour Gemini : avec le modèle).
+            "label": providerLabel(providerIndex),
+            // Pages citées par la recherche web : [{ title, uri }].
+            "sources": Array.isArray(sources) ? sources : [],
             "error": !ok
         });
         conversation.updated = Date.now();
@@ -356,14 +558,14 @@ Item {
 
     function send(messages, provider, done) {
         var token = ++requestToken;
-        var finish = function (ok, text) {
+        var finish = function (ok, text, sources) {
             if (token !== chat.requestToken) {
                 return;
             }
             chat.activeRequest = null;
             chat.processId = -1;
             httpTimeout.stop();
-            done(ok, text);
+            done(ok, text, sources);
         };
         if (provider === 0) {
             sendGemini(messages, finish);
@@ -419,21 +621,39 @@ Item {
                 try {
                     parsed = JSON.parse(request.responseText);
                 } catch (error) {
-                    callback(false, i18n("%1 returned an unreadable answer.", name));
+                    callback(false, i18n("%1 returned an unreadable answer.", name), request.status);
                     return;
                 }
-                callback(true, parsed);
+                callback(true, parsed, request.status);
             } else {
-                callback(false, chat.errorMessage(name, request.status, request.responseText));
+                callback(false, chat.errorMessage(name, request.status, request.responseText),
+                    request.status);
             }
         };
         httpTimeout.restart();
         request.send(JSON.stringify(body));
     }
 
+    // Pages citées par la recherche web de Gemini : [{ title, uri }].
+    function groundingSources(candidate) {
+        var chunks = candidate && candidate.groundingMetadata
+            && candidate.groundingMetadata.groundingChunks
+            ? candidate.groundingMetadata.groundingChunks : [];
+        var sources = [];
+        var seen = {};
+        for (var i = 0; i < chunks.length && sources.length < 6; ++i) {
+            var web = chunks[i] ? chunks[i].web : null;
+            if (!web || !web.uri || seen[web.uri]) {
+                continue;
+            }
+            seen[web.uri] = true;
+            sources.push({ "title": String(web.title || web.uri), "uri": String(web.uri) });
+        }
+        return sources;
+    }
+
     function sendGemini(messages, finish) {
-        var model = String(geminiModel).trim().length > 0 ? String(geminiModel).trim()
-            : "gemini-3.8-flash";
+        var model = currentGeminiModel();
         var url = "https://generativelanguage.googleapis.com/v1beta/models/"
             + encodeURIComponent(model) + ":generateContent";
         var contents = messages.map(function (message) {
@@ -442,34 +662,49 @@ Item {
                 "parts": [{ "text": message.text }]
             };
         });
-        postJson(url, { "x-goog-api-key": String(geminiKey).trim() }, {
-            "systemInstruction": { "parts": [{ "text": systemPrompt }] },
-            "contents": contents
-        }, "Gemini", function (ok, payload) {
-            if (!ok) {
-                finish(false, payload);
-                return;
+        var attempt = function (withSearch) {
+            var body = {
+                "systemInstruction": { "parts": [{ "text": chat.fullSystemPrompt(model, withSearch) }] },
+                "contents": contents
+            };
+            if (withSearch) {
+                body["tools"] = [{ "google_search": {} }];
             }
-            var text = "";
-            var candidate = payload.candidates && payload.candidates.length > 0
-                ? payload.candidates[0] : null;
-            if (candidate && candidate.content && candidate.content.parts) {
-                for (var i = 0; i < candidate.content.parts.length; ++i) {
-                    if (candidate.content.parts[i].text) {
-                        text += candidate.content.parts[i].text;
+            chat.postJson(url, { "x-goog-api-key": String(chat.geminiKey).trim() }, body,
+                    "Gemini", function (ok, payload, status) {
+                if (!ok) {
+                    // Modèle sans recherche web, ou quota de recherche atteint :
+                    // on réessaie une fois sans l'outil de recherche.
+                    if (withSearch && (status === 400 || status === 403 || status === 429)) {
+                        attempt(false);
+                        return;
+                    }
+                    finish(false, payload);
+                    return;
+                }
+                var text = "";
+                var candidate = payload.candidates && payload.candidates.length > 0
+                    ? payload.candidates[0] : null;
+                if (candidate && candidate.content && candidate.content.parts) {
+                    for (var i = 0; i < candidate.content.parts.length; ++i) {
+                        var part = candidate.content.parts[i];
+                        if (part.text && part.thought !== true) {
+                            text += part.text;
+                        }
                     }
                 }
-            }
-            if (text.trim().length === 0) {
-                var reason = payload.promptFeedback && payload.promptFeedback.blockReason
-                    ? payload.promptFeedback.blockReason : "";
-                finish(false, reason.length > 0
-                    ? i18n("Gemini blocked this request (%1).", reason)
-                    : i18n("Gemini returned an empty answer."));
-                return;
-            }
-            finish(true, text.trim());
-        });
+                if (text.trim().length === 0) {
+                    var reason = payload.promptFeedback && payload.promptFeedback.blockReason
+                        ? payload.promptFeedback.blockReason : "";
+                    finish(false, reason.length > 0
+                        ? i18n("Gemini blocked this request (%1).", reason)
+                        : i18n("Gemini returned an empty answer."));
+                    return;
+                }
+                finish(true, text.trim(), withSearch ? chat.groundingSources(candidate) : []);
+            });
+        };
+        attempt(chat.geminiWebSearch);
     }
 
     function sendOpenAi(baseUrl, key, model, name, messages, finish) {
@@ -481,7 +716,7 @@ Item {
         if (String(key).trim().length > 0) {
             headers["Authorization"] = "Bearer " + String(key).trim();
         }
-        var list = [{ "role": "system", "content": systemPrompt }];
+        var list = [{ "role": "system", "content": fullSystemPrompt(String(model).trim(), false) }];
         for (var i = 0; i < messages.length; ++i) {
             list.push({ "role": messages[i].role, "content": messages[i].text });
         }
@@ -526,7 +761,7 @@ Item {
         if (model.indexOf("/") < 0) {
             model = "opencode/" + model;
         }
-        var prompt = systemPrompt + "\n\n";
+        var prompt = fullSystemPrompt(model, false) + "\n\n";
         if (messages.length === 1) {
             prompt += messages[0].text;
         } else {

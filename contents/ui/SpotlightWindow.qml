@@ -150,6 +150,11 @@ Window {
         glassTheme = glassBlur.theme();
         moreMenu.close();
         contextMenu.close();
+        // Une animation d'agrandissement interrompue ne doit rien laisser derrière elle.
+        expandAnimation.stop();
+        panelSurface.scale = 1;
+        panelSurface.opacity = 1;
+        barSurface.opacity = 1;
         refreshApps();
         aiView = false;
         query = initialText !== undefined ? String(initialText) : "";
@@ -172,7 +177,20 @@ Window {
     function closeSpotlight() {
         moreMenu.close();
         contextMenu.close();
+        expandAnimation.stop();
         visible = false;
+    }
+
+    // Agrandit la conversation du panneau vers l'application Siri IA : le
+    // panneau grossit en s'estompant, puis le Spotlight se ferme et la fenêtre
+    // de Siri IA apparaît en grossissant à son tour (voir SiriWindow).
+    function expandToAssistant() {
+        if (!assistantEnabled || expandAnimation.running) {
+            return;
+        }
+        moreMenu.close();
+        contextMenu.close();
+        expandAnimation.restart();
     }
 
     function toggleSpotlight() {
@@ -197,6 +215,39 @@ Window {
             if (backend) {
                 backend.cancelFileSearch();
             }
+        }
+    }
+
+    ParallelAnimation {
+        id: expandAnimation
+
+        NumberAnimation {
+            target: panelSurface
+            property: "scale"
+            to: 1.12
+            duration: 190
+            easing.type: Easing.InOutCubic
+        }
+
+        NumberAnimation {
+            target: panelSurface
+            property: "opacity"
+            to: 0
+            duration: 190
+            easing.type: Easing.InCubic
+        }
+
+        NumberAnimation {
+            target: barSurface
+            property: "opacity"
+            to: 0
+            duration: 130
+            easing.type: Easing.OutCubic
+        }
+
+        onFinished: {
+            win.closeSpotlight();
+            win.assistantRequested(false);
         }
     }
 
@@ -769,8 +820,12 @@ Window {
             closeSpotlight();
             assistantRequested(true);
         } else if (id === "openchat") {
-            closeSpotlight();
-            assistantRequested(false);
+            if (aiView) {
+                expandToAssistant();
+            } else {
+                closeSpotlight();
+                assistantRequested(false);
+            }
         } else if (id === "settings") {
             closeSpotlight();
             settingsRequested();
@@ -1842,7 +1897,7 @@ Window {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: win.chat ? win.chat.providerName(win.chat.activeProvider) : ""
+                        text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
                         font.pixelSize: 14
                         font.weight: Font.DemiBold
                         color: Qt.rgba(1, 1, 1, 0.85)
@@ -1874,10 +1929,7 @@ Window {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            win.closeSpotlight();
-                            win.assistantRequested(false);
-                        }
+                        onClicked: win.expandToAssistant()
                     }
                 }
 

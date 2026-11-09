@@ -1455,3 +1455,18 @@ msgstr "Jeder Teil des Rands übernimmt die Farbe dessen, was dahinter liegt: Is
 
 msgid "Darken background:"
 msgstr "Hintergrund abdunkeln:"
+
+msgid "No AI available"
+msgstr "Keine KI verfügbar"
+
+msgid "Sources:"
+msgstr "Quellen:"
+
+msgid "Web search:"
+msgstr "Websuche:"
+
+msgid "Let Gemini search the web (Google Search)"
+msgstr "Gemini darf im Web suchen (Google Search)"
+
+msgid "Without web search, Gemini only knows what it learned during training and may wrongly claim that a recent model or product does not exist. With it, Gemini looks things up before answering and lists the pages it used. The free tier limits the number of searches per day."
+msgstr "Ohne Websuche kennt Gemini nur, was es im Training gelernt hat, und behauptet unter Umständen fälschlich, ein neues Modell oder Produkt existiere nicht. Mit ihr recherchiert Gemini vor der Antwort im Web und nennt die verwendeten Seiten. Das kostenlose Kontingent begrenzt die Suchen pro Tag."
