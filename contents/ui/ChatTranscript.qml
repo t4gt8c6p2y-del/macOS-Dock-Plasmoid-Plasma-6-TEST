@@ -57,9 +57,11 @@ ListView {
         readonly property bool isUser: modelData.role === "user"
         readonly property bool isError: modelData.error === true
         readonly property var sourceList: Array.isArray(modelData.sources) ? modelData.sources : []
+        readonly property var queryList: Array.isArray(modelData.queries) ? modelData.queries : []
+        readonly property var attachedList: Array.isArray(modelData.attached) ? modelData.attached : []
 
         width: view.width - view.leftMargin - view.rightMargin
-        height: isUser ? userBubble.height : assistantColumn.height
+        height: isUser ? userColumn.height : assistantColumn.height
 
         // Largeur naturelle (sur une ligne) du texte de la question.
         Text {
@@ -70,30 +72,49 @@ ListView {
             font.pixelSize: view.textSize
         }
 
-        Rectangle {
-            id: userBubble
+        Column {
+            id: userColumn
 
             visible: row.isUser
             anchors.right: parent.right
             width: Math.min(row.width * 0.82, userMeasure.implicitWidth + 28)
-            height: userText.contentHeight + 20
-            radius: 18
-            color: view.accent
+            spacing: 4
 
-            TextEdit {
-                id: userText
+            Rectangle {
+                id: userBubble
 
-                x: 14
-                y: 10
-                width: userBubble.width - 28
-                readOnly: true
-                selectByMouse: true
-                wrapMode: TextEdit.Wrap
-                text: row.isUser ? row.modelData.text : ""
-                font.pixelSize: view.textSize
-                color: "white"
-                selectionColor: Qt.rgba(1, 1, 1, 0.35)
-                selectedTextColor: "white"
+                width: parent.width
+                height: userText.contentHeight + 20
+                radius: 18
+                color: view.accent
+
+                TextEdit {
+                    id: userText
+
+                    x: 14
+                    y: 10
+                    width: userBubble.width - 28
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.Wrap
+                    text: row.isUser ? row.modelData.text : ""
+                    font.pixelSize: view.textSize
+                    color: "white"
+                    selectionColor: Qt.rgba(1, 1, 1, 0.35)
+                    selectedTextColor: "white"
+                }
+            }
+
+            // Dossiers et fichiers joints à cette question.
+            Text {
+                visible: row.attachedList.length > 0
+                anchors.right: parent.right
+                width: Math.min(implicitWidth, row.width * 0.82)
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideLeft
+                text: i18n("Attached: %1", row.attachedList.join(", "))
+                font.pixelSize: 12
+                color: Qt.rgba(1, 1, 1, 0.42)
             }
         }
 
@@ -153,6 +174,26 @@ ListView {
                         }
                     }
                 }
+            }
+
+            // Recherches réellement faites par Gemini sur le web.
+            Text {
+                visible: !row.isError && row.queryList.length > 0
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: i18n("Web search: %1", row.queryList.join(" · "))
+                font.pixelSize: 12
+                color: Qt.rgba(1, 1, 1, 0.42)
+            }
+
+            // Recherche forcée, mais Gemini a répondu sans chercher.
+            Text {
+                visible: !row.isError && row.modelData.noSearch === true
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: i18n("Gemini did not run a web search for this answer: it may come from memory and be out of date.")
+                font.pixelSize: 12
+                color: "#FFB454"
             }
 
             Row {

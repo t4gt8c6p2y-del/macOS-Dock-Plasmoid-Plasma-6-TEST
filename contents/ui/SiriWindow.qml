@@ -36,6 +36,7 @@ Window {
     readonly property real normalHeight: Math.min(620, screenHeight - 60)
     readonly property real sidebarWidth: 280
     readonly property real titleBarHeight: 52
+    readonly property real cornerRadius: 14
 
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
@@ -97,12 +98,145 @@ Window {
         showMinimized();
     }
 
+    // Agrandir / restaurer avec animation. Le compositeur change la taille de
+    // la fenêtre d'un coup : on garde donc une photo de l'ancienne fenêtre
+    // (« snapshot »), posée par-dessus, qui grandit (ou rétrécit) depuis le
+    // centre jusqu'à la nouvelle taille en s'estompant, pendant que le vrai
+    // contenu, déjà à la bonne taille, apparaît dessous.
+    property bool zooming: false
+    property bool zoomStarted: false
+    property bool zoomPlaying: false
+    property bool zoomGrowing: true
+    property real zoomFromWidth: 0
+    property real zoomFromHeight: 0
+
     function toggleMaximize() {
         menu.close();
-        if (maximized) {
-            showNormal();
-        } else {
-            showMaximized();
+        var growing = !maximized;
+        if (zooming || !visible || visibility === Window.Minimized) {
+            // Déjà en cours (ou fenêtre cachée) : changement direct.
+            if (growing) {
+                showMaximized();
+            } else {
+                showNormal();
+            }
+            return;
+        }
+        appear.stop();
+        frame.scale = 1;
+        frame.opacity = 1;
+        zoomGrowing = growing;
+        zoomFromWidth = frame.width;
+        zoomFromHeight = frame.height;
+        zoomPlaying = false;
+        zoomStarted = false;
+        zooming = true;
+        snapshot.textureSize = Qt.size(Math.max(1, zoomFromWidth), Math.max(1, zoomFromHeight));
+        snapshot.sourceRect = Qt.rect(0, 0, zoomFromWidth, zoomFromHeight);
+        snapshot.width = zoomFromWidth;
+        snapshot.height = zoomFromHeight;
+        snapshot.opacity = 1;
+        snapshot.visible = true;
+        snapshot.scheduleUpdate();
+        // Laisse un rendu photographier la fenêtre avant que KWin la change.
+        zoomStart.restart();
+    }
+
+    function playZoom() {
+        if (!zooming || zoomPlaying) {
+            return;
+        }
+        zoomPlaying = true;
+        zoomGuard.stop();
+        zoomAnimation.restart();
+    }
+
+    function endZoom() {
+        zooming = false;
+        zoomStarted = false;
+        zoomPlaying = false;
+        snapshot.visible = false;
+        snapshot.opacity = 1;
+    }
+
+    Timer {
+        id: zoomStart
+
+        interval: 45
+        onTriggered: {
+            win.zoomStarted = true;
+            if (win.zoomGrowing) {
+                win.showMaximized();
+            } else {
+                win.showNormal();
+            }
+            // Si la taille ne change finalement pas : on ne reste pas bloqué.
+            zoomGuard.restart();
+        }
+    }
+
+    Timer {
+        id: zoomGuard
+
+        interval: 500
+        onTriggered: win.playZoom()
+    }
+
+    // Les changements de taille arrivent en deux temps (largeur, hauteur) :
+    // on attend qu'ils se stabilisent avant de lancer l'animation.
+    Timer {
+        id: zoomSettle
+
+        interval: 30
+        onTriggered: win.playZoom()
+    }
+
+    onWidthChanged: {
+        if (zooming && zoomStarted && !zoomPlaying) {
+            zoomSettle.restart();
+        }
+    }
+
+    onHeightChanged: {
+        if (zooming && zoomStarted && !zoomPlaying) {
+            zoomSettle.restart();
+        }
+    }
+
+    ParallelAnimation {
+        id: zoomAnimation
+
+        onFinished: win.endZoom()
+
+        NumberAnimation {
+            target: snapshot
+            property: "width"
+            from: win.zoomFromWidth
+            to: win.width
+            duration: 380
+            easing.type: Easing.OutQuart
+        }
+
+        NumberAnimation {
+            target: snapshot
+            property: "height"
+            from: win.zoomFromHeight
+            to: win.height
+            duration: 380
+            easing.type: Easing.OutQuart
+        }
+
+        SequentialAnimation {
+            PauseAnimation { duration: 90 }
+
+            NumberAnimation {
+                target: snapshot
+                property: "opacity"
+                from: 1
+                to: 0
+                duration: 290
+                easing.type: Easing.InOutQuad
+            }
         }
     }
 
@@ -169,7 +303,9 @@ Window {
             return;
         }
         input.text = "";
-        chat.ask(text, chat.activeProvider);
+        chat.ask(text, chat.activeProvider, {
+            "forceSearch": chat.forceSearch && chat.activeProvider === 0
+        });
     }
 
     function dateLabel(milliseconds) {
@@ -194,7 +330,7 @@ Window {
     }
 
     // --- Menus ------------------------------------------------------------------
-    // 0 = fournisseurs, 1 = conversation (clic droit)
+    // 0 = fournisseurs, 1 = conversation (clic droit), 2 = pièces jointes
     property int menuKind: 0
 
     // Menu de l'IA : seules les IA utilisables y figurent (clé API renseignée,
@@ -238,6 +374,120 @@ Window {
         menu.openAt(anchor.x, anchor.y, true);
     }
 
+    // --- Dossiers et fichiers donnés à l'IA ---------------------------------------
+    property string pendingPick: ""
+    property int pickProcess: -1
+    property string pickKind: ""
+    property string attachNotice: ""
+
+    function openAttachMenu() {
+        if (!chat) {
+            return;
+        }
+        menuKind = 2;
+        var entries = [
+            { "id": "attach-folder", "text": i18n("Add a folder…"), "glyph": "folder" },
+            { "id": "attach-files", "text": i18n("Add files…"), "glyph": "attach" }
+        ];
+        if (chat.attachments.length > 0) {
+            entries.push({ "separator": true });
+            entries.push({ "id": "attach-clear", "text": i18n("Remove all attachments"),
+                "glyph": "trash" });
+        }
+        menu.entries = entries;
+        var anchor = attachButton.mapToItem(null, 0, attachButton.height + 6);
+        menu.openAt(anchor.x, anchor.y, false);
+    }
+
+    function pickAttachment(kind) {
+        pendingPick = kind;
+        if (pickerLoader.status === Loader.Ready) {
+            if (kind === "folder") {
+                pickerLoader.item.openFolder();
+            } else {
+                pickerLoader.item.openFiles();
+            }
+        } else if (pickerLoader.status === Loader.Error) {
+            pickExternally(kind);
+        } else {
+            pickerLoader.active = true;
+        }
+    }
+
+    // Repli quand QtQuick.Dialogs n'est pas installé : kdialog (KDE).
+    function pickExternally(kind) {
+        if (!backend) {
+            return;
+        }
+        pickKind = kind;
+        pickProcess = backend.runProcess("kdialog", kind === "folder"
+            ? ["--getexistingdirectory"]
+            : ["--getopenfilename", "--multiple", "--separate-output"], 600000);
+    }
+
+    function showAttachNotice(text) {
+        attachNotice = text;
+        attachNoticeTimer.restart();
+    }
+
+    Timer {
+        id: attachNoticeTimer
+
+        interval: 6000
+        onTriggered: win.attachNotice = ""
+    }
+
+    Loader {
+        id: pickerLoader
+
+        active: false
+        source: "AttachPicker.qml"
+        onLoaded: win.pickAttachment(win.pendingPick)
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                win.pickExternally(win.pendingPick);
+            }
+        }
+    }
+
+    Connections {
+        target: pickerLoader.item
+        ignoreUnknownSignals: true
+
+        function onPicked(location, isDir) {
+            if (win.chat && !win.chat.addAttachment(location, isDir)
+                    && win.chat.attachments.length >= win.chat.maxAttachments) {
+                win.showAttachNotice(i18n("You can attach up to %1 items.", win.chat.maxAttachments));
+            }
+        }
+    }
+
+    Connections {
+        target: win.backend
+        ignoreUnknownSignals: true
+
+        function onProcessFinished(id, exitCode, standardOutput, standardError, timedOut) {
+            if (id !== win.pickProcess) {
+                return;
+            }
+            win.pickProcess = -1;
+            if (exitCode !== 0 && String(standardOutput).trim().length === 0) {
+                // 1 = dialogue annulé par l'utilisateur ; autre : kdialog absent.
+                if (exitCode !== 1) {
+                    win.showAttachNotice(i18n("Could not open a file picker."));
+                }
+                return;
+            }
+            var lines = String(standardOutput).split("\n");
+            for (var i = 0; i < lines.length; ++i) {
+                var path = lines[i].trim();
+                if (path.length > 0 && win.chat) {
+                    win.chat.addAttachment(path, win.pickKind === "folder");
+                }
+            }
+        }
+    }
+
     function openConversationMenu(conversationId, sceneX, sceneY) {
         menuKind = 1;
         contextConversation = conversationId;
@@ -260,6 +510,18 @@ Window {
                 chat.setActiveProvider(Number(id.substring(8)));
             } else if (id === "settings") {
                 settingsRequested();
+            }
+        } else if (menuKind === 2) {
+            if (id === "attach-folder") {
+                pickAttachment("folder");
+                return;
+            } else if (id === "attach-files") {
+                pickAttachment("files");
+                return;
+            } else if (id === "attach-clear") {
+                while (chat.attachments.length > 0) {
+                    chat.removeAttachment(chat.attachments.length - 1);
+                }
             }
         } else if (id === "pin") {
             chat.togglePin(contextConversation);
@@ -287,16 +549,16 @@ Window {
     }
 
     // --- Interface ----------------------------------------------------------------------
-    // Fond noir (plus de verre ni de flou). Coins arrondis et fin liseré tant
-    // que la fenêtre n'est pas maximisée.
+    // Fond noir (plus de verre ni de flou). Coins arrondis tant que la fenêtre
+    // n'est pas maximisée. Le contour est dessiné par-dessus (voir les deux
+    // « liserés » en bas de ce rectangle) et non plus comme bordure du fond :
+    // un trait net sur chaque bord, sans bande ni coin coupé.
     Rectangle {
         id: frame
 
         anchors.fill: parent
-        radius: win.maximized ? 0 : 18
+        radius: win.maximized ? 0 : win.cornerRadius
         color: "#000000"
-        border.width: win.maximized ? 0 : 1
-        border.color: Qt.rgba(1, 1, 1, 0.16)
         antialiasing: true
 
         Keys.onEscapePressed: win.closeSiri()
@@ -743,7 +1005,7 @@ Window {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.bottom: inputBar.top
+                anchors.bottom: attachStrip.top
                 anchors.leftMargin: 20
                 anchors.rightMargin: 20
                 anchors.bottomMargin: 8
@@ -757,6 +1019,95 @@ Window {
                     if (win.backend) {
                         win.backend.setClipboardText(text);
                     }
+                }
+            }
+
+            // Dossiers et fichiers donnés à l'IA (pastilles), et message éventuel.
+            Flow {
+                id: attachStrip
+
+                readonly property bool shown: (!!win.chat && win.chat.attachments.length > 0)
+                    || win.attachNotice.length > 0
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: inputBar.top
+                anchors.leftMargin: 22
+                anchors.rightMargin: 22
+                anchors.bottomMargin: shown ? 8 : 0
+                height: shown ? implicitHeight : 0
+                visible: shown
+                spacing: 6
+
+                Repeater {
+                    model: win.chat ? win.chat.attachments : []
+
+                    delegate: Rectangle {
+                        id: chip
+
+                        required property var modelData
+                        required property int index
+
+                        height: 26
+                        width: chipContent.implicitWidth + 22
+                        radius: 13
+                        color: Qt.rgba(1, 1, 1, 0.12)
+
+                        Row {
+                            id: chipContent
+
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            SpotlightGlyph {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: chip.modelData.isDir ? "folder" : "files"
+                                size: 14
+                                lineWidth: 1.8
+                                color: Qt.rgba(1, 1, 1, 0.78)
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, 180)
+                                elide: Text.ElideMiddle
+                                text: chip.modelData.name
+                                font.pixelSize: 12
+                                color: Qt.rgba(1, 1, 1, 0.9)
+                            }
+
+                            SpotlightGlyph {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: "close"
+                                size: 11
+                                lineWidth: 2.2
+                                color: removeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.5)
+
+                                MouseArea {
+                                    id: removeMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -5
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (win.chat) {
+                                            win.chat.removeAttachment(chip.index);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    visible: win.attachNotice.length > 0
+                    height: 26
+                    verticalAlignment: Text.AlignVCenter
+                    text: win.attachNotice
+                    font.pixelSize: 12
+                    color: "#FFB454"
                 }
             }
 
@@ -776,12 +1127,46 @@ Window {
                 border.width: 1
                 border.color: Qt.rgba(1, 1, 1, input.activeFocus ? 0.3 : 0.14)
 
+                // Boutons à gauche : joindre un dossier / forcer la recherche web.
+                Row {
+                    id: toolRow
+
+                    x: 9
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 9
+                    spacing: 6
+
+                    InputTool {
+                        id: attachButton
+
+                        glyph: "folderPlus"
+                        active: !!win.chat && win.chat.attachments.length > 0
+                        tip: i18n("Give a folder or files to the AI")
+                        onClicked: win.openAttachMenu()
+                    }
+
+                    // La recherche web intégrée n'existe que pour Gemini.
+                    InputTool {
+                        glyph: "globe"
+                        visible: !!win.chat && win.chat.activeProvider === 0
+                        active: !!win.chat && win.chat.forceSearch
+                        tip: win.chat && win.chat.forceSearch
+                            ? i18n("Web search forced (click to turn off)")
+                            : i18n("Force web search")
+                        onClicked: {
+                            if (win.chat) {
+                                win.chat.forceSearch = !win.chat.forceSearch;
+                            }
+                        }
+                    }
+                }
+
                 TextEdit {
                     id: input
 
-                    x: 18
+                    x: toolRow.x + toolRow.width + 12
                     y: 12
-                    width: parent.width - 18 - 56
+                    width: parent.width - x - 56
                     height: parent.height - 24
                     wrapMode: TextEdit.Wrap
                     color: "white"
@@ -860,6 +1245,98 @@ Window {
             }
         }
 
+        // Liseré extérieur : un trait sombre sur le bord même de la fenêtre,
+        // qui la détache d'un fond clair.
+        Rectangle {
+            anchors.fill: parent
+            z: 40
+            visible: !win.maximized
+            radius: win.cornerRadius
+            color: "transparent"
+            border.width: 1
+            border.color: Qt.rgba(0, 0, 0, 0.6)
+            antialiasing: true
+        }
+
+        // Liseré intérieur : un trait clair, un pixel plus loin, sur un fond sombre.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            z: 41
+            visible: !win.maximized
+            radius: Math.max(0, win.cornerRadius - 1)
+            color: "transparent"
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.16)
+            antialiasing: true
+        }
+    }
+
+    // Photo de l'ancienne fenêtre pendant l'animation d'agrandissement.
+    ShaderEffectSource {
+        id: snapshot
+
+        anchors.centerIn: parent
+        sourceItem: frame
+        live: false
+        visible: false
+        smooth: true
+        z: 50
+    }
+
+    // Petit bouton rond de la zone de saisie, avec une bulle d'aide au survol.
+    component InputTool: Rectangle {
+        id: tool
+
+        property string glyph: ""
+        property bool active: false
+        property string tip: ""
+
+        signal clicked()
+
+        width: 30
+        height: 30
+        radius: 15
+        color: active ? win.accent : Qt.rgba(1, 1, 1, toolMouse.containsMouse ? 0.22 : 0.1)
+
+        SpotlightGlyph {
+            anchors.centerIn: parent
+            kind: tool.glyph
+            size: 17
+            lineWidth: 1.9
+            color: tool.active ? "white" : Qt.rgba(1, 1, 1, 0.85)
+        }
+
+        MouseArea {
+            id: toolMouse
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tool.clicked()
+        }
+
+        Rectangle {
+            visible: toolMouse.containsMouse && tool.tip.length > 0
+            x: 0
+            y: -height - 8
+            z: 10
+            width: tipText.implicitWidth + 20
+            height: 26
+            radius: 8
+            color: Qt.rgba(0.13, 0.13, 0.15, 0.97)
+            border.width: 1
+            border.color: Qt.rgba(1, 1, 1, 0.14)
+
+            Text {
+                id: tipText
+
+                anchors.centerIn: parent
+                text: tool.tip
+                font.pixelSize: 12
+                color: Qt.rgba(1, 1, 1, 0.9)
+            }
+        }
     }
 
     // --- Redimensionnement ---------------------------------------------------------

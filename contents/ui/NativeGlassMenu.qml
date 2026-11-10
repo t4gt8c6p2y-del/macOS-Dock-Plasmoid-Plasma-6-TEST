@@ -31,6 +31,8 @@ QtObject {
         "copy": "edit-copy",
         "trash": "edit-delete",
         "pin": "pin",
+        "folder": "folder",
+        "attach": "document-open",
         "search": "edit-find"
     })
 

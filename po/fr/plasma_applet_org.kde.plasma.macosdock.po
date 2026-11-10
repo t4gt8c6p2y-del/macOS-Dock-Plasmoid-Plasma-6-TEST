@@ -1472,3 +1472,42 @@ msgstr "Autoriser Gemini à chercher sur le web (Google Search)"
 
 msgid "Without web search, Gemini only knows what it learned during training and may wrongly claim that a recent model or product does not exist. With it, Gemini looks things up before answering and lists the pages it used. The free tier limits the number of searches per day."
 msgstr "Sans la recherche web, Gemini ne connaît que ce qu’il a appris à l’entraînement et peut affirmer à tort qu’un modèle ou un produit récent n’existe pas. Avec elle, Gemini vérifie sur le web avant de répondre et indique les pages utilisées. L’offre gratuite limite le nombre de recherches par jour."
+
+msgid "Add a folder…"
+msgstr "Ajouter un dossier…"
+
+msgid "Add files…"
+msgstr "Ajouter des fichiers…"
+
+msgid "Attached: %1"
+msgstr "Joint : %1"
+
+msgid "Choose a folder for the AI"
+msgstr "Choisir un dossier pour l’IA"
+
+msgid "Choose files for the AI"
+msgstr "Choisir des fichiers pour l’IA"
+
+msgid "Could not open a file picker."
+msgstr "Impossible d’ouvrir le sélecteur de fichiers."
+
+msgid "Force web search"
+msgstr "Forcer la recherche web"
+
+msgid "Gemini did not run a web search for this answer: it may come from memory and be out of date."
+msgstr "Gemini n’a pas fait de recherche web pour cette réponse : elle peut venir de sa mémoire et être périmée."
+
+msgid "Give a folder or files to the AI"
+msgstr "Donner un dossier ou des fichiers à l’IA"
+
+msgid "Remove all attachments"
+msgstr "Retirer toutes les pièces jointes"
+
+msgid "Web search forced (click to turn off)"
+msgstr "Recherche web forcée (cliquer pour désactiver)"
+
+msgid "Web search: %1"
+msgstr "Recherche web : %1"
+
+msgid "You can attach up to %1 items."
+msgstr "Vous pouvez joindre jusqu’à %1 éléments."

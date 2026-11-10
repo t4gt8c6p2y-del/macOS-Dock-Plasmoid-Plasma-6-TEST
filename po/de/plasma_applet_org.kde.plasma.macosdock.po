@@ -1470,3 +1470,42 @@ msgstr "Gemini darf im Web suchen (Google Search)"
 
 msgid "Without web search, Gemini only knows what it learned during training and may wrongly claim that a recent model or product does not exist. With it, Gemini looks things up before answering and lists the pages it used. The free tier limits the number of searches per day."
 msgstr "Ohne Websuche kennt Gemini nur, was es im Training gelernt hat, und behauptet unter Umständen fälschlich, ein neues Modell oder Produkt existiere nicht. Mit ihr recherchiert Gemini vor der Antwort im Web und nennt die verwendeten Seiten. Das kostenlose Kontingent begrenzt die Suchen pro Tag."
+
+msgid "Add a folder…"
+msgstr "Ordner hinzufügen…"
+
+msgid "Add files…"
+msgstr "Dateien hinzufügen…"
+
+msgid "Attached: %1"
+msgstr "Angehängt: %1"
+
+msgid "Choose a folder for the AI"
+msgstr "Ordner für die KI auswählen"
+
+msgid "Choose files for the AI"
+msgstr "Dateien für die KI auswählen"
+
+msgid "Could not open a file picker."
+msgstr "Dateiauswahl konnte nicht geöffnet werden."
+
+msgid "Force web search"
+msgstr "Websuche erzwingen"
+
+msgid "Gemini did not run a web search for this answer: it may come from memory and be out of date."
+msgstr "Gemini hat für diese Antwort keine Websuche durchgeführt: Sie kann aus dem Gedächtnis stammen und veraltet sein."
+
+msgid "Give a folder or files to the AI"
+msgstr "Ordner oder Dateien an die KI geben"
+
+msgid "Remove all attachments"
+msgstr "Alle Anhänge entfernen"
+
+msgid "Web search forced (click to turn off)"
+msgstr "Websuche erzwungen (zum Ausschalten klicken)"
+
+msgid "Web search: %1"
+msgstr "Websuche: %1"
+
+msgid "You can attach up to %1 items."
+msgstr "Sie können bis zu %1 Elemente anhängen."

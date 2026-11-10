@@ -88,6 +88,14 @@ Item {
     // --- État ------------------------------------------------------------------
     property var conversations: []
     property string currentId: ""
+    // Bouton « recherche web » de Siri IA : tant qu'il est enfoncé, Gemini doit
+    // chercher sur le web avant chaque réponse (sinon il décide lui-même, et
+    // répond souvent de mémoire, donc avec des informations arrêtées à la date
+    // de son entraînement).
+    property bool forceSearch: false
+    // Dossiers et fichiers joints à la conversation : [{ path, name, isDir }].
+    // Leur contenu est relu à chaque question, jamais enregistré.
+    property var attachments: []
     property bool busy: false
     property string busyConversationId: ""
 
@@ -287,8 +295,9 @@ Item {
     // se croire dans le passé ; la dernière phrase vise l'erreur « Gemini 3.5
     // Flash Lite n'existe pas » (le modèle ne connaissait pas des versions
     // sorties après son entraînement, ou prétendait chercher sur internet).
-    function fullSystemPrompt(modelId, canSearch) {
-        var text = systemPrompt + " Today's date is " + Qt.formatDate(new Date(), "yyyy-MM-dd") + ".";
+    function fullSystemPrompt(modelId, canSearch, forced) {
+        var today = Qt.formatDate(new Date(), "yyyy-MM-dd");
+        var text = systemPrompt + " Today's date is " + today + ".";
         if (String(modelId).length > 0) {
             text += " You are running as the model \"" + modelId + "\".";
         }
@@ -298,11 +307,27 @@ Item {
         if (canSearch) {
             text += " You can search the web: do so for recent or uncertain facts, and only say "
                 + "you searched when you really did.";
+            if (forced) {
+                text += " The user turned on forced web search: search the web before every "
+                    + "answer, even when you think you know it, and prefer the newest sources "
+                    + "(from the last months before " + today + "). Never answer from memory alone.";
+            }
         } else {
             text += " If you cannot verify something, say so, and never pretend to have searched "
                 + "the web.";
         }
         return text;
+    }
+
+    // Consigne ajoutée à la dernière question quand la recherche est forcée.
+    function searchDirective(retry) {
+        var today = Qt.formatDate(new Date(), "yyyy-MM-dd");
+        return retry
+            ? "[You did not use Google Search. Call the Google Search tool now, then answer "
+              + "from the results. Today is " + today + ": look for the most recent information.]"
+            : "[Use Google Search now to answer this, even if you think you know the answer. "
+              + "Today is " + today + ": look for the most recent information and sources, not "
+              + "only older material. Answer in the language of the question.]";
     }
 
     // --- Conversations ---------------------------------------------------------
@@ -329,7 +354,143 @@ Item {
 
     function startNew() {
         currentId = "";
+        attachments = [];
         selectAvailableProvider();
+    }
+
+    // Changer de conversation change aussi les dossiers joints.
+    onCurrentIdChanged: {
+        var conversation = conversationById(currentId);
+        attachments = conversation && Array.isArray(conversation.attachments)
+            ? conversation.attachments.slice() : [];
+    }
+
+    // --- Dossiers et fichiers joints ---------------------------------------------
+    readonly property int maxAttachments: 8
+    // Texte maximal envoyé au modèle pour l'ensemble des pièces jointes.
+    readonly property int attachmentBudget: 160000
+
+    function attachmentName(path) {
+        var parts = String(path).replace(/\/+$/, "").split("/");
+        var name = parts[parts.length - 1];
+        return name.length > 0 ? name : String(path);
+    }
+
+    // Accepte un chemin ou une adresse file:// (celle des boîtes de dialogue).
+    function addAttachment(location, isDir) {
+        var path = String(location);
+        if (path.indexOf("file://") === 0) {
+            path = decodeURIComponent(path.substring(7));
+        }
+        path = path.length > 1 ? path.replace(/\/+$/, "") : path;
+        if (path.length === 0 || attachments.length >= maxAttachments) {
+            return false;
+        }
+        for (var i = 0; i < attachments.length; ++i) {
+            if (attachments[i].path === path) {
+                return false;
+            }
+        }
+        attachments = attachments.concat([{
+            "path": path,
+            "name": attachmentName(path),
+            "isDir": Boolean(isDir)
+        }]);
+        syncAttachments();
+        return true;
+    }
+
+    function removeAttachment(index) {
+        if (index < 0 || index >= attachments.length) {
+            return;
+        }
+        var list = attachments.slice();
+        list.splice(index, 1);
+        attachments = list;
+        syncAttachments();
+    }
+
+    // La liste suit la conversation en cours (elle est enregistrée avec elle).
+    function syncAttachments() {
+        var conversation = conversationById(currentId);
+        if (conversation) {
+            conversation.attachments = attachments.slice();
+            touch();
+        }
+    }
+
+    // Script lu par « sh » : $1 = chemin, $2 = nombre maximal d'octets. Il
+    // décrit un dossier (arborescence puis contenu des fichiers texte, sans
+    // fichiers cachés, clés ni secrets) ou lit un fichier (texte, ou PDF si
+    // pdftotext est installé). Le chemin est un argument : jamais interprété.
+    readonly property string readScript: [
+        'p="$1"; limit="$2"',
+        'prune="-name .git -o -name node_modules -o -name __pycache__ -o -name .cache -o -name build -o -name dist -o -name target -o -name .venv"',
+        'is_text() { case "$1" in *.pdf|*.PDF) command -v pdftotext >/dev/null 2>&1;; *) [ -s "$1" ] && grep -Iq . "$1" 2>/dev/null;; esac; }',
+        'show() { case "$1" in *.pdf|*.PDF) pdftotext -l 40 -layout "$1" - 2>/dev/null | head -c 40000;; *) head -c 40000 "$1";; esac; }',
+        'if [ -d "$p" ]; then',
+        '  echo "[folder] $p"; echo "Structure:"',
+        '  find "$p" -maxdepth 4 \\( $prune \\) -prune -o -type d -printf "%P/\\n" -o -type f -printf "%P\\n" 2>/dev/null | head -300',
+        '  echo; echo "Files:"',
+        '  find "$p" -maxdepth 4 \\( $prune \\) -prune -o -type f -size -400k -print 2>/dev/null | sort | head -120 | while IFS= read -r f; do',
+        '    rel="${f#"$p"/}"',
+        '    case "/$rel" in */.*|*.pem|*.key|*id_rsa*|*id_ed25519*|*.p12|*.pfx|*.kdbx|*secret*|*.env|*password*) continue;; esac',
+        '    is_text "$f" || continue',
+        '    printf "\\n--- %s ---\\n" "$rel"; show "$f"',
+        '  done | head -c "$limit"',
+        'elif [ -f "$p" ]; then',
+        '  echo "[file] $p"',
+        '  if is_text "$p"; then show "$p" | head -c "$limit"; else echo "(binary or empty file: content not readable)"; fi',
+        'else',
+        '  echo "(not found: $p)"',
+        'fi'
+    ].join("\n")
+
+    property var readJobs: ({})
+    property var readState: null
+
+    // Lit les pièces jointes (un processus chacune) puis appelle done(texte).
+    function loadAttachments(list, done) {
+        if (!backend || list.length === 0) {
+            done("");
+            return;
+        }
+        var limit = Math.floor(attachmentBudget / list.length);
+        var state = { "results": [], "pending": list.length, "done": done, "ids": [] };
+        readState = state;
+        for (var i = 0; i < list.length; ++i) {
+            var id = backend.runProcess("sh", ["-c", readScript, "sh", list[i].path, String(limit)], 30000);
+            readJobs[id] = { "state": state, "item": list[i], "limit": limit, "index": i };
+            state.ids.push(id);
+        }
+    }
+
+    function readFinished(job, standardOutput, timedOut) {
+        var state = job.state;
+        var text = String(standardOutput);
+        if (timedOut) {
+            text += "\n(reading stopped: too slow)";
+        } else if (text.length >= job.limit - 100) {
+            text += "\n[…truncated]";
+        }
+        state.results[job.index] = "<attachment path=\"" + job.item.path + "\" kind=\""
+            + (job.item.isDir ? "folder" : "file") + "\">\n" + text.trim() + "\n</attachment>";
+        if (--state.pending === 0 && readState === state) {
+            readState = null;
+            state.done("The user attached the following folders and files from their computer. "
+                + "They were read just now (long ones are truncated). Use them when relevant.\n\n"
+                + state.results.join("\n\n") + "\n\n---\nUser question:\n");
+        }
+    }
+
+    function abortReads() {
+        if (readState && backend) {
+            for (var i = 0; i < readState.ids.length; ++i) {
+                delete readJobs[readState.ids[i]];
+                backend.abortProcess(readState.ids[i]);
+            }
+        }
+        readState = null;
     }
 
     function select(id) {
@@ -451,8 +612,9 @@ Item {
     Component.onDestruction: saveNow()
 
     // --- Questions ----------------------------------------------------------------
-    function ask(text, provider) {
+    function ask(text, provider, options) {
         var question = String(text).trim();
+        var forced = Boolean(options && options.forceSearch);
         if (question.length === 0 || busy) {
             return false;
         }
@@ -465,16 +627,22 @@ Item {
                 "created": Date.now(),
                 "updated": Date.now(),
                 "pinned": false,
+                "attachments": attachments.slice(),
                 "messages": []
             };
             conversations = [conversation].concat(conversations);
             currentId = conversation.id;
         }
+        var joined = attachments.slice();
+        conversation.attachments = joined;
         conversation.messages.push({
             "role": "user",
             "text": question,
             "time": Date.now(),
-            "provider": providerIndex
+            "provider": providerIndex,
+            "attached": joined.map(function (item) {
+                return item.name;
+            })
         });
         conversation.updated = Date.now();
         touch();
@@ -487,14 +655,22 @@ Item {
             finishAnswer(conversation.id, providerIndex, false, problem);
             return true;
         }
-        send(requestMessages(conversation), providerIndex, function (ok, answer, sources) {
-            chat.finishAnswer(conversation.id, providerIndex, ok, answer, sources);
+        var conversationId = conversation.id;
+        loadAttachments(joined, function (context) {
+            var messages = chat.requestMessages(chat.conversationById(conversationId) || conversation);
+            if (context.length > 0 && messages.length > 0) {
+                messages[messages.length - 1].text = context + messages[messages.length - 1].text;
+            }
+            chat.send(messages, providerIndex, function (ok, answer, sources, meta) {
+                chat.finishAnswer(conversationId, providerIndex, ok, answer, sources, meta);
+            }, { "forceSearch": forced });
         });
         return true;
     }
 
     function cancel() {
         ++requestToken;
+        abortReads();
         if (activeRequest) {
             try {
                 activeRequest.abort();
@@ -512,7 +688,7 @@ Item {
         busyConversationId = "";
     }
 
-    function finishAnswer(conversationId, providerIndex, ok, answer, sources) {
+    function finishAnswer(conversationId, providerIndex, ok, answer, sources, meta) {
         busy = false;
         busyConversationId = "";
         var conversation = conversationById(conversationId);
@@ -528,6 +704,9 @@ Item {
             "label": providerLabel(providerIndex),
             // Pages citées par la recherche web : [{ title, uri }].
             "sources": Array.isArray(sources) ? sources : [],
+            // Recherches faites par Gemini, et recherche forcée sans résultat.
+            "queries": meta && Array.isArray(meta.queries) ? meta.queries : [],
+            "noSearch": Boolean(meta && meta.forced && !meta.searched),
             "error": !ok
         });
         conversation.updated = Date.now();
@@ -556,19 +735,19 @@ Item {
         return result;
     }
 
-    function send(messages, provider, done) {
+    function send(messages, provider, done, options) {
         var token = ++requestToken;
-        var finish = function (ok, text, sources) {
+        var finish = function (ok, text, sources, meta) {
             if (token !== chat.requestToken) {
                 return;
             }
             chat.activeRequest = null;
             chat.processId = -1;
             httpTimeout.stop();
-            done(ok, text, sources);
+            done(ok, text, sources, meta);
         };
         if (provider === 0) {
-            sendGemini(messages, finish);
+            sendGemini(messages, finish, options);
         } else if (provider === 1 && glmBackend === 0) {
             sendOpenCode(messages, finish);
         } else if (provider === 1) {
@@ -652,7 +831,18 @@ Item {
         return sources;
     }
 
-    function sendGemini(messages, finish) {
+    // Requêtes que Gemini a réellement envoyées à Google Search.
+    function groundingQueries(candidate) {
+        var queries = candidate && candidate.groundingMetadata
+            && Array.isArray(candidate.groundingMetadata.webSearchQueries)
+            ? candidate.groundingMetadata.webSearchQueries : [];
+        return queries.map(String).slice(0, 5);
+    }
+
+    // mode : 0 = sans recherche, 1 = recherche à la discrétion du modèle,
+    // 2 = recherche imposée (bouton de Siri IA).
+    function sendGemini(messages, finish, options) {
+        var forced = Boolean(options && options.forceSearch);
         var model = currentGeminiModel();
         var url = "https://generativelanguage.googleapis.com/v1beta/models/"
             + encodeURIComponent(model) + ":generateContent";
@@ -662,12 +852,22 @@ Item {
                 "parts": [{ "text": message.text }]
             };
         });
-        var attempt = function (withSearch) {
+        var attempt = function (mode, retried) {
+            var sent = contents;
+            if (mode === 2 && sent.length > 0) {
+                // Consigne de recherche ajoutée à la dernière question.
+                sent = sent.slice(0, sent.length - 1).concat([{
+                    "role": "user",
+                    "parts": [{ "text": sent[sent.length - 1].parts[0].text + "\n\n"
+                        + chat.searchDirective(retried) }]
+                }]);
+            }
             var body = {
-                "systemInstruction": { "parts": [{ "text": chat.fullSystemPrompt(model, withSearch) }] },
-                "contents": contents
+                "systemInstruction": { "parts": [{ "text":
+                    chat.fullSystemPrompt(model, mode > 0, mode === 2) }] },
+                "contents": sent
             };
-            if (withSearch) {
+            if (mode > 0) {
                 body["tools"] = [{ "google_search": {} }];
             }
             chat.postJson(url, { "x-goog-api-key": String(chat.geminiKey).trim() }, body,
@@ -675,8 +875,8 @@ Item {
                 if (!ok) {
                     // Modèle sans recherche web, ou quota de recherche atteint :
                     // on réessaie une fois sans l'outil de recherche.
-                    if (withSearch && (status === 400 || status === 403 || status === 429)) {
-                        attempt(false);
+                    if (mode > 0 && (status === 400 || status === 403 || status === 429)) {
+                        attempt(0, false);
                         return;
                     }
                     finish(false, payload);
@@ -701,10 +901,23 @@ Item {
                         : i18n("Gemini returned an empty answer."));
                     return;
                 }
-                finish(true, text.trim(), withSearch ? chat.groundingSources(candidate) : []);
+                var sources = mode > 0 ? chat.groundingSources(candidate) : [];
+                var queries = mode > 0 ? chat.groundingQueries(candidate) : [];
+                var searched = queries.length > 0 || sources.length > 0;
+                // Recherche forcée mais Gemini n'a pas cherché : une seconde
+                // tentative, avec une consigne plus ferme.
+                if (mode === 2 && !searched && !retried) {
+                    attempt(2, true);
+                    return;
+                }
+                finish(true, text.trim(), sources, {
+                    "queries": queries,
+                    "searched": searched,
+                    "forced": forced
+                });
             });
         };
-        attempt(chat.geminiWebSearch);
+        attempt(forced ? 2 : (chat.geminiWebSearch ? 1 : 0), false);
     }
 
     function sendOpenAi(baseUrl, key, model, name, messages, finish) {
@@ -792,6 +1005,12 @@ Item {
         target: chat.backend
 
         function onProcessFinished(id, exitCode, standardOutput, standardError, timedOut) {
+            var job = chat.readJobs[id];
+            if (job) {
+                delete chat.readJobs[id];
+                chat.readFinished(job, standardOutput, timedOut);
+                return;
+            }
             if (id !== chat.processId || !chat.pendingCli) {
                 return;
             }
