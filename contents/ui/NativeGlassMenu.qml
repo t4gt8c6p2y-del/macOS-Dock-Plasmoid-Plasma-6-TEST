@@ -62,11 +62,12 @@ QtObject {
 
     // Ouvre le menu : (x, y) est son coin haut-droit si rightAligned, sinon
     // son coin haut-gauche (coordonnées de la fenêtre).
-    function openAt(x, y, rightAligned) {
+    // direction (facultatif) : "up", "down", "left"… ; sinon « down » (ou « left » si rightAligned).
+    function openAt(x, y, rightAligned, direction) {
         if (!window || !nativeMenu.available) {
             return;
         }
-        nativeMenu.popup(window, x, y, rightAligned ? "left" : "down",
+        nativeMenu.popup(window, x, y, direction ? direction : (rightAligned ? "left" : "down"),
             nativeItems(), false);
     }
 

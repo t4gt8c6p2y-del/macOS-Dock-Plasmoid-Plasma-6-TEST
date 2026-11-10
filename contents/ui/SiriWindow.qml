@@ -36,7 +36,8 @@ Window {
     readonly property real normalHeight: Math.min(620, screenHeight - 60)
     readonly property real sidebarWidth: 280
     readonly property real titleBarHeight: 52
-    readonly property real cornerRadius: 14
+    // Coins droits : le contour tombe exactement sur le bord de la fenêtre.
+    readonly property real cornerRadius: 0
 
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
@@ -270,7 +271,7 @@ Window {
         NumberAnimation {
             target: frame
             property: "scale"
-            from: 0.93
+            from: 0.985
             to: 1
             duration: 260
             easing.type: Easing.OutCubic
@@ -395,8 +396,8 @@ Window {
                 "glyph": "trash" });
         }
         menu.entries = entries;
-        var anchor = attachButton.mapToItem(null, 0, attachButton.height + 6);
-        menu.openAt(anchor.x, anchor.y, false);
+        var anchor = attachButton.mapToItem(null, 0, -6);
+        menu.openAt(anchor.x, anchor.y, false, "up");
     }
 
     function pickAttachment(kind) {
@@ -1141,7 +1142,6 @@ Window {
 
                         glyph: "folderPlus"
                         active: !!win.chat && win.chat.attachments.length > 0
-                        tip: i18n("Give a folder or files to the AI")
                         onClicked: win.openAttachMenu()
                     }
 
@@ -1150,9 +1150,6 @@ Window {
                         glyph: "globe"
                         visible: !!win.chat && win.chat.activeProvider === 0
                         active: !!win.chat && win.chat.forceSearch
-                        tip: win.chat && win.chat.forceSearch
-                            ? i18n("Web search forced (click to turn off)")
-                            : i18n("Force web search")
                         onClicked: {
                             if (win.chat) {
                                 win.chat.forceSearch = !win.chat.forceSearch;
@@ -1245,30 +1242,16 @@ Window {
             }
         }
 
-        // Liseré extérieur : un trait sombre sur le bord même de la fenêtre,
-        // qui la détache d'un fond clair.
+        // Contour : un trait d'un pixel posé exactement sur le bord de la
+        // fenêtre (sans arrondi, rien ne dépasse ni ne manque dans les coins).
         Rectangle {
             anchors.fill: parent
             z: 40
             visible: !win.maximized
-            radius: win.cornerRadius
             color: "transparent"
             border.width: 1
-            border.color: Qt.rgba(0, 0, 0, 0.6)
-            antialiasing: true
-        }
-
-        // Liseré intérieur : un trait clair, un pixel plus loin, sur un fond sombre.
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            z: 41
-            visible: !win.maximized
-            radius: Math.max(0, win.cornerRadius - 1)
-            color: "transparent"
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.16)
-            antialiasing: true
+            border.color: Qt.rgba(1, 1, 1, 0.22)
+            antialiasing: false
         }
     }
 
@@ -1290,7 +1273,6 @@ Window {
 
         property string glyph: ""
         property bool active: false
-        property string tip: ""
 
         signal clicked()
 
@@ -1314,28 +1296,6 @@ Window {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: tool.clicked()
-        }
-
-        Rectangle {
-            visible: toolMouse.containsMouse && tool.tip.length > 0
-            x: 0
-            y: -height - 8
-            z: 10
-            width: tipText.implicitWidth + 20
-            height: 26
-            radius: 8
-            color: Qt.rgba(0.13, 0.13, 0.15, 0.97)
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.14)
-
-            Text {
-                id: tipText
-
-                anchors.centerIn: parent
-                text: tool.tip
-                font.pixelSize: 12
-                color: Qt.rgba(1, 1, 1, 0.9)
-            }
         }
     }
 

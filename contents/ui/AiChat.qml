@@ -301,6 +301,8 @@ Item {
         if (String(modelId).length > 0) {
             text += " You are running as the model \"" + modelId + "\".";
         }
+        text += " Do not write LaTeX or $…$: write formulas as plain Unicode text "
+            + "(x², 2³, √x, ×, ≤, π, ½, and a/b or (a+b)/(c+d) for fractions).";
         text += " Your training data stops before today: models, products, versions and events "
             + "released since then exist even if you have never heard of them. Never say that "
             + "something does not exist just because you do not know it.";

@@ -1,4 +1,5 @@
 import QtQuick
+import "MathText.js" as MathText
 
 // Fil d'une conversation avec l'assistant : questions à droite (bulle bleue),
 // réponses à gauche (texte libre, sélectionnable, en Markdown), erreurs en
@@ -131,7 +132,8 @@ ListView {
                 selectByMouse: true
                 wrapMode: TextEdit.Wrap
                 textFormat: row.isError ? TextEdit.PlainText : TextEdit.MarkdownText
-                text: row.isUser ? "" : row.modelData.text
+                // Formules LaTeX → vrais symboles (½, x², √, ×, π…).
+                text: row.isUser ? "" : (row.isError ? row.modelData.text : MathText.prettify(row.modelData.text))
                 font.pixelSize: view.textSize
                 color: row.isError ? "#FF6B6B" : Qt.rgba(1, 1, 1, 0.95)
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
