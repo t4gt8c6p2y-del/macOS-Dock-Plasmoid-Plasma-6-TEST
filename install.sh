@@ -23,6 +23,7 @@ case "$LOCALE_NAME" in
         MSG_PREVIEW='==> Starte Vorschau in plasmoidviewer ...'
         MSG_SPOTLIGHT='==> Richte die Spotlight-Integration ein (Windows-Taste, KRunner) ...'
         MSG_SPOTLIGHT_DONE='    Melde dich einmal ab und wieder an, damit die Windows-Taste das Spotlight öffnet. Rückgängig: ~/.local/share/macosdock/spotlight-integration.sh disable'
+        MSG_WINRULE='==> Siri KI: Fensterposition und -größe werden gemerkt (KWin-Fensterregel) ...'
         ;;
     fr*)
         MSG_NO_KPACKAGE='ERREUR : kpackagetool6 est introuvable. KDE Plasma 6 est requis.'
@@ -40,6 +41,7 @@ case "$LOCALE_NAME" in
         MSG_PREVIEW='==> Lancement de l’aperçu dans plasmoidviewer...'
         MSG_SPOTLIGHT='==> Configuration de l’intégration du Spotlight (touche Windows, KRunner)...'
         MSG_SPOTLIGHT_DONE='    Déconnectez-vous puis reconnectez-vous une fois pour que la touche Windows ouvre le Spotlight. Pour annuler : ~/.local/share/macosdock/spotlight-integration.sh disable'
+        MSG_WINRULE='==> Siri IA : mémorisation de la position et de la taille de la fenêtre (règle de fenêtre KWin)...'
         ;;
     *)
         MSG_NO_KPACKAGE='ERROR: kpackagetool6 was not found. KDE Plasma 6 is required.'
@@ -57,6 +59,7 @@ case "$LOCALE_NAME" in
         MSG_PREVIEW='==> Starting preview in plasmoidviewer...'
         MSG_SPOTLIGHT='==> Setting up the Spotlight integration (Windows key, KRunner)...'
         MSG_SPOTLIGHT_DONE='    Log out and back in once so the Windows key opens Spotlight. To undo: ~/.local/share/macosdock/spotlight-integration.sh disable'
+        MSG_WINRULE='==> Siri AI: remembering the window position and size (KWin window rule)...'
         ;;
 esac
 
@@ -173,6 +176,49 @@ if [[ "${MACOSDOCK_SKIP_SPOTLIGHT:-0}" != "1" ]]; then
     printf '%s\n' "$MSG_SPOTLIGHT"
     if "${XDG_DATA_HOME:-$HOME/.local/share}/macosdock/spotlight-integration.sh" enable; then
         printf '%s\n' "$MSG_SPOTLIGHT_DONE"
+    fi
+fi
+
+# Siri IA : à chaque réouverture, KWin replace la fenêtre là où il veut. Une
+# règle de fenêtre « Mémoriser » (valeur 4) lui fait garder sa position et sa
+# taille quand la fenêtre se ferme, et les rétablir à l'ouverture suivante. La
+# règle est ajoutée à celles de l'utilisateur (jamais remplacées) ; sa position
+# et sa taille mémorisées ne sont pas écrasées par une nouvelle installation.
+# Pour l'annuler : Réglages système > Gestion des fenêtres > Règles de fenêtre.
+if command -v kwriteconfig6 >/dev/null 2>&1 && command -v kreadconfig6 >/dev/null 2>&1; then
+    printf '%s\n' "$MSG_WINRULE"
+    RULE_ID="macosdock-siri-window"
+    rules="$(kreadconfig6 --file kwinrulesrc --group General --key rules --default '' 2>/dev/null || true)"
+    case ",$rules," in
+        *",$RULE_ID,"*) ;;
+        *)
+            rules="${rules:+$rules,}$RULE_ID"
+            rule_count="$(awk -F, '{ print NF }' <<<"$rules")"
+            kwriteconfig6 --file kwinrulesrc --group General --key rules "$rules" || true
+            kwriteconfig6 --file kwinrulesrc --group General --key count "$rule_count" || true
+            ;;
+    esac
+    rule_set() {
+        kwriteconfig6 --file kwinrulesrc --group "$RULE_ID" "$@" || true
+    }
+    rule_set --key Description "Siri IA (macOS Dock)"
+    rule_set --key title "Siri IA"
+    rule_set --key titlematch 1
+    rule_set --key wmclass "org.kde.plasmashell"
+    rule_set --key wmclasscomplete --type bool false
+    rule_set --key wmclassmatch 1
+    rule_set --key types 1
+    rule_set --key positionrule 4
+    rule_set --key sizerule 4
+    # KWin relit ses règles tout de suite (sinon : à la prochaine session).
+    for qdbus_tool in qdbus6 qdbus-qt6 qdbus; do
+        if command -v "$qdbus_tool" >/dev/null 2>&1; then
+            "$qdbus_tool" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 && break
+        fi
+    done || true
+    if command -v dbus-send >/dev/null 2>&1; then
+        dbus-send --session --type=method_call --dest=org.kde.KWin /KWin \
+            org.kde.KWin.reconfigure >/dev/null 2>&1 || true
     fi
 fi
 

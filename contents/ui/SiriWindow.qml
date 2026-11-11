@@ -551,16 +551,14 @@ Window {
 
     // --- Interface ----------------------------------------------------------------------
     // Fond noir (plus de verre ni de flou). Coins arrondis tant que la fenêtre
-    // n'est pas maximisée. Le contour est dessiné par-dessus (voir les deux
-    // « liserés » en bas de ce rectangle) et non plus comme bordure du fond :
-    // un trait net sur chaque bord, sans bande ni coin coupé.
+    // n'est pas maximisée. Le contour est dessiné par-dessus (voir « edge » en
+    // bas de ce rectangle) et non comme bordure du fond.
     Rectangle {
         id: frame
 
         anchors.fill: parent
         radius: win.maximized ? 0 : win.cornerRadius
         color: "#000000"
-        antialiasing: true
 
         Keys.onEscapePressed: win.closeSiri()
 
@@ -1242,16 +1240,24 @@ Window {
             }
         }
 
-        // Contour : un trait d'un pixel posé exactement sur le bord de la
-        // fenêtre (sans arrondi, rien ne dépasse ni ne manque dans les coins).
-        Rectangle {
+        // Contour : quatre traits pleins d'un pixel, posés exactement sur les
+        // bords de la fenêtre. Ils sont opaques : ils ne laissent rien voir de
+        // ce qui se trouve derrière la fenêtre (une bordure translucide, elle,
+        // laissait apparaître le bureau, d'où la ligne claire et la bande
+        // noire de part et d'autre).
+        Item {
+            id: edge
+
+            readonly property color line: "#323235"
+
             anchors.fill: parent
             z: 40
             visible: !win.maximized
-            color: "transparent"
-            border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.22)
-            antialiasing: false
+
+            Rectangle { x: 0; y: 0; width: edge.width; height: 1; color: edge.line }
+            Rectangle { x: 0; y: edge.height - 1; width: edge.width; height: 1; color: edge.line }
+            Rectangle { x: 0; y: 0; width: 1; height: edge.height; color: edge.line }
+            Rectangle { x: edge.width - 1; y: 0; width: 1; height: edge.height; color: edge.line }
         }
     }
 
