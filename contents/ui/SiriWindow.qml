@@ -1,4 +1,5 @@
 import QtQuick
+import "effects" as DockEffects
 
 // « Siri IA » : l'application de conversation du Dock, à la manière de
 // l'app Siri de macOS 27. À gauche, l'historique des discussions (liste
@@ -36,8 +37,12 @@ Window {
     readonly property real normalHeight: Math.min(620, screenHeight - 60)
     readonly property real sidebarWidth: 280
     readonly property real titleBarHeight: 52
-    // Coins droits : le contour tombe exactement sur le bord de la fenêtre.
-    readonly property real cornerRadius: 0
+    // Thème « Liquid Glass for KDE » (rayon des coins vu par KWin).
+    property var glassTheme: ({})
+    // Rayon des coins : celui de la forme que KWin donne à la fenêtre, pour que
+    // le fond noir la remplisse exactement (rien ne dépasse du liseré de KWin).
+    readonly property real cornerRadius: maximized
+        ? 0 : Math.min(Number(glassTheme.popupRadius || 22), 40)
 
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
@@ -50,7 +55,50 @@ Window {
     width: 940
     height: 620
 
+    DockEffects.GlassBlur {
+        id: glassBlur
+    }
+
+    // --- Forme de la fenêtre pour KWin -------------------------------------------------
+    // L'effet Liquid Glass de KWin arrondit la fenêtre et trace son liseré le
+    // long de la forme qu'on lui indique. On lui donne exactement celle du fond
+    // noir (toute la fenêtre, mêmes coins) : le liseré tombe alors sur le bord.
+    property string glassKey: ""
+
+    function updateGlass(force) {
+        if (!visible) {
+            return;
+        }
+        var rects = [{ "x": 0, "y": 0, "width": Math.round(width),
+            "height": Math.round(height), "radius": Math.round(cornerRadius) }];
+        var key = JSON.stringify(rects);
+        if (!force && key === glassKey) {
+            return;
+        }
+        glassKey = key;
+        glassBlur.apply(win, rects);
+    }
+
+    // On attend que la taille se stabilise ; la demande est refaite un peu
+    // après l'affichage (KWin ne la prend en compte qu'une fois la fenêtre posée).
+    Timer {
+        id: glassTimer
+
+        interval: 40
+        onTriggered: win.updateGlass(false)
+    }
+
+    Timer {
+        id: glassRetry
+
+        interval: 350
+        onTriggered: win.updateGlass(true)
+    }
+
+    onCornerRadiusChanged: glassTimer.restart()
+
     function openSiri(freshConversation) {
+        glassTheme = glassBlur.theme();
         if (chat) {
             if (freshConversation) {
                 chat.startNew();
@@ -193,12 +241,14 @@ Window {
     }
 
     onWidthChanged: {
+        glassTimer.restart();
         if (zooming && zoomStarted && !zoomPlaying) {
             zoomSettle.restart();
         }
     }
 
     onHeightChanged: {
+        glassTimer.restart();
         if (zooming && zoomStarted && !zoomPlaying) {
             zoomSettle.restart();
         }
@@ -256,26 +306,22 @@ Window {
     onVisibleChanged: {
         if (visible) {
             appear.restart();
+            glassTimer.restart();
+            glassRetry.restart();
         } else {
             appear.stop();
             frame.scale = 1;
             frame.opacity = 1;
+            glassKey = "";
+            glassBlur.clear(win);
         }
     }
 
-    // Ouverture : la fenêtre grossit légèrement en apparaissant (c'est aussi
-    // l'arrivée de la conversation agrandie depuis le Spotlight).
+    // Ouverture : la fenêtre apparaît en fondu (c'est aussi l'arrivée de la
+    // conversation agrandie depuis le Spotlight). Pas de changement d'échelle :
+    // la forme donnée à KWin ne bougerait pas avec elle.
     ParallelAnimation {
         id: appear
-
-        NumberAnimation {
-            target: frame
-            property: "scale"
-            from: 0.985
-            to: 1
-            duration: 260
-            easing.type: Easing.OutCubic
-        }
 
         NumberAnimation {
             target: frame
@@ -551,13 +597,14 @@ Window {
 
     // --- Interface ----------------------------------------------------------------------
     // Fond noir (plus de verre ni de flou). Coins arrondis tant que la fenêtre
-    // n'est pas maximisée. Le contour est dessiné par-dessus (voir « edge » en
-    // bas de ce rectangle) et non comme bordure du fond.
+    // n'est pas maximisée. Aucun contour n'est dessiné ici : le liseré est celui
+    // de l'effet Liquid Glass de KWin, tracé le long de la forme indiquée par
+    // updateGlass() (donc exactement sur le bord de la fenêtre).
     Rectangle {
         id: frame
 
         anchors.fill: parent
-        radius: win.maximized ? 0 : win.cornerRadius
+        radius: win.cornerRadius
         color: "#000000"
 
         Keys.onEscapePressed: win.closeSiri()
@@ -1238,26 +1285,6 @@ Window {
                     }
                 }
             }
-        }
-
-        // Contour : quatre traits pleins d'un pixel, posés exactement sur les
-        // bords de la fenêtre. Ils sont opaques : ils ne laissent rien voir de
-        // ce qui se trouve derrière la fenêtre (une bordure translucide, elle,
-        // laissait apparaître le bureau, d'où la ligne claire et la bande
-        // noire de part et d'autre).
-        Item {
-            id: edge
-
-            readonly property color line: "#323235"
-
-            anchors.fill: parent
-            z: 40
-            visible: !win.maximized
-
-            Rectangle { x: 0; y: 0; width: edge.width; height: 1; color: edge.line }
-            Rectangle { x: 0; y: edge.height - 1; width: edge.width; height: 1; color: edge.line }
-            Rectangle { x: 0; y: 0; width: 1; height: edge.height; color: edge.line }
-            Rectangle { x: edge.width - 1; y: 0; width: 1; height: edge.height; color: edge.line }
         }
     }
 
