@@ -152,8 +152,11 @@ PlasmoidItem {
         Plasmoid.configuration.glassDispersion, 0.25, 0, 1)
     readonly property real glassProfile: boundedNumber(
         Plasmoid.configuration.glassProfile, 1.0, 0.5, 3)
-    readonly property real glassRim: boundedNumber(
-        Plasmoid.configuration.glassRimStrength, 1.0, 0, 2)
+    // « Reflet des bords » du Liquid Glass du Dock : voile blanc lumineux le
+    // long des bords. Il n'a plus de réglage et est toujours éteint (la clé
+    // glassRimStrength de la configuration est ignorée, y compris après une
+    // réinstallation qui la remet à sa valeur par défaut).
+    readonly property real glassRim: 0
     readonly property bool borderColorFromWallpaper:
         Plasmoid.configuration.borderColorFromWallpaper === undefined
             ? true : Boolean(Plasmoid.configuration.borderColorFromWallpaper)
@@ -480,6 +483,16 @@ PlasmoidItem {
     property bool overlayOpen: false
     readonly property bool dockAvailable: hasDockContent
         && representationItem !== null
+    // Espace réservé par le Dock : les fenêtres normales (ni maximisées ni en
+    // plein écran) ne peuvent pas aller sous le Dock ni dans la bande qui le
+    // prolonge sur les côtés ; le compositeur retire cette bande de la zone de
+    // travail. La réservation est levée tant que le Dock se masque pour une
+    // fenêtre maximisée ou en plein écran (voir autoHideRequired) : ces
+    // fenêtres occupent alors tout l'écran, comme avant. La valeur est
+    // l'épaisseur du Dock au repos ; la marge au bord de l'écran est ajoutée
+    // par le compositeur. -1 : rien n'est réservé.
+    readonly property real reservedZone: dockAvailable && !autoHideRequired
+        ? Math.ceil(isVertical ? baseWindowWidth : baseWindowHeight) : -1
     readonly property bool showProgressIndicators:
         Plasmoid.configuration.showProgressIndicators === undefined
             ? true : Boolean(Plasmoid.configuration.showProgressIndicators)
@@ -5085,7 +5098,7 @@ PlasmoidItem {
         LayerShell.Window.margins.top: root.panelEdgeMargin
         LayerShell.Window.margins.right: root.panelEdgeMargin
         LayerShell.Window.margins.bottom: root.panelEdgeMargin
-        LayerShell.Window.exclusionZone: -1
+        LayerShell.Window.exclusionZone: root.reservedZone
         // A Dock belongs above regular windows, but below true fullscreen
         // surfaces. LayerOverlay is reserved for OSD-style UI and otherwise
         // forces the Dock over fullscreen video in mpv and Dragon Player.

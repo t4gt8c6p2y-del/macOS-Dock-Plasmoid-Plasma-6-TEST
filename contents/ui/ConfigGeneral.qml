@@ -260,7 +260,13 @@ KCM.SimpleKCM {
         "appGroupPopupOvershoot": [0, 3], "folderHoverScale": [1, 1.2],
         "appGroupViewMode": [0, 1],
         "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
-        "desktopSwitcherLabelMode": [0, 1]
+        "desktopSwitcherLabelMode": [0, 1],
+        // Onglet « Spotlight » (verre de la barre et du panneau).
+        "spotlightGlassBlur": [0, 60], "spotlightGlassTint": [0, 1],
+        "spotlightGlassDarken": [0, 1], "spotlightGlassProfile": [0.5, 3],
+        "spotlightGlassDispersion": [0, 1], "spotlightGlassRim": [0, 2],
+        "spotlightGlassThickness": [4, 90], "spotlightGlassStrength": [0, 2],
+        "spotlightBorderStrength": [0, 1], "spotlightBorderWidth": [0.5, 4]
     })
     // Réglages du verre du Spotlight (onglet « Spotlight ») : remis à zéro avec
     // « Réinitialiser ».
@@ -279,12 +285,29 @@ KCM.SimpleKCM {
         "showKdeConnectRecentShares", "perDesktopDock",
         "showSpotlightButton", "showSiriButton",
         "useThemeIndicatorColor", "borderColorFromWallpaper",
-        "liveBackdrop"
+        "liveBackdrop",
+        // Case « Liquid Glass » du Dock, verre temps réel et lanceur du Spotlight.
+        "glassManage", "spotlightLiveBackdrop", "spotlightReplaceLauncher"
     ]
+    // Images choisies (chemins) : copiées avec le style.
+    readonly property var styleStringKeys: [
+        "customBackgroundColor", "indicatorColor", "wallpaperBlurImage",
+        "folderIconImage", "spotlightIconImage", "siriIconImage"
+    ]
+    // Réglages de l'assistant IA copiés avec le style. Les clés d'API
+    // (geminiApiKey, glmApiKey, customAiKey) n'en font JAMAIS partie.
+    readonly property var styleAiNumberKeys: ({
+        "aiProvider": [0, 2], "glmBackend": [0, 1]
+    })
+    readonly property var styleAiBooleanKeys: ["geminiWebSearch"]
+    readonly property var styleAiStringKeys: ["geminiModel", "glmModel",
+        "glmBaseUrl", "customAiName", "customAiUrl", "customAiModel"]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
+    // spotlightFavorites : les applications mises en favoris dans le menu
+    // d'applications du Spotlight.
     readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls",
-        "userSeparators"]
+        "userSeparators", "spotlightFavorites"]
 
     function effectiveStyleValue(key) {
         if (key === "borderStrength") {
@@ -311,10 +334,20 @@ KCM.SimpleKCM {
             settings[styleBooleanKeys[b]] =
                 Boolean(configPage["cfg_" + styleBooleanKeys[b]]);
         }
-        settings["customBackgroundColor"] = String(cfg_customBackgroundColor);
-        settings["indicatorColor"] = String(cfg_indicatorColor);
-        settings["wallpaperBlurImage"] = String(cfg_wallpaperBlurImage);
-        settings["folderIconImage"] = String(cfg_folderIconImage);
+        for (var t = 0; t < styleStringKeys.length; ++t) {
+            settings[styleStringKeys[t]] = String(configPage["cfg_" + styleStringKeys[t]]);
+        }
+        for (var an in styleAiNumberKeys) {
+            settings[an] = Number(configPage["cfg_" + an]);
+        }
+        for (var ab = 0; ab < styleAiBooleanKeys.length; ++ab) {
+            settings[styleAiBooleanKeys[ab]] =
+                Boolean(configPage["cfg_" + styleAiBooleanKeys[ab]]);
+        }
+        for (var as = 0; as < styleAiStringKeys.length; ++as) {
+            settings[styleAiStringKeys[as]] =
+                String(configPage["cfg_" + styleAiStringKeys[as]]);
+        }
         var contents = {
             "folderUrl": String(cfg_folderUrl)
         };
@@ -324,7 +357,7 @@ KCM.SimpleKCM {
         }
         return {
             "format": "macos-dock-style",
-            "version": 1,
+            "version": 2,
             "settings": settings,
             "contents": contents
         };
@@ -377,11 +410,31 @@ KCM.SimpleKCM {
                     settings["indicatorColor"])) {
             cfg_indicatorColor = settings["indicatorColor"];
         }
-        if (typeof settings["wallpaperBlurImage"] === "string") {
-            cfg_wallpaperBlurImage = settings["wallpaperBlurImage"];
+        for (var t = 0; t < styleStringKeys.length; ++t) {
+            var stringKey = styleStringKeys[t];
+            // Les deux couleurs sont déjà traitées (et validées) plus haut.
+            if (stringKey !== "customBackgroundColor" && stringKey !== "indicatorColor"
+                    && typeof settings[stringKey] === "string") {
+                configPage["cfg_" + stringKey] = settings[stringKey];
+            }
         }
-        if (typeof settings["folderIconImage"] === "string") {
-            cfg_folderIconImage = settings["folderIconImage"];
+        for (var an in styleAiNumberKeys) {
+            var aiNumber = Number(settings[an]);
+            if (settings[an] !== undefined && Number.isFinite(aiNumber)) {
+                configPage["cfg_" + an] = Math.min(styleAiNumberKeys[an][1],
+                    Math.max(styleAiNumberKeys[an][0], Math.round(aiNumber)));
+            }
+        }
+        for (var ab = 0; ab < styleAiBooleanKeys.length; ++ab) {
+            if (settings[styleAiBooleanKeys[ab]] !== undefined) {
+                configPage["cfg_" + styleAiBooleanKeys[ab]] =
+                    Boolean(settings[styleAiBooleanKeys[ab]]);
+            }
+        }
+        for (var as = 0; as < styleAiStringKeys.length; ++as) {
+            if (typeof settings[styleAiStringKeys[as]] === "string") {
+                configPage["cfg_" + styleAiStringKeys[as]] = settings[styleAiStringKeys[as]];
+            }
         }
         // Les anciennes cases restent cohérentes avec les curseurs.
         cfg_showHighlight = effectiveStyleValue("highlightStrength") > 0.001;

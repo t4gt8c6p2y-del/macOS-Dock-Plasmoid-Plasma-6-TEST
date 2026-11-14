@@ -112,7 +112,7 @@
       <default>0.25</default>
     </entry>
     <entry name="glassRimStrength" type="Double">
-      <default>1.0</default>
+      <default>0.0</default>
     </entry>
     <!--
       Le verre (flou de l'arrière-plan, Liquid Glass) montre en direct les
