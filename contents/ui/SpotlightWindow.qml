@@ -33,6 +33,9 @@ Window {
     // l'effet Liquid Glass de l'application externe, et ne touche pas au verre
     // du Dock. Fond d'écran (venant de main.qml) ; fenêtres derrière, en direct.
     property var wallpaperInfo: ({ "source": "", "fillMode": 2, "width": 0, "height": 0 })
+    // WallpaperLocator (module natif) : lit les couleurs du fond d'écran derrière
+    // la barre. null = le bas de la barre garde son gris-bleu d'origine.
+    property var colorSampler: null
     property var backdropWindows: []
     property bool liveBackdrop: true
     // Rayon du flou en px (nommé ainsi : « glassBlur » est l'identifiant de
@@ -75,22 +78,37 @@ Window {
     property var contextTarget: null
 
     // --- Dimensions (celles de la capture de macOS 27) -------------------------
+    // Toujours 7 applications par ligne : la grille (7 x 124 px) est centrée
+    // dans le panneau, avec de part et d'autre la place d'une demi-application.
     readonly property int columns: 7
-    readonly property real cellWidth: 98
-    readonly property real cellHeight: 104
-    readonly property real iconSize: 64
-    readonly property real barWidth: 444
-    readonly property real barHeight: 80
-    readonly property real panelWidth: 720
+    readonly property real cellWidth: 124
+    readonly property real cellHeight: 112
+    readonly property real iconSize: 68
+    readonly property real barWidth: 563
+    readonly property real barHeight: 92
+    readonly property real panelWidth: Math.min(910, width - 40)
     // Fenêtre de conversation avec l'assistant (comme Siri sur macOS 27) :
     // la barre et le panneau se transforment en cette fenêtre verticale.
     readonly property real compactWidth: 400
     readonly property real compactRadius: 34
     readonly property real compactHeight:
-        Math.max(380, Math.min(580, height - stageTop - 28))
+        Math.max(380, Math.min(640, height - stageTop - 28))
+    // Position et taille choisies par l'utilisateur (la fenêtre se déplace par
+    // son en-tête et se redimensionne par ses bords). -1 / 0 : valeurs d'origine.
+    property real compactUserX: -1
+    property real compactUserY: -1
+    property real compactUserWidth: 0
+    property real compactUserHeight: 0
+
+    function resetCompactGeometry() {
+        compactUserX = -1;
+        compactUserY = -1;
+        compactUserWidth = 0;
+        compactUserHeight = 0;
+    }
     // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
     readonly property real panelMaxHeight:
-        Math.max(300, Math.min(520, height - stageTop - barHeight - stageGap - 28))
+        Math.max(300, Math.min(580, height - stageTop - barHeight - stageGap - 28))
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -104,7 +122,11 @@ Window {
     // Application sélectionnée dans les résultats (son icône remplace le bouton « … »).
     readonly property var selectedApp:
         appSearch && selectedEntry && selectedEntry.kind === "app" ? selectedEntry.app : null
-    readonly property real rowHeight: 52
+    // Rayon des coins du panneau ; la sélection d'une ligne est une gélule de
+    // (rowHeight - 4) px, dont le rayon est celui du panneau moins la marge
+    // de 8 px : les deux contours sont concentriques.
+    readonly property real panelRadius: 38
+    readonly property real rowHeight: 64
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
         if (!panelWanted) {
@@ -188,6 +210,7 @@ Window {
         visible = true;
         requestActivate();
         Qt.callLater(focusField);
+        Qt.callLater(refreshBarColors);
     }
 
     function closeSpotlight() {
@@ -744,6 +767,110 @@ Window {
         closeSpotlight();
     }
 
+    // --- Fichiers donnés à l'IA (bouton « + » de la conversation) -------------------------
+    // La fenêtre du Spotlight est au-dessus de tout : elle se cache pendant que
+    // le sélecteur de fichiers est ouvert, puis revient dans le même état.
+    property int pickProcess: -1
+    property bool picking: false
+    property string attachNotice: ""
+
+    function pickFiles() {
+        if (!chat || !backend || picking) {
+            return;
+        }
+        moreMenu.close();
+        picking = true;
+        pickProcess = backend.runProcess("kdialog",
+            ["--getopenfilename", "--multiple", "--separate-output"], 600000);
+        visible = false;
+    }
+
+    function endPick() {
+        if (!picking) {
+            return;
+        }
+        picking = false;
+        visible = true;
+        requestActivate();
+        Qt.callLater(focusField);
+    }
+
+    function attachFile(location) {
+        if (chat && !chat.addAttachment(location, false)
+                && chat.attachments.length >= chat.maxAttachments) {
+            attachNotice = i18n("You can attach up to %1 items.", chat.maxAttachments);
+            attachNoticeTimer.restart();
+        }
+    }
+
+    Timer {
+        id: attachNoticeTimer
+
+        interval: 6000
+        onTriggered: win.attachNotice = ""
+    }
+
+    // Repli quand kdialog est absent : la boîte de dialogue de Qt.
+    Loader {
+        id: pickerLoader
+
+        active: false
+        source: "AttachPicker.qml"
+        onLoaded: item.openFiles()
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                win.endPick();
+            }
+        }
+    }
+
+    Connections {
+        target: pickerLoader.item
+        ignoreUnknownSignals: true
+
+        function onPicked(location, isDir) {
+            win.attachFile(location);
+            win.endPick();
+        }
+
+        function onCancelled() {
+            win.endPick();
+        }
+    }
+
+    Connections {
+        target: win.backend
+        ignoreUnknownSignals: true
+
+        function onProcessFinished(id, exitCode, standardOutput, standardError, timedOut) {
+            if (id !== win.pickProcess) {
+                return;
+            }
+            win.pickProcess = -1;
+            if (exitCode !== 0 && String(standardOutput).trim().length === 0) {
+                // 1 = dialogue annulé ; autre : kdialog absent -> boîte de Qt.
+                if (exitCode !== 1 && pickerLoader.status !== Loader.Error) {
+                    if (pickerLoader.status === Loader.Ready) {
+                        pickerLoader.item.openFiles();
+                    } else {
+                        pickerLoader.active = true;
+                    }
+                    return;
+                }
+                win.endPick();
+                return;
+            }
+            var lines = String(standardOutput).split("\n");
+            for (var i = 0; i < lines.length; ++i) {
+                var path = lines[i].trim();
+                if (path.length > 0) {
+                    win.attachFile(path);
+                }
+            }
+            win.endPick();
+        }
+    }
+
     function askAi(text) {
         var question = String(text).trim();
         if (!chat || question.length === 0) {
@@ -963,6 +1090,43 @@ Window {
         }
     }
 
+    // --- Couleur du bas de la barre ----------------------------------------------------------
+    // Le haut de la barre est toujours noir ; le bas prend la couleur du fond
+    // d'écran qui se trouve derrière (assombrie), avec un dégradé entre les deux.
+    readonly property int barColorColumns: 24
+    // Part de la luminosité du fond d'écran conservée dans la barre.
+    readonly property real barColorDepth: 0.5
+    readonly property color barFallbackColor: Qt.rgba(0.165, 0.165, 0.222, 1)
+    property var barColors: []
+
+    function refreshBarColors() {
+        var result = [];
+        var info = wallpaperInfo;
+        if (colorSampler && info && info.source && Number(info.width) > 0
+                && barSurface.width > 0) {
+            try {
+                var all = colorSampler.sampleColors(String(info.source),
+                    Number(info.fillMode), Number(info.width), Number(info.height),
+                    barSurface.x, barSurface.y, barSurface.width, barSurface.height,
+                    barColorColumns, 2);
+                // Deux lignes de cellules : on garde la ligne du bas.
+                if (all && all.length >= 2 * barColorColumns) {
+                    for (var i = barColorColumns; i < 2 * barColorColumns; ++i) {
+                        var c = all[i];
+                        result.push(Qt.rgba(c.r * barColorDepth, c.g * barColorDepth,
+                            c.b * barColorDepth, 1));
+                    }
+                }
+            } catch (error) {
+                result = [];
+            }
+        }
+        barColors = result;
+    }
+
+    onWallpaperInfoChanged: Qt.callLater(refreshBarColors)
+    onColorSamplerChanged: Qt.callLater(refreshBarColors)
+
     // --- Flou demandé à KWin ---------------------------------------------------------------
     // Configuration du verre du panneau (voir GlassGpu) : flou, Liquid Glass,
     // teinte et liseré calculés dans le shader.
@@ -972,7 +1136,7 @@ Window {
         "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
         "screenWidth": Number(wallpaperInfo.width || 0),
         "screenHeight": Number(wallpaperInfo.height || 0),
-        "radius": 32,
+        "radius": panelRadius,
         "blur": glassBlurPx,
         "refraction": true,
         "thickness": glassThickness,
@@ -1049,14 +1213,105 @@ Window {
             visible: !win.aiView
             x: Math.round((win.width - width) / 2)
             y: win.stageTop
-            // Couleurs relevées sur la capture de macOS : noir presque pur en
-            // haut, gris-bleu sombre en bas.
-            gradient: Gradient {
-                GradientStop { position: 0.00; color: Qt.rgba(0.000, 0.000, 0.004, 1) }
-                GradientStop { position: 0.21; color: Qt.rgba(0.018, 0.020, 0.032, 1) }
-                GradientStop { position: 0.50; color: Qt.rgba(0.070, 0.073, 0.098, 1) }
-                GradientStop { position: 0.77; color: Qt.rgba(0.118, 0.118, 0.158, 1) }
-                GradientStop { position: 1.00; color: Qt.rgba(0.165, 0.165, 0.222, 1) }
+            color: "transparent"
+
+            // Fond de la barre : noir en haut, couleur du fond d'écran en bas,
+            // dégradé au milieu (comme sur macOS 27). Le tout est découpé aux
+            // coins arrondis de la barre.
+            Item {
+                id: barFill
+
+                anchors.fill: parent
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: barFillMask
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1.0
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: Qt.rgba(0, 0, 0.004, 1)
+                }
+
+                // Les couleurs du fond d'écran, de gauche à droite (dégradé
+                // horizontal entre deux colonnes voisines), rendues de plus en
+                // plus opaques vers le bas.
+                Item {
+                    id: barTint
+
+                    anchors.fill: parent
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        maskEnabled: true
+                        maskSource: barTintMask
+                    }
+
+                    // Sans couleurs lues : le gris-bleu d'origine.
+                    Rectangle {
+                        anchors.fill: parent
+                        visible: win.barColors.length < 2
+                        color: win.barFallbackColor
+                    }
+
+                    Repeater {
+                        model: win.barColors.length > 1 ? win.barColors.length - 1 : 0
+
+                        delegate: Rectangle {
+                            id: tintSlice
+
+                            required property int index
+
+                            readonly property real sliceWidth: barTint.width / (win.barColors.length - 1)
+
+                            x: index * sliceWidth
+                            width: sliceWidth + 1
+                            height: barTint.height
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: win.barColors[tintSlice.index] }
+                                GradientStop { position: 1.0; color: win.barColors[tintSlice.index + 1] }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Masque des coins arrondis.
+            Item {
+                id: barFillMask
+
+                visible: false
+                layer.enabled: true
+                width: parent.width
+                height: parent.height
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: win.barHeight / 2
+                    color: "black"
+                }
+            }
+
+            // Masque du dégradé : rien dans le tiers du haut (noir), puis la
+            // couleur du fond d'écran apparaît jusqu'à être pleine en bas.
+            Item {
+                id: barTintMask
+
+                visible: false
+                layer.enabled: true
+                width: parent.width
+                height: parent.height
+
+                Rectangle {
+                    anchors.fill: parent
+                    gradient: Gradient {
+                        GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 0) }
+                        GradientStop { position: 0.30; color: Qt.rgba(0, 0, 0, 0) }
+                        GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0, 1) }
+                    }
+                }
             }
 
             // Liseré fin : chaque point prend la couleur de ce qui est derrière
@@ -1087,10 +1342,10 @@ Window {
             Item {
                 id: modeButton
 
-                x: 12
+                x: 14
                 anchors.verticalCenter: parent.verticalCenter
-                width: 44
-                height: 44
+                width: 50
+                height: 50
                 // Pendant la recherche d'une application, le bouton de mode
                 // s'efface (comme sur macOS 27) : le texte passe à gauche.
                 opacity: win.appSearch ? 0 : 1
@@ -1115,7 +1370,7 @@ Window {
                 SpotlightGlyph {
                     anchors.centerIn: parent
                     kind: win.mode === 1 ? "apps" : (win.mode === 2 ? "files" : "clipboard")
-                    size: 26
+                    size: 30
                     lineWidth: 1.9
                     color: Qt.rgba(1, 1, 1, 0.66)
                 }
@@ -1207,9 +1462,9 @@ Window {
             TextInput {
                 id: field
 
-                x: win.appSearch ? 30 : 64
+                x: win.appSearch ? 36 : 76
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - x - 62
+                width: parent.width - x - 70
                 color: "white"
 
                 Behavior on x {
@@ -1240,7 +1495,7 @@ Window {
                 }
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
                 selectedTextColor: "white"
-                font.pixelSize: 22
+                font.pixelSize: 26
                 clip: true
                 inputMethodHints: Qt.ImhNoPredictiveText
                 onTextChanged: {
@@ -1305,11 +1560,11 @@ Window {
             // une application (comme sur macOS 27).
             Text {
                 visible: win.selectedApp !== null && field.preeditText.length === 0
-                    && field.contentWidth + 110 < field.width
+                    && field.contentWidth + 130 < field.width
                 x: field.x + field.contentWidth + 6
                 anchors.verticalCenter: parent.verticalCenter
                 text: "— " + i18n("Open")
-                font.pixelSize: 22
+                font.pixelSize: 26
                 color: Qt.rgba(1, 1, 1, 0.5)
             }
 
@@ -1319,10 +1574,10 @@ Window {
 
                 visible: win.selectedApp !== null
                 anchors.right: parent.right
-                anchors.rightMargin: 16
+                anchors.rightMargin: 18
                 anchors.verticalCenter: parent.verticalCenter
-                width: 44
-                height: 44
+                width: 54
+                height: 54
 
                 Kirigami.Icon {
                     anchors.fill: parent
@@ -1342,10 +1597,10 @@ Window {
 
                 visible: win.selectedApp === null
                 anchors.right: parent.right
-                anchors.rightMargin: 14
+                anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
-                width: 40
-                height: 40
+                width: 46
+                height: 46
 
                 Rectangle {
                     anchors.fill: parent
@@ -1366,9 +1621,9 @@ Window {
                         model: 3
 
                         delegate: Rectangle {
-                            width: 4.5
-                            height: 4.5
-                            radius: 2.25
+                            width: 5
+                            height: 5
+                            radius: 2.5
                             color: Qt.rgba(1, 1, 1, 0.7)
                         }
                     }
@@ -1397,7 +1652,7 @@ Window {
             id: panelSurface
 
             // Rayon des coins (le verre et le masque de la grille l'utilisent).
-            readonly property real radius: 32
+            readonly property real radius: win.panelRadius
             width: win.appSearch ? win.barWidth : win.panelWidth
             height: win.panelTargetHeight
             visible: height > 1 && !win.aiView
@@ -1655,8 +1910,8 @@ Window {
 
                                 Rectangle {
                                     anchors.fill: parent
-                                    anchors.margins: 3
-                                    radius: 14
+                                    anchors.margins: 4
+                                    radius: 18
                                     color: cell.current ? Qt.rgba(1, 1, 1, 0.18)
                                         : (cellMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent")
                                 }
@@ -1671,13 +1926,13 @@ Window {
 
                                 Text {
                                     x: 4
-                                    y: 8 + win.iconSize + 6
+                                    y: 8 + win.iconSize + 7
                                     width: parent.width - 8
                                     height: 20
                                     horizontalAlignment: Text.AlignHCenter
                                     elide: Text.ElideRight
                                     text: cell.modelData.name
-                                    font.pixelSize: 12
+                                    font.pixelSize: 13
                                     color: Qt.rgba(1, 1, 1, 0.92)
                                 }
 
@@ -1783,7 +2038,9 @@ Window {
                 x: 8
                 y: 8
                 width: parent.width - 16
-                height: parent.height - 16
+                // Contenu = n x rowHeight (4 px sous chaque gélule) : 8 px en
+                // haut, 8 px en bas sous la dernière gélule.
+                height: parent.height - 12
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 model: win.results
@@ -1837,13 +2094,13 @@ Window {
                     // Application
                     Row {
                         visible: resultRow.kind === "app"
-                        x: 14
+                        x: 16
                         y: Math.round((win.rowHeight - 4 - height) / 2)
-                        spacing: 12
+                        spacing: 14
 
                         Kirigami.Icon {
-                            width: 34
-                            height: 34
+                            width: 40
+                            height: 40
                             source: resultRow.kind === "app" ? resultRow.modelData.app.icon : ""
                         }
 
@@ -1851,13 +2108,13 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             Text {
                                 text: resultRow.kind === "app" ? resultRow.modelData.app.name : ""
-                                font.pixelSize: 15
+                                font.pixelSize: 17
                                 color: "white"
                             }
                             Text {
                                 visible: text.length > 0
                                 text: resultRow.kind === "app" ? resultRow.modelData.app.genericName : ""
-                                font.pixelSize: 12
+                                font.pixelSize: 13
                                 color: Qt.rgba(1, 1, 1, 0.5)
                             }
                         }
@@ -1948,13 +2205,13 @@ Window {
                     // Demander à l'assistant (sans logo)
                     Column {
                         visible: resultRow.kind === "ai"
-                        x: 20
+                        x: 24
                         y: Math.round((win.rowHeight - 4 - height) / 2)
-                        width: resultRow.width - 40
+                        width: resultRow.width - 48
 
                         Text {
                             text: win.chat ? i18n("Ask %1", win.chat.providerName(win.chat.activeProvider)) : ""
-                            font.pixelSize: 15
+                            font.pixelSize: 17
                             color: "white"
                         }
                         Text {
@@ -1998,15 +2255,23 @@ Window {
         // transforment en cette fenêtre verticale (comme Siri sur macOS 27) :
         // bouton de fermeture en haut à gauche, bouton d'agrandissement en
         // haut à droite, la conversation, puis la zone de saisie en bas.
+        // On la déplace en la glissant par son en-tête (double clic : retour à
+        // la place d'origine) et on la redimensionne par ses bords et ses coins.
         Item {
             id: compactSurface
 
             readonly property real radius: win.compactRadius
-            width: win.compactWidth
-            height: win.compactHeight
+            readonly property real minWidth: 320
+            readonly property real minHeight: 300
+            width: win.compactUserWidth > 0 ? win.compactUserWidth : win.compactWidth
+            height: win.compactUserHeight > 0 ? win.compactUserHeight : win.compactHeight
             visible: win.aiView
-            x: Math.round((win.width - width) / 2)
-            y: win.stageTop
+            x: win.compactUserX >= 0
+                ? Math.max(0, Math.min(win.compactUserX, win.width - width))
+                : Math.round((win.width - width) / 2)
+            y: win.compactUserY >= 0
+                ? Math.max(0, Math.min(win.compactUserY, win.height - height))
+                : win.stageTop
 
             // Teinte de secours : avant que le verre soit prêt.
             Rectangle {
@@ -2033,9 +2298,56 @@ Window {
                 }
             }
 
+            // Haut de la fenêtre : les 10 % du haut sont totalement noirs, puis
+            // un dégradé jusqu'à 50 % de la hauteur ; le reste est le verre.
+            Rectangle {
+                anchors.fill: parent
+                radius: compactSurface.radius
+                gradient: Gradient {
+                    GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 1) }
+                    GradientStop { position: 0.10; color: Qt.rgba(0, 0, 0, 1) }
+                    GradientStop { position: 0.50; color: Qt.rgba(0, 0, 0, 0) }
+                }
+            }
+
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+            }
+
+            // En-tête : on glisse la fenêtre par là.
+            MouseArea {
+                id: dragArea
+
+                property real startX: 0
+                property real startY: 0
+                property real originX: 0
+                property real originY: 0
+
+                x: 0
+                y: 0
+                width: parent.width
+                height: 66
+                acceptedButtons: Qt.LeftButton
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                onPressed: function (mouse) {
+                    var point = mapToItem(stage, mouse.x, mouse.y);
+                    startX = point.x;
+                    startY = point.y;
+                    originX = compactSurface.x;
+                    originY = compactSurface.y;
+                }
+                onPositionChanged: function (mouse) {
+                    if (!pressed) {
+                        return;
+                    }
+                    var point = mapToItem(stage, mouse.x, mouse.y);
+                    win.compactUserX = Math.max(0, Math.min(originX + point.x - startX,
+                        win.width - compactSurface.width));
+                    win.compactUserY = Math.max(0, Math.min(originY + point.y - startY,
+                        win.height - compactSurface.height));
+                }
+                onDoubleClicked: win.resetCompactGeometry()
             }
 
             // Fermer.
@@ -2099,7 +2411,7 @@ Window {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.bottom: inputRow.top
+                anchors.bottom: attachStrip.top
                 anchors.topMargin: 66
                 anchors.leftMargin: 18
                 anchors.rightMargin: 18
@@ -2119,7 +2431,97 @@ Window {
                 }
             }
 
-            // Zone de saisie : « + », champ « Ask Siri », micro / envoi.
+            // Fichiers joints (pastilles) et message éventuel.
+            Flow {
+                id: attachStrip
+
+                readonly property bool shown: (!!win.chat && win.chat.attachments.length > 0)
+                    || win.attachNotice.length > 0
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: inputRow.top
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.bottomMargin: shown ? 8 : 0
+                height: shown ? implicitHeight : 0
+                visible: shown
+                spacing: 6
+
+                Repeater {
+                    model: win.chat ? win.chat.attachments : []
+
+                    delegate: Rectangle {
+                        id: chip
+
+                        required property var modelData
+                        required property int index
+
+                        height: 26
+                        width: chipContent.implicitWidth + 22
+                        radius: 13
+                        color: Qt.rgba(1, 1, 1, 0.16)
+
+                        Row {
+                            id: chipContent
+
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            SpotlightGlyph {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: chip.modelData.isDir ? "folder" : "files"
+                                size: 14
+                                lineWidth: 1.8
+                                color: Qt.rgba(1, 1, 1, 0.78)
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, 150)
+                                elide: Text.ElideMiddle
+                                text: chip.modelData.name
+                                font.pixelSize: 12
+                                color: Qt.rgba(1, 1, 1, 0.9)
+                            }
+
+                            SpotlightGlyph {
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: "close"
+                                size: 11
+                                lineWidth: 2.2
+                                color: removeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.5)
+
+                                MouseArea {
+                                    id: removeMouse
+
+                                    anchors.fill: parent
+                                    anchors.margins: -5
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (win.chat) {
+                                            win.chat.removeAttachment(chip.index);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    visible: win.attachNotice.length > 0
+                    height: 26
+                    verticalAlignment: Text.AlignVCenter
+                    text: win.attachNotice
+                    font.pixelSize: 12
+                    color: "#FFB454"
+                }
+            }
+
+            // Zone de saisie : « + » (joindre des fichiers), champ « Ask Siri »,
+            // envoi / arrêt.
             Item {
                 id: inputRow
 
@@ -2131,7 +2533,8 @@ Window {
                 anchors.bottomMargin: 14
                 height: 48
 
-                // Menu : fournisseur, nouvelle conversation, Siri IA, réglages.
+                // Clic : ajouter des fichiers. Clic droit : fournisseur d'IA,
+                // nouvelle conversation, Siri IA, réglages.
                 Rectangle {
                     id: plusButton
 
@@ -2155,12 +2558,17 @@ Window {
 
                         anchors.fill: parent
                         hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (moreMenu.opened) {
-                                moreMenu.close();
+                        onClicked: function (mouse) {
+                            if (mouse.button === Qt.RightButton) {
+                                if (moreMenu.opened) {
+                                    moreMenu.close();
+                                } else {
+                                    win.openAiMenu();
+                                }
                             } else {
-                                win.openAiMenu();
+                                win.pickFiles();
                             }
                         }
                     }
@@ -2170,9 +2578,9 @@ Window {
                     id: aiInputPill
 
                     anchors.left: plusButton.right
-                    anchors.right: sendButton.left
+                    anchors.right: parent.right
                     anchors.leftMargin: 8
-                    anchors.rightMargin: 8
+                    anchors.rightMargin: sendButton.visible ? sendButton.width + 8 : 0
                     anchors.verticalCenter: parent.verticalCenter
                     height: 44
                     radius: 22
@@ -2229,33 +2637,24 @@ Window {
                     }
                 }
 
-                // Micro quand le champ est vide ; flèche d'envoi pendant la
-                // saisie ; carré d'arrêt pendant que l'assistant répond.
+                // Flèche d'envoi pendant la saisie ; carré d'arrêt pendant que
+                // l'assistant répond ; absent le reste du temps (pas de micro).
                 Rectangle {
                     id: sendButton
 
                     readonly property bool busy: win.chat ? win.chat.currentBusy : false
                     readonly property bool typing: win.query.trim().length > 0
 
+                    visible: busy || typing
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     width: 44
                     height: 44
                     radius: 22
-                    color: busy || typing ? win.accent
-                        : Qt.rgba(1, 1, 1, sendMouse.containsMouse ? 0.24 : 0.14)
+                    color: win.accent
 
                     SpotlightGlyph {
-                        visible: !sendButton.busy && !sendButton.typing
-                        anchors.centerIn: parent
-                        kind: "mic"
-                        size: 20
-                        lineWidth: 1.9
-                        color: "white"
-                    }
-
-                    SpotlightGlyph {
-                        visible: !sendButton.busy && sendButton.typing
+                        visible: !sendButton.busy
                         anchors.centerIn: parent
                         kind: "send"
                         size: 20
@@ -2273,22 +2672,106 @@ Window {
                     }
 
                     MouseArea {
-                        id: sendMouse
-
                         anchors.fill: parent
-                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (sendButton.busy) {
                                 if (win.chat) {
                                     win.chat.cancel();
                                 }
-                            } else if (sendButton.typing) {
-                                win.askAi(win.query);
                             } else {
-                                win.focusField();
+                                win.askAi(win.query);
                             }
                         }
+                    }
+                }
+            }
+
+            // Poignées de redimensionnement : bords et coins.
+            // edges : 1 = gauche, 2 = droite, 4 = haut, 8 = bas.
+            Repeater {
+                model: [
+                    { "edges": 1, "cursor": Qt.SizeHorCursor },
+                    { "edges": 2, "cursor": Qt.SizeHorCursor },
+                    { "edges": 4, "cursor": Qt.SizeVerCursor },
+                    { "edges": 8, "cursor": Qt.SizeVerCursor },
+                    { "edges": 5, "cursor": Qt.SizeFDiagCursor },
+                    { "edges": 10, "cursor": Qt.SizeFDiagCursor },
+                    { "edges": 6, "cursor": Qt.SizeBDiagCursor },
+                    { "edges": 9, "cursor": Qt.SizeBDiagCursor }
+                ]
+
+                delegate: MouseArea {
+                    id: grip
+
+                    required property var modelData
+
+                    readonly property bool atLeft: (modelData.edges & 1) !== 0
+                    readonly property bool atRight: (modelData.edges & 2) !== 0
+                    readonly property bool atTop: (modelData.edges & 4) !== 0
+                    readonly property bool atBottom: (modelData.edges & 8) !== 0
+                    readonly property bool corner: (atLeft || atRight) && (atTop || atBottom)
+                    property real startX: 0
+                    property real startY: 0
+                    property real originX: 0
+                    property real originY: 0
+                    property real originWidth: 0
+                    property real originHeight: 0
+
+                    z: 30
+                    width: corner ? 20 : ((atLeft || atRight) ? 8 : parent.width - 40)
+                    height: corner ? 20 : ((atTop || atBottom) ? 8 : parent.height - 40)
+                    x: atLeft ? 0 : (atRight ? parent.width - width : 20)
+                    y: atTop ? 0 : (atBottom ? parent.height - height : 20)
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: modelData.cursor
+                    onPressed: function (mouse) {
+                        var point = mapToItem(stage, mouse.x, mouse.y);
+                        startX = point.x;
+                        startY = point.y;
+                        originX = compactSurface.x;
+                        originY = compactSurface.y;
+                        originWidth = compactSurface.width;
+                        originHeight = compactSurface.height;
+                    }
+                    onPositionChanged: function (mouse) {
+                        if (!pressed) {
+                            return;
+                        }
+                        var point = mapToItem(stage, mouse.x, mouse.y);
+                        var dx = point.x - startX;
+                        var dy = point.y - startY;
+                        var maxWidth = win.width - 20;
+                        var maxHeight = win.height - 20;
+                        var newX = originX;
+                        var newY = originY;
+                        var newWidth = originWidth;
+                        var newHeight = originHeight;
+                        if (atRight) {
+                            newWidth = originWidth + dx;
+                        } else if (atLeft) {
+                            newWidth = originWidth - dx;
+                        }
+                        if (atBottom) {
+                            newHeight = originHeight + dy;
+                        } else if (atTop) {
+                            newHeight = originHeight - dy;
+                        }
+                        newWidth = Math.max(compactSurface.minWidth, Math.min(maxWidth, newWidth));
+                        newHeight = Math.max(compactSurface.minHeight, Math.min(maxHeight, newHeight));
+                        if (atLeft) {
+                            newX = originX + originWidth - newWidth;
+                        }
+                        if (atTop) {
+                            newY = originY + originHeight - newHeight;
+                        }
+                        // Reste dans l'écran.
+                        newX = Math.max(0, Math.min(newX, win.width - newWidth));
+                        newY = Math.max(0, Math.min(newY, win.height - newHeight));
+                        win.compactUserX = newX;
+                        win.compactUserY = newY;
+                        win.compactUserWidth = newWidth;
+                        win.compactUserHeight = newHeight;
                     }
                 }
             }

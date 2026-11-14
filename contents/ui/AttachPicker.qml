@@ -10,6 +10,8 @@ Item {
 
     // location : adresse file:// ; isDir : vrai pour un dossier.
     signal picked(string location, bool isDir)
+    // Boîte fermée sans rien choisir.
+    signal cancelled()
 
     function openFolder() {
         folderDialog.open();
@@ -24,6 +26,7 @@ Item {
 
         title: i18n("Choose a folder for the AI")
         onAccepted: picker.picked(String(selectedFolder), true)
+        onRejected: picker.cancelled()
     }
 
     FileDialog {
@@ -36,5 +39,6 @@ Item {
                 picker.picked(String(selectedFiles[i]), false);
             }
         }
+        onRejected: picker.cancelled()
     }
 }
