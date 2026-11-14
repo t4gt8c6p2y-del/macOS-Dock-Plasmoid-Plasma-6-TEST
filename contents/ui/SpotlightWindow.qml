@@ -78,15 +78,17 @@ Window {
     property var contextTarget: null
 
     // --- Dimensions (celles de la capture de macOS 27) -------------------------
-    // Toujours 7 applications par ligne : la grille (7 x 124 px) est centrée
-    // dans le panneau, avec de part et d'autre la place d'une demi-application.
+    // Toujours 7 applications par ligne : la grille (7 x 111 px) est centrée
+    // dans le panneau, avec de part et d'autre de la place pour les bords.
+    // Taille intermédiaire entre la version d'origine (barre 444, panneau 720)
+    // et la capture de macOS 27 (barre 563, panneau 910).
     readonly property int columns: 7
-    readonly property real cellWidth: 124
-    readonly property real cellHeight: 112
-    readonly property real iconSize: 68
-    readonly property real barWidth: 563
-    readonly property real barHeight: 92
-    readonly property real panelWidth: Math.min(910, width - 40)
+    readonly property real cellWidth: 111
+    readonly property real cellHeight: 108
+    readonly property real iconSize: 66
+    readonly property real barWidth: 504
+    readonly property real barHeight: 86
+    readonly property real panelWidth: Math.min(815, width - 40)
     // Fenêtre de conversation avec l'assistant (comme Siri sur macOS 27) :
     // la barre et le panneau se transforment en cette fenêtre verticale.
     readonly property real compactWidth: 400
@@ -108,7 +110,7 @@ Window {
     }
     // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
     readonly property real panelMaxHeight:
-        Math.max(300, Math.min(580, height - stageTop - barHeight - stageGap - 28))
+        Math.max(300, Math.min(550, height - stageTop - barHeight - stageGap - 28))
     readonly property real stageGap: 12
     readonly property real stageTop: Math.round(height * 0.17)
     readonly property color accent: "#007AFF"
@@ -125,8 +127,8 @@ Window {
     // Rayon des coins du panneau ; la sélection d'une ligne est une gélule de
     // (rowHeight - 4) px, dont le rayon est celui du panneau moins la marge
     // de 8 px : les deux contours sont concentriques.
-    readonly property real panelRadius: 38
-    readonly property real rowHeight: 64
+    readonly property real panelRadius: 34
+    readonly property real rowHeight: 56
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
         if (!panelWanted) {
@@ -1095,7 +1097,7 @@ Window {
     // d'écran qui se trouve derrière (assombrie), avec un dégradé entre les deux.
     readonly property int barColorColumns: 24
     // Part de la luminosité du fond d'écran conservée dans la barre.
-    readonly property real barColorDepth: 0.5
+    readonly property real barColorDepth: 0.6
     readonly property color barFallbackColor: Qt.rgba(0.165, 0.165, 0.222, 1)
     property var barColors: []
 
@@ -1236,17 +1238,11 @@ Window {
                 }
 
                 // Les couleurs du fond d'écran, de gauche à droite (dégradé
-                // horizontal entre deux colonnes voisines), rendues de plus en
-                // plus opaques vers le bas.
+                // horizontal entre deux colonnes voisines), sur toute la hauteur.
                 Item {
                     id: barTint
 
                     anchors.fill: parent
-                    layer.enabled: true
-                    layer.effect: MultiEffect {
-                        maskEnabled: true
-                        maskSource: barTintMask
-                    }
 
                     // Sans couleurs lues : le gris-bleu d'origine.
                     Rectangle {
@@ -1276,6 +1272,18 @@ Window {
                         }
                     }
                 }
+
+                // Le noir du haut, posé PAR-DESSUS les couleurs : noir plein dans
+                // le quart du haut, puis il s'efface jusqu'au bas de la barre,
+                // où la couleur du fond d'écran est entière.
+                Rectangle {
+                    anchors.fill: parent
+                    gradient: Gradient {
+                        GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0.004, 1) }
+                        GradientStop { position: 0.25; color: Qt.rgba(0, 0, 0.004, 1) }
+                        GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0.004, 0) }
+                    }
+                }
             }
 
             // Masque des coins arrondis.
@@ -1291,26 +1299,6 @@ Window {
                     anchors.fill: parent
                     radius: win.barHeight / 2
                     color: "black"
-                }
-            }
-
-            // Masque du dégradé : rien dans le tiers du haut (noir), puis la
-            // couleur du fond d'écran apparaît jusqu'à être pleine en bas.
-            Item {
-                id: barTintMask
-
-                visible: false
-                layer.enabled: true
-                width: parent.width
-                height: parent.height
-
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 0) }
-                        GradientStop { position: 0.30; color: Qt.rgba(0, 0, 0, 0) }
-                        GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0, 1) }
-                    }
                 }
             }
 
@@ -1342,10 +1330,10 @@ Window {
             Item {
                 id: modeButton
 
-                x: 14
+                x: 13
                 anchors.verticalCenter: parent.verticalCenter
-                width: 50
-                height: 50
+                width: 47
+                height: 47
                 // Pendant la recherche d'une application, le bouton de mode
                 // s'efface (comme sur macOS 27) : le texte passe à gauche.
                 opacity: win.appSearch ? 0 : 1
@@ -1370,7 +1358,7 @@ Window {
                 SpotlightGlyph {
                     anchors.centerIn: parent
                     kind: win.mode === 1 ? "apps" : (win.mode === 2 ? "files" : "clipboard")
-                    size: 30
+                    size: 28
                     lineWidth: 1.9
                     color: Qt.rgba(1, 1, 1, 0.66)
                 }
@@ -1462,9 +1450,9 @@ Window {
             TextInput {
                 id: field
 
-                x: win.appSearch ? 36 : 76
+                x: win.appSearch ? 33 : 70
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - x - 70
+                width: parent.width - x - 63
                 color: "white"
 
                 Behavior on x {
@@ -1495,7 +1483,7 @@ Window {
                 }
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
                 selectedTextColor: "white"
-                font.pixelSize: 26
+                font.pixelSize: 24
                 clip: true
                 inputMethodHints: Qt.ImhNoPredictiveText
                 onTextChanged: {
@@ -1560,11 +1548,11 @@ Window {
             // une application (comme sur macOS 27).
             Text {
                 visible: win.selectedApp !== null && field.preeditText.length === 0
-                    && field.contentWidth + 130 < field.width
+                    && field.contentWidth + 120 < field.width
                 x: field.x + field.contentWidth + 6
                 anchors.verticalCenter: parent.verticalCenter
                 text: "— " + i18n("Open")
-                font.pixelSize: 26
+                font.pixelSize: 24
                 color: Qt.rgba(1, 1, 1, 0.5)
             }
 
@@ -1574,10 +1562,10 @@ Window {
 
                 visible: win.selectedApp !== null
                 anchors.right: parent.right
-                anchors.rightMargin: 18
+                anchors.rightMargin: 17
                 anchors.verticalCenter: parent.verticalCenter
-                width: 54
-                height: 54
+                width: 49
+                height: 49
 
                 Kirigami.Icon {
                     anchors.fill: parent
@@ -1597,10 +1585,10 @@ Window {
 
                 visible: win.selectedApp === null
                 anchors.right: parent.right
-                anchors.rightMargin: 16
+                anchors.rightMargin: 15
                 anchors.verticalCenter: parent.verticalCenter
-                width: 46
-                height: 46
+                width: 43
+                height: 43
 
                 Rectangle {
                     anchors.fill: parent
@@ -1910,8 +1898,8 @@ Window {
 
                                 Rectangle {
                                     anchors.fill: parent
-                                    anchors.margins: 4
-                                    radius: 18
+                                    anchors.margins: 3
+                                    radius: 16
                                     color: cell.current ? Qt.rgba(1, 1, 1, 0.18)
                                         : (cellMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent")
                                 }
@@ -2094,13 +2082,13 @@ Window {
                     // Application
                     Row {
                         visible: resultRow.kind === "app"
-                        x: 16
+                        x: 14
                         y: Math.round((win.rowHeight - 4 - height) / 2)
-                        spacing: 14
+                        spacing: 13
 
                         Kirigami.Icon {
-                            width: 40
-                            height: 40
+                            width: 37
+                            height: 37
                             source: resultRow.kind === "app" ? resultRow.modelData.app.icon : ""
                         }
 
@@ -2108,7 +2096,7 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             Text {
                                 text: resultRow.kind === "app" ? resultRow.modelData.app.name : ""
-                                font.pixelSize: 17
+                                font.pixelSize: 16
                                 color: "white"
                             }
                             Text {
@@ -2205,13 +2193,13 @@ Window {
                     // Demander à l'assistant (sans logo)
                     Column {
                         visible: resultRow.kind === "ai"
-                        x: 24
+                        x: 22
                         y: Math.round((win.rowHeight - 4 - height) / 2)
-                        width: resultRow.width - 48
+                        width: resultRow.width - 44
 
                         Text {
                             text: win.chat ? i18n("Ask %1", win.chat.providerName(win.chat.activeProvider)) : ""
-                            font.pixelSize: 17
+                            font.pixelSize: 16
                             color: "white"
                         }
                         Text {
@@ -2298,15 +2286,57 @@ Window {
                 }
             }
 
-            // Haut de la fenêtre : les 10 % du haut sont totalement noirs, puis
-            // un dégradé jusqu'à 50 % de la hauteur ; le reste est le verre.
-            Rectangle {
+            // Zone sombre de la fenêtre : un noir en diagonale, le plus profond
+            // dans le coin haut gauche (noir plein sur le haut), qui s'éclaircit
+            // vers le bas et vers la droite ; le reste est le verre. Le dégradé
+            // est incliné de 24 degrés : à gauche le noir descend environ deux
+            // fois plus bas qu'à droite. Découpé aux coins arrondis.
+            Item {
+                id: darkLayer
+
+                readonly property real angle: 24
+                // Longueur du dégradé : de l'angle haut gauche à l'angle bas droit.
+                readonly property real axisLength:
+                    Math.sin(angle * Math.PI / 180) * width
+                    + Math.cos(angle * Math.PI / 180) * height
+
                 anchors.fill: parent
-                radius: compactSurface.radius
-                gradient: Gradient {
-                    GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 1) }
-                    GradientStop { position: 0.10; color: Qt.rgba(0, 0, 0, 1) }
-                    GradientStop { position: 0.50; color: Qt.rgba(0, 0, 0, 0) }
+                clip: true
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: compactShapeMask
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1.0
+                }
+
+                Rectangle {
+                    width: darkLayer.width + darkLayer.height
+                    height: darkLayer.axisLength
+                    x: (darkLayer.width - width) / 2
+                    y: (darkLayer.height - height) / 2
+                    rotation: -darkLayer.angle
+                    gradient: Gradient {
+                        GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 1) }
+                        GradientStop { position: 0.16; color: Qt.rgba(0, 0, 0, 1) }
+                        GradientStop { position: 0.60; color: Qt.rgba(0, 0, 0, 0) }
+                    }
+                }
+            }
+
+            // Masque des coins arrondis de la fenêtre.
+            Item {
+                id: compactShapeMask
+
+                visible: false
+                layer.enabled: true
+                width: parent.width
+                height: parent.height
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: compactSurface.radius
+                    color: "black"
                 }
             }
 
