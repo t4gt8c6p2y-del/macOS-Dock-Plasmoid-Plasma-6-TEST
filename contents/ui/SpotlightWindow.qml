@@ -82,6 +82,12 @@ Window {
     readonly property real barWidth: 444
     readonly property real barHeight: 80
     readonly property real panelWidth: 720
+    // Fenêtre de conversation avec l'assistant (comme Siri sur macOS 27) :
+    // la barre et le panneau se transforment en cette fenêtre verticale.
+    readonly property real compactWidth: 400
+    readonly property real compactRadius: 34
+    readonly property real compactHeight:
+        Math.max(380, Math.min(580, height - stageTop - 28))
     // Plus haut que la capture, mais jamais plus que l'écran ne le permet.
     readonly property real panelMaxHeight:
         Math.max(300, Math.min(520, height - stageTop - barHeight - stageGap - 28))
@@ -90,6 +96,15 @@ Window {
     readonly property color accent: "#007AFF"
 
     readonly property bool gridMode: mode === 1 && query.trim().length === 0 && !aiView
+    // Recherche d'une application (mode Applications, texte saisi) : la barre
+    // et le panneau ont la même largeur, comme sur macOS 27.
+    readonly property bool appSearch: mode === 1 && query.trim().length > 0 && !aiView
+    readonly property var selectedEntry:
+        selectedIndex >= 0 && selectedIndex < results.length ? results[selectedIndex] : null
+    // Application sélectionnée dans les résultats (son icône remplace le bouton « … »).
+    readonly property var selectedApp:
+        appSearch && selectedEntry && selectedEntry.kind === "app" ? selectedEntry.app : null
+    readonly property real rowHeight: 52
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
         if (!panelWanted) {
@@ -98,10 +113,11 @@ Window {
         if (aiView || gridMode) {
             return panelMaxHeight;
         }
-        var total = 16;
+        // 8 px de marge en haut et en bas ; la dernière ligne n'a pas d'espace dessous.
+        var total = 12;
         for (var i = 0; i < results.length; ++i) {
             total += results[i].kind === "header" ? 28
-                : (results[i].kind === "info" ? 46 : 50);
+                : (results[i].kind === "info" ? 46 : rowHeight);
         }
         return Math.max(66, Math.min(panelMaxHeight, total));
     }
@@ -152,9 +168,9 @@ Window {
         contextMenu.close();
         // Une animation d'agrandissement interrompue ne doit rien laisser derrière elle.
         expandAnimation.stop();
-        panelSurface.scale = 1;
-        panelSurface.opacity = 1;
-        barSurface.opacity = 1;
+        compactIntro.stop();
+        compactSurface.scale = 1;
+        compactSurface.opacity = 1;
         refreshApps();
         aiView = false;
         query = initialText !== undefined ? String(initialText) : "";
@@ -202,8 +218,9 @@ Window {
     }
 
     function focusField() {
-        field.forceActiveFocus();
-        field.cursorPosition = field.text.length;
+        var input = aiView ? aiField : field;
+        input.forceActiveFocus();
+        input.cursorPosition = input.text.length;
     }
 
     onVisibleChanged: {
@@ -222,32 +239,54 @@ Window {
         id: expandAnimation
 
         NumberAnimation {
-            target: panelSurface
+            target: compactSurface
             property: "scale"
-            to: 1.12
+            to: 1.08
             duration: 190
             easing.type: Easing.InOutCubic
         }
 
         NumberAnimation {
-            target: panelSurface
+            target: compactSurface
             property: "opacity"
             to: 0
             duration: 190
             easing.type: Easing.InCubic
         }
 
-        NumberAnimation {
-            target: barSurface
-            property: "opacity"
-            to: 0
-            duration: 130
-            easing.type: Easing.OutCubic
-        }
-
         onFinished: {
             win.closeSpotlight();
             win.assistantRequested(false);
+        }
+    }
+
+    // La barre devient la fenêtre de conversation : elle apparaît en
+    // grandissant légèrement depuis sa position.
+    ParallelAnimation {
+        id: compactIntro
+
+        NumberAnimation {
+            target: compactSurface
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: 170
+            easing.type: Easing.OutCubic
+        }
+
+        NumberAnimation {
+            target: compactSurface
+            property: "scale"
+            from: 0.93
+            to: 1
+            duration: 210
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    onAiViewChanged: {
+        if (aiView) {
+            compactIntro.restart();
         }
     }
 
@@ -553,7 +592,6 @@ Window {
                 }
                 var apps = matchApps(text, 40);
                 if (apps.length > 0) {
-                    list.push({ "kind": "header", "text": i18n("Applications") });
                     for (i = 0; i < apps.length; ++i) {
                         list.push({ "kind": "app", "app": apps[i] });
                     }
@@ -623,6 +661,9 @@ Window {
     onQueryChanged: {
         if (field.text !== query) {
             field.text = query;
+        }
+        if (aiField.text !== query) {
+            aiField.text = query;
         }
         if (mode === 2) {
             var text = query.trim();
@@ -708,10 +749,14 @@ Window {
         if (!chat || question.length === 0) {
             return;
         }
+        // Une réponse est déjà en cours : le texte tapé est conservé.
+        if (aiView && chat.currentBusy) {
+            return;
+        }
         aiView = true;
         query = "";
         chat.ask(question, chat.activeProvider);
-        focusField();
+        Qt.callLater(focusField);
     }
 
     function activateEntry(entry, reveal) {
@@ -798,6 +843,36 @@ Window {
         return entries;
     }
 
+    // Menu du bouton « + » de la fenêtre de conversation.
+    function aiEntries() {
+        var entries = [];
+        if (chat) {
+            for (var i = 0; i < chat.providerCount; ++i) {
+                entries.push({
+                    "id": "provider" + i,
+                    "text": i18n("Ask %1", chat.providerName(i)),
+                    "glyph": "sparkle",
+                    "checked": chat.activeProvider === i
+                });
+            }
+            entries.push({ "separator": true });
+        }
+        entries.push({ "id": "newinline", "text": i18n("New Siri AI conversation"), "glyph": "compose" });
+        if (assistantEnabled) {
+            entries.push({ "id": "openchat", "text": i18n("Open Siri AI"), "glyph": "expand" });
+        }
+        entries.push({ "separator": true });
+        entries.push({ "id": "settings", "text": i18n("Spotlight Settings…"), "glyph": "" });
+        return entries;
+    }
+
+    function openAiMenu() {
+        contextMenu.close();
+        moreMenu.entries = aiEntries();
+        var anchor = plusButton.mapToItem(null, 0, -6);
+        moreMenu.openAt(anchor.x, anchor.y, false, "up");
+    }
+
     function openMoreMenu() {
         contextMenu.close();
         moreMenu.entries = moreEntries();
@@ -815,6 +890,11 @@ Window {
             });
         } else if (id.indexOf("provider") === 0 && chat) {
             chat.setActiveProvider(Number(id.substring(8)));
+            focusField();
+        } else if (id === "newinline") {
+            if (chat) {
+                chat.startNew();
+            }
             focusField();
         } else if (id === "newchat") {
             closeSpotlight();
@@ -892,7 +972,7 @@ Window {
         "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
         "screenWidth": Number(wallpaperInfo.width || 0),
         "screenHeight": Number(wallpaperInfo.height || 0),
-        "radius": 30,
+        "radius": 32,
         "blur": glassBlurPx,
         "refraction": true,
         "thickness": glassThickness,
@@ -914,6 +994,13 @@ Window {
         var k = outA > 0.0001 ? a * (1 - d) / outA : 0;
         return Qt.vector4d(0.03 * k, 0.05 * k, 0.11 * k, outA);
     }
+
+    // Fenêtre de conversation : même verre que le panneau, mais plus sombre
+    // (presque noir, comme la fenêtre de Siri sur macOS 27).
+    readonly property var compactGlassCfg: Object.assign({}, panelGlassCfg, {
+        "radius": compactRadius,
+        "tint": Qt.vector4d(0.012, 0.014, 0.026, Math.max(0.78, panelTint.w))
+    })
 
     // La barre de recherche reste opaque : le verre ne dessine que son liseré.
     readonly property var barGlassCfg: ({
@@ -959,6 +1046,7 @@ Window {
             radius: win.barHeight / 2
             width: win.barWidth
             height: win.barHeight
+            visible: !win.aiView
             x: Math.round((win.width - width) / 2)
             y: win.stageTop
             // Couleurs relevées sur la capture de macOS : noir presque pur en
@@ -1003,6 +1091,15 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 44
                 height: 44
+                // Pendant la recherche d'une application, le bouton de mode
+                // s'efface (comme sur macOS 27) : le texte passe à gauche.
+                opacity: win.appSearch ? 0 : 1
+                visible: opacity > 0.01
+                enabled: !win.appSearch
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 110 }
+                }
 
                 Rectangle {
                     anchors.fill: parent
@@ -1110,10 +1207,14 @@ Window {
             TextInput {
                 id: field
 
-                x: 64
+                x: win.appSearch ? 30 : 64
                 anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 64 - 56
+                width: parent.width - x - 62
                 color: "white"
+
+                Behavior on x {
+                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                }
                 cursorDelegate: Item {
                     id: caret
 
@@ -1200,10 +1301,46 @@ Window {
                 }
             }
 
+            // « — Ouvrir » après le texte saisi quand le premier résultat est
+            // une application (comme sur macOS 27).
+            Text {
+                visible: win.selectedApp !== null && field.preeditText.length === 0
+                    && field.contentWidth + 110 < field.width
+                x: field.x + field.contentWidth + 6
+                anchors.verticalCenter: parent.verticalCenter
+                text: "— " + i18n("Open")
+                font.pixelSize: 22
+                color: Qt.rgba(1, 1, 1, 0.5)
+            }
+
+            // Icône de l'application sélectionnée, à la place du bouton « … ».
+            Item {
+                id: appBadge
+
+                visible: win.selectedApp !== null
+                anchors.right: parent.right
+                anchors.rightMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: 44
+                height: 44
+
+                Kirigami.Icon {
+                    anchors.fill: parent
+                    source: win.selectedApp ? win.selectedApp.icon : ""
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.launchApp(win.selectedApp)
+                }
+            }
+
             // Bouton « … » : les mêmes réglages que le Spotlight de macOS.
             Item {
                 id: moreButton
 
+                visible: win.selectedApp === null
                 anchors.right: parent.right
                 anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
@@ -1260,14 +1397,18 @@ Window {
             id: panelSurface
 
             // Rayon des coins (le verre et le masque de la grille l'utilisent).
-            readonly property real radius: 30
-            width: win.panelWidth
+            readonly property real radius: 32
+            width: win.appSearch ? win.barWidth : win.panelWidth
             height: win.panelTargetHeight
-            visible: height > 1
+            visible: height > 1 && !win.aiView
             x: Math.round((win.width - width) / 2)
             y: barSurface.y + barSurface.height + win.stageGap
 
             Behavior on height {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+
+            Behavior on width {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
             }
 
@@ -1639,9 +1780,9 @@ Window {
                 id: resultsList
 
                 visible: !win.gridMode && !win.aiView
-                x: 10
+                x: 8
                 y: 8
-                width: parent.width - 20
+                width: parent.width - 16
                 height: parent.height - 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
@@ -1658,14 +1799,16 @@ Window {
                     readonly property bool hovered: rowMouse.containsMouse
 
                     width: resultsList.width
-                    height: kind === "header" ? 28 : (kind === "info" ? 46 : 50)
+                    height: kind === "header" ? 28 : (kind === "info" ? 46 : win.rowHeight)
 
+                    // Sélection : une gélule de 48 px, à 8 px du bord du panneau.
+                    // Son rayon (24) est celui du panneau (32) moins cette
+                    // marge : les deux contours sont concentriques.
                     Rectangle {
                         visible: resultRow.kind !== "header" && resultRow.kind !== "info"
                         anchors.fill: parent
-                        anchors.topMargin: 1
-                        anchors.bottomMargin: 1
-                        radius: 12
+                        anchors.bottomMargin: 4
+                        radius: height / 2
                         color: resultRow.selected ? Qt.rgba(1, 1, 1, 0.18)
                             : (resultRow.hovered ? Qt.rgba(1, 1, 1, 0.09) : "transparent")
                     }
@@ -1694,8 +1837,8 @@ Window {
                     // Application
                     Row {
                         visible: resultRow.kind === "app"
-                        x: 12
-                        anchors.verticalCenter: parent.verticalCenter
+                        x: 14
+                        y: Math.round((win.rowHeight - 4 - height) / 2)
                         spacing: 12
 
                         Kirigami.Icon {
@@ -1802,50 +1945,24 @@ Window {
                         }
                     }
 
-                    // Demander à l'assistant
-                    Row {
+                    // Demander à l'assistant (sans logo)
+                    Column {
                         visible: resultRow.kind === "ai"
-                        x: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 12
+                        x: 20
+                        y: Math.round((win.rowHeight - 4 - height) / 2)
+                        width: resultRow.width - 40
 
-                        Rectangle {
-                            width: 34
-                            height: 34
-                            radius: 17
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: "#7B61FF" }
-                                GradientStop { position: 0.5; color: "#35A7FF" }
-                                GradientStop { position: 1.0; color: "#FF5FA2" }
-                            }
-
-                            SpotlightGlyph {
-                                anchors.centerIn: parent
-                                kind: "sparkle"
-                                size: 18
-                                filled: true
-                                lineWidth: 1
-                                color: "white"
-                            }
+                        Text {
+                            text: win.chat ? i18n("Ask %1", win.chat.providerName(win.chat.activeProvider)) : ""
+                            font.pixelSize: 15
+                            color: "white"
                         }
-
-                        Column {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: resultRow.width - 80
-
-                            Text {
-                                text: win.chat ? i18n("Ask %1", win.chat.providerName(win.chat.activeProvider)) : ""
-                                font.pixelSize: 15
-                                color: "white"
-                            }
-                            Text {
-                                width: parent.width
-                                elide: Text.ElideRight
-                                text: resultRow.kind === "ai" ? resultRow.modelData.text : ""
-                                font.pixelSize: 12
-                                color: Qt.rgba(1, 1, 1, 0.5)
-                            }
+                        Text {
+                            width: parent.width
+                            elide: Text.ElideRight
+                            text: resultRow.kind === "ai" ? resultRow.modelData.text : ""
+                            font.pixelSize: 12
+                            color: Qt.rgba(1, 1, 1, 0.5)
                         }
                     }
 
@@ -1874,83 +1991,303 @@ Window {
                     }
                 }
             }
+        }
 
-            // Conversation avec l'assistant, dans le panneau.
-            Item {
-                id: aiPanel
+        // ---- La conversation avec l'assistant ----
+        // Quand une question part vers l'IA, la barre et le panneau se
+        // transforment en cette fenêtre verticale (comme Siri sur macOS 27) :
+        // bouton de fermeture en haut à gauche, bouton d'agrandissement en
+        // haut à droite, la conversation, puis la zone de saisie en bas.
+        Item {
+            id: compactSurface
 
-                visible: win.aiView
+            readonly property real radius: win.compactRadius
+            width: win.compactWidth
+            height: win.compactHeight
+            visible: win.aiView
+            x: Math.round((win.width - width) / 2)
+            y: win.stageTop
+
+            // Teinte de secours : avant que le verre soit prêt.
+            Rectangle {
                 anchors.fill: parent
+                radius: compactSurface.radius
+                color: Qt.rgba(0.02, 0.022, 0.035, 0.92)
+                visible: compactGlass.gpuBroken || !compactGlass.ready
+            }
 
-                Row {
-                    x: 22
-                    y: 14
-                    height: 28
-                    spacing: 8
+            GlassLayer {
+                id: compactGlass
 
-                    SpotlightGlyph {
-                        anchors.verticalCenter: parent.verticalCenter
-                        kind: "sparkle"
-                        size: 18
-                        color: Qt.rgba(1, 1, 1, 0.85)
-                    }
+                anchors.fill: parent
+                windows: win.liveWindows
+                originX: compactSurface.x
+                originY: compactSurface.y
+                Component.onCompleted: configure(win.compactGlassCfg)
 
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
-                        font.pixelSize: 14
-                        font.weight: Font.DemiBold
-                        color: Qt.rgba(1, 1, 1, 0.85)
+                Connections {
+                    target: win
+                    function onCompactGlassCfgChanged() {
+                        compactGlass.configure(win.compactGlassCfg);
                     }
                 }
+            }
 
-                // Ouvrir la conversation dans l'application Siri IA.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+            }
+
+            // Fermer.
+            Rectangle {
+                id: closeButton
+
+                x: 16
+                y: 16
+                width: 38
+                height: 38
+                radius: 19
+                color: Qt.rgba(1, 1, 1, closeMouse.containsMouse ? 0.26 : 0.16)
+
+                SpotlightGlyph {
+                    anchors.centerIn: parent
+                    kind: "close"
+                    size: 15
+                    lineWidth: 2.2
+                    color: "white"
+                }
+
+                MouseArea {
+                    id: closeMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.closeSpotlight()
+                }
+            }
+
+            // Ouvrir la conversation dans l'application Siri IA.
+            Rectangle {
+                visible: win.assistantEnabled
+                x: parent.width - width - 16
+                y: 16
+                width: 38
+                height: 38
+                radius: 19
+                color: Qt.rgba(1, 1, 1, expandMouse.containsMouse ? 0.26 : 0.16)
+
+                SpotlightGlyph {
+                    anchors.centerIn: parent
+                    kind: "expand"
+                    size: 16
+                    lineWidth: 2
+                    color: "white"
+                }
+
+                MouseArea {
+                    id: expandMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.expandToAssistant()
+                }
+            }
+
+            ChatTranscript {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: inputRow.top
+                anchors.topMargin: 66
+                anchors.leftMargin: 18
+                anchors.rightMargin: 18
+                anchors.bottomMargin: 8
+                compact: true
+                userColor: Qt.rgba(1, 1, 1, 0.16)
+                emptyText: i18n("How can I help?")
+                messages: win.chat ? win.chat.currentMessages : []
+                busy: win.chat ? win.chat.currentBusy : false
+                providerNames: win.chat
+                    ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2)]
+                    : ["Gemini", "GLM", ""]
+                onCopyRequested: function (text) {
+                    if (win.backend) {
+                        win.backend.setClipboardText(text);
+                    }
+                }
+            }
+
+            // Zone de saisie : « + », champ « Ask Siri », micro / envoi.
+            Item {
+                id: inputRow
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                anchors.bottomMargin: 14
+                height: 48
+
+                // Menu : fournisseur, nouvelle conversation, Siri IA, réglages.
                 Rectangle {
-                    visible: win.assistantEnabled
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.topMargin: 12
-                    anchors.rightMargin: 16
-                    width: 32
-                    height: 32
-                    radius: 16
-                    color: Qt.rgba(1, 1, 1, expandMouse.containsMouse ? 0.18 : 0.08)
+                    id: plusButton
+
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44
+                    height: 44
+                    radius: 22
+                    color: Qt.rgba(1, 1, 1, plusMouse.containsMouse || moreMenu.opened ? 0.24 : 0.14)
 
                     SpotlightGlyph {
                         anchors.centerIn: parent
-                        kind: "expand"
-                        size: 16
-                        color: Qt.rgba(1, 1, 1, 0.85)
+                        kind: "plus"
+                        size: 20
+                        lineWidth: 2
+                        color: "white"
                     }
 
                     MouseArea {
-                        id: expandMouse
+                        id: plusMouse
 
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: win.expandToAssistant()
+                        onClicked: {
+                            if (moreMenu.opened) {
+                                moreMenu.close();
+                            } else {
+                                win.openAiMenu();
+                            }
+                        }
                     }
                 }
 
-                ChatTranscript {
-                    anchors.left: parent.left
+                Rectangle {
+                    id: aiInputPill
+
+                    anchors.left: plusButton.right
+                    anchors.right: sendButton.left
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 44
+                    radius: 22
+                    color: Qt.rgba(1, 1, 1, 0.12)
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, aiField.activeFocus ? 0.22 : 0.1)
+
+                    TextInput {
+                        id: aiField
+
+                        x: 18
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - 36
+                        color: "white"
+                        selectionColor: Qt.rgba(1, 1, 1, 0.3)
+                        selectedTextColor: "white"
+                        font.pixelSize: 16
+                        clip: true
+                        inputMethodHints: Qt.ImhNoPredictiveText
+                        onTextChanged: {
+                            if (text !== win.query) {
+                                win.query = text;
+                            }
+                        }
+
+                        Text {
+                            visible: aiField.text.length === 0 && aiField.preeditText.length === 0
+                            text: i18n("Ask Siri AI…")
+                            font: aiField.font
+                            color: Qt.rgba(1, 1, 1, 0.5)
+                        }
+
+                        Keys.onPressed: function (event) {
+                            if (moreMenu.opened || contextMenu.opened) {
+                                if (event.key === Qt.Key_Escape) {
+                                    moreMenu.close();
+                                    contextMenu.close();
+                                }
+                                event.accepted = true;
+                                return;
+                            }
+                            if (event.key === Qt.Key_Escape) {
+                                if (win.query.length > 0) {
+                                    win.query = "";
+                                } else {
+                                    win.closeSpotlight();
+                                }
+                                event.accepted = true;
+                            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                win.askAi(win.query);
+                                event.accepted = true;
+                            }
+                        }
+                    }
+                }
+
+                // Micro quand le champ est vide ; flèche d'envoi pendant la
+                // saisie ; carré d'arrêt pendant que l'assistant répond.
+                Rectangle {
+                    id: sendButton
+
+                    readonly property bool busy: win.chat ? win.chat.currentBusy : false
+                    readonly property bool typing: win.query.trim().length > 0
+
                     anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.topMargin: 52
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 14
-                    anchors.bottomMargin: 12
-                    compact: true
-                    messages: win.chat ? win.chat.currentMessages : []
-                    busy: win.chat ? win.chat.currentBusy : false
-                    providerNames: win.chat
-                        ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2)]
-                        : ["Gemini", "GLM", ""]
-                    onCopyRequested: function (text) {
-                        if (win.backend) {
-                            win.backend.setClipboardText(text);
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44
+                    height: 44
+                    radius: 22
+                    color: busy || typing ? win.accent
+                        : Qt.rgba(1, 1, 1, sendMouse.containsMouse ? 0.24 : 0.14)
+
+                    SpotlightGlyph {
+                        visible: !sendButton.busy && !sendButton.typing
+                        anchors.centerIn: parent
+                        kind: "mic"
+                        size: 20
+                        lineWidth: 1.9
+                        color: "white"
+                    }
+
+                    SpotlightGlyph {
+                        visible: !sendButton.busy && sendButton.typing
+                        anchors.centerIn: parent
+                        kind: "send"
+                        size: 20
+                        lineWidth: 2.2
+                        color: "white"
+                    }
+
+                    Rectangle {
+                        visible: sendButton.busy
+                        anchors.centerIn: parent
+                        width: 13
+                        height: 13
+                        radius: 3.5
+                        color: "white"
+                    }
+
+                    MouseArea {
+                        id: sendMouse
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (sendButton.busy) {
+                                if (win.chat) {
+                                    win.chat.cancel();
+                                }
+                            } else if (sendButton.typing) {
+                                win.askAi(win.query);
+                            } else {
+                                win.focusField();
+                            }
                         }
                     }
                 }

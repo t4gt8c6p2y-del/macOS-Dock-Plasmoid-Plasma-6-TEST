@@ -11,6 +11,9 @@ ListView {
     property bool busy: false
     property bool compact: false
     property color accent: "#0A84FF"
+    // Couleur de la bulle des questions (bleue par défaut ; grise dans le
+    // Spotlight, comme la fenêtre de Siri).
+    property color userColor: accent
     property string providerLabel: ""
     // Texte affiché quand la conversation est vide.
     property string emptyText: ""
@@ -87,7 +90,7 @@ ListView {
                 width: parent.width
                 height: userText.contentHeight + 20
                 radius: 18
-                color: view.accent
+                color: view.userColor
 
                 TextEdit {
                     id: userText
