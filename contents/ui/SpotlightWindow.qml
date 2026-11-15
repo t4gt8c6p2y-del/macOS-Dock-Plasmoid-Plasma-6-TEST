@@ -195,6 +195,9 @@ Window {
         compactIntro.stop();
         compactSurface.scale = 1;
         compactSurface.opacity = 1;
+        // La fenêtre de conversation ne reprend pas la position ni la taille
+        // de la fois d'avant.
+        resetCompactGeometry();
         refreshApps();
         aiView = false;
         query = initialText !== undefined ? String(initialText) : "";
@@ -1187,6 +1190,16 @@ Window {
         "ringStrength": borderStrength * 0.8,
         "ringOnly": true
     })
+    // Fond de la barre : ce qui est derrière (fond d'écran ET fenêtres, en
+    // direct) est flouté et assombri ; le noir du haut est posé par-dessus.
+    readonly property var barBackdropCfg: Object.assign({}, barGlassCfg, {
+        "blur": 36,
+        "strength": 0,
+        "ringWidth": 0,
+        "ringStrength": 0,
+        "ringOnly": false,
+        "tint": Qt.vector4d(0, 0, 0.004, 0.45)
+    })
     readonly property var liveWindows: liveBackdrop ? backdropWindows : []
 
     // --- Interface ---------------------------------------------------------------------------
@@ -1299,6 +1312,38 @@ Window {
                     anchors.fill: parent
                     radius: win.barHeight / 2
                     color: "black"
+                }
+            }
+
+            // Fond en verre : le flou de ce qui se trouve derrière la barre, fond
+            // d'écran et fenêtres (capturées en direct : une fenêtre qui passe
+            // derrière change la couleur du bas de la barre).
+            GlassLayer {
+                id: barBackdrop
+
+                anchors.fill: parent
+                windows: win.liveWindows
+                originX: barSurface.x
+                originY: barSurface.y
+                Component.onCompleted: configure(win.barBackdropCfg)
+
+                Connections {
+                    target: win
+                    function onBarBackdropCfgChanged() {
+                        barBackdrop.configure(win.barBackdropCfg);
+                    }
+                }
+            }
+
+            // Le noir du haut, par-dessus le verre : noir plein sur le quart du
+            // haut, puis il s'efface vers le bas, où le fond reste assombri.
+            Rectangle {
+                anchors.fill: parent
+                radius: win.barHeight / 2
+                gradient: Gradient {
+                    GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0.004, 1) }
+                    GradientStop { position: 0.25; color: Qt.rgba(0, 0, 0.004, 1) }
+                    GradientStop { position: 0.95; color: Qt.rgba(0, 0, 0.004, 0.15) }
                 }
             }
 

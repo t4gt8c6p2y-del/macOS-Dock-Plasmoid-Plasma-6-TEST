@@ -41,8 +41,13 @@ Window {
     property var glassTheme: ({})
     // Rayon des coins : celui de la forme que KWin donne à la fenêtre, pour que
     // le fond noir la remplisse exactement (rien ne dépasse du liseré de KWin).
+    // Bords dessinés par la fenêtre elle-même : coins arrondis (30 px) et
+    // liseré fin et clair (plus lumineux en haut). KWin n'ajoute plus son
+    // propre contour. Mettre false pour revenir au liseré de l'effet Liquid
+    // Glass de KWin (rayon pris dans son thème).
+    readonly property bool ownEdges: true
     readonly property real cornerRadius: maximized
-        ? 0 : Math.min(Number(glassTheme.popupRadius || 22), 40)
+        ? 0 : (ownEdges ? 30 : Math.min(Number(glassTheme.popupRadius || 22), 40))
 
     flags: Qt.Window | Qt.FramelessWindowHint
     color: "transparent"
@@ -67,6 +72,14 @@ Window {
 
     function updateGlass(force) {
         if (!visible) {
+            return;
+        }
+        if (ownEdges) {
+            // Les bords sont dessinés ici : KWin ne trace rien.
+            if (glassKey !== "own") {
+                glassKey = "own";
+                glassBlur.clear(win);
+            }
             return;
         }
         var rects = [{ "x": 0, "y": 0, "width": Math.round(width),
@@ -600,11 +613,28 @@ Window {
     // n'est pas maximisée. Aucun contour n'est dessiné ici : le liseré est celui
     // de l'effet Liquid Glass de KWin, tracé le long de la forme indiquée par
     // updateGlass() (donc exactement sur le bord de la fenêtre).
+    // Liseré : un anneau de 1 px, clair en haut, plus discret en bas.
+    Rectangle {
+        id: edgeRing
+
+        visible: win.ownEdges && !win.maximized
+        // Apparaît en fondu avec la fenêtre (voir « appear »).
+        opacity: frame.opacity
+        anchors.fill: parent
+        radius: win.cornerRadius
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.42) }
+            GradientStop { position: 0.3; color: Qt.rgba(1, 1, 1, 0.16) }
+            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.22) }
+        }
+    }
+
     Rectangle {
         id: frame
 
         anchors.fill: parent
-        radius: win.cornerRadius
+        anchors.margins: win.ownEdges && !win.maximized ? 1 : 0
+        radius: Math.max(0, win.cornerRadius - anchors.margins)
         color: "#000000"
 
         Keys.onEscapePressed: win.closeSiri()
@@ -863,41 +893,10 @@ Window {
                             : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
                     }
 
-                    Rectangle {
-                        x: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 38
-                        height: 38
-                        radius: 19
-                        gradient: Gradient {
-                            GradientStop {
-                                position: 0
-                                color: win.providerColors(conversationRow.modelData.messages.length > 0
-                                    && conversationRow.modelData.messages[0].provider !== undefined
-                                    ? conversationRow.modelData.messages[0].provider : 0)[0]
-                            }
-                            GradientStop {
-                                position: 1
-                                color: win.providerColors(conversationRow.modelData.messages.length > 0
-                                    && conversationRow.modelData.messages[0].provider !== undefined
-                                    ? conversationRow.modelData.messages[0].provider : 0)[1]
-                            }
-                        }
-
-                        SpotlightGlyph {
-                            anchors.centerIn: parent
-                            kind: "sparkle"
-                            size: 18
-                            filled: true
-                            lineWidth: 1
-                            color: "white"
-                        }
-                    }
-
                     Column {
-                        x: 58
+                        x: 14
                         y: 10
-                        width: parent.width - 58 - 10
+                        width: parent.width - 14 - 12
                         spacing: 2
 
                         Row {
