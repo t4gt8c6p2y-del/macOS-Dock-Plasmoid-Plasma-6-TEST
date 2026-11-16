@@ -274,6 +274,31 @@
     <entry name="spotlightBorderWidth" type="Double">
       <default>1.5</default>
     </entry>
+    <!-- Liquid Glass du menu d'applications (réglages du dépôt liquidglass-kde-widgets). -->
+    <entry name="spotlightMenuBlur" type="Int">
+      <default>10</default>
+    </entry>
+    <entry name="spotlightMenuRadius" type="Int">
+      <default>34</default>
+    </entry>
+    <entry name="spotlightMenuRoundness" type="Double">
+      <default>5.0</default>
+    </entry>
+    <entry name="spotlightMenuThickness" type="Int">
+      <default>35</default>
+    </entry>
+    <entry name="spotlightMenuRefraction" type="Int">
+      <default>65</default>
+    </entry>
+    <entry name="spotlightMenuIor" type="Double">
+      <default>1.7</default>
+    </entry>
+    <entry name="spotlightMenuChroma" type="Double">
+      <default>0.3</default>
+    </entry>
+    <entry name="spotlightMenuSpec" type="Double">
+      <default>0.7</default>
+    </entry>
     <entry name="spotlightIconImage" type="String">
       <default></default>
     </entry>

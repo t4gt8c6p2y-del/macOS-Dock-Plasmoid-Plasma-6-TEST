@@ -111,15 +111,21 @@ for candidate in qsb qsb6 qsb-qt6 /usr/lib/qt6/bin/qsb /usr/lib64/qt6/bin/qsb \
         break
     fi
 done
-SHADER_OUT="$SCRIPT_DIR/contents/ui/effects/glassrefract.frag.qsb"
-rm -f -- "$SHADER_OUT"
-if [[ -z "$QSB_BIN" ]]; then
-    printf '%s\n' "$MSG_NO_QSB" >&2
-elif ! "$QSB_BIN" --qt6 -o "$SHADER_OUT" \
-        "$SCRIPT_DIR/native/shaders/glassrefract.frag"; then
+# glassrefract : verre du Dock, de la barre et de la fenêtre de conversation ;
+# glassliquid : Liquid Glass du menu d'applications du Spotlight.
+for SHADER_NAME in glassrefract glassliquid; do
+    SHADER_OUT="$SCRIPT_DIR/contents/ui/effects/$SHADER_NAME.frag.qsb"
     rm -f -- "$SHADER_OUT"
-    printf '%s\n' "$MSG_QSB_FAILED" >&2
-fi
+    if [[ -z "$QSB_BIN" ]]; then
+        if [[ "$SHADER_NAME" == "glassrefract" ]]; then
+            printf '%s\n' "$MSG_NO_QSB" >&2
+        fi
+    elif ! "$QSB_BIN" --qt6 -o "$SHADER_OUT" \
+            "$SCRIPT_DIR/native/shaders/$SHADER_NAME.frag"; then
+        rm -f -- "$SHADER_OUT"
+        printf '%s\n' "$MSG_QSB_FAILED" >&2
+    fi
+done
 
 # KPackage receives a minimal staging tree. Passing the repository root would
 # also install compiler output, source files, documentation, and Git metadata.

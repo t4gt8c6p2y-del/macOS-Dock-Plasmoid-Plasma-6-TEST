@@ -24,12 +24,21 @@ Item {
     property real originY: 0
     // Réglages du verre (voir DockBackground.glassConfig).
     property var cfg: ({})
+    // Position du curseur sur le verre, en 0..1 (-1 : absent). Sert au reflet de
+    // coin du Liquid Glass du menu d'applications.
+    property real mouseU: -1
+    property real mouseV: -1
 
     // Vrai quand le fond d'écran est chargé : le verre peut être affiché.
     readonly property bool ready: wallpaper.status === Image.Ready
     // Vrai si le shader du Liquid Glass n'a pas pu être chargé : GlassLayer
     // bascule alors sur le calcul par le processeur.
     property bool shaderFailed: false
+    // Vrai si le shader du Liquid Glass du menu d'applications (glassliquid)
+    // n'a pas pu être chargé : le verre reprend alors le shader d'origine, avec
+    // les réglages d'origine (épaisseur, force, profil…), sans passer par le
+    // processeur.
+    property bool liquidFailed: false
     // Vrai quand la fenêtre du Dock est affichée : sinon les flux de capture
     // restent éteints.
     readonly property bool windowShown: Window.window !== null
@@ -106,6 +115,14 @@ Item {
     }
 
     readonly property bool refraction: Boolean(cfg.refraction)
+    // Liquid Glass « Snell sur un dôme » (shader glassliquid) demandé par le
+    // menu d'applications du Spotlight.
+    readonly property bool liquid: refraction && Boolean(cfg.liquid)
+        && !liquidFailed
+    // Second flou posé sur le premier (le fond de la barre du Spotlight : il ne
+    // doit plus laisser deviner que des couleurs et des formes).
+    readonly property bool doubleBlur: refraction && Boolean(cfg.doubleBlur)
+        && blurAmount > 0.001
     // Flou : 0..1 pour MultiEffect (1 = 64 pixels).
     readonly property real blurAmount:
         Math.min(1, Math.max(0, Number(cfg.blur || 0) / 64))
@@ -122,8 +139,9 @@ Item {
 
     // Marge autour du Dock : le flou et la réfraction lisent au-delà des bords.
     readonly property real pad: Math.min(220, Math.max(8,
-        Math.ceil(blurAmount * 64 * 1.5) + 8
-        + (refraction ? Math.ceil(thickness * lensStrength * 1.6) : 0)))
+        Math.ceil(blurAmount * 64 * (doubleBlur ? 2.4 : 1.5)) + 8
+        + (refraction && !liquid
+            ? Math.ceil(thickness * lensStrength * 1.6) : 0)))
 
     function fileUrl(path) {
         var text = String(path || "");
@@ -233,9 +251,28 @@ Item {
         visible: !gpu.refraction
     }
 
+    // Second flou, appliqué à l'image déjà floutée.
+    MultiEffect {
+        id: blurredTwice
+
+        x: -gpu.pad
+        y: -gpu.pad
+        width: sceneContent.width
+        height: sceneContent.height
+        source: blurred
+        autoPaddingEnabled: false
+        blurEnabled: gpu.doubleBlur
+        blur: gpu.blurAmount
+        blurMax: 64
+        layer.enabled: gpu.doubleBlur
+        visible: false
+    }
+
     // --- Le Liquid Glass ----------------------------------------------------------
+    // Menu d'applications du Spotlight : Liquid Glass « Snell sur un dôme »
+    // (shader glassliquid, porté du dépôt liquidglass-kde-widgets).
     Loader {
-        active: gpu.refraction
+        active: gpu.liquid
 
         sourceComponent: ShaderEffect {
             x: -gpu.pad
@@ -244,6 +281,55 @@ Item {
             height: sceneContent.height
 
             property var source: blurred
+            property vector2d regionSize: Qt.vector2d(width, height)
+            property vector2d glassSize: Qt.vector2d(gpu.width, gpu.height)
+            property real glassRadius: gpu.cornerRadius
+            property real glassRoundness: Number(gpu.cfg.roundness === undefined
+                ? 5 : gpu.cfg.roundness)
+            property real refractThickness: Number(gpu.cfg.liquidThickness === undefined
+                ? 35 : gpu.cfg.liquidThickness)
+            property real refractIOR: Number(gpu.cfg.ior === undefined
+                ? 1.7 : gpu.cfg.ior)
+            property real refractScale: Number(gpu.cfg.liquidScale === undefined
+                ? 65 : gpu.cfg.liquidScale)
+            property real chromaStrength: Number(gpu.cfg.chroma === undefined
+                ? 0.3 : gpu.cfg.chroma)
+            property vector4d tint: gpu.cfg.tint !== undefined
+                ? gpu.cfg.tint : Qt.vector4d(0, 0, 0, 0)
+            property vector2d mousePos: Qt.vector2d(gpu.mouseU, gpu.mouseV)
+            property real mouseFade: gpu.mouseU >= 0 && gpu.mouseV >= 0 ? 1 : 0
+            property real specStrength: Number(gpu.cfg.spec === undefined
+                ? 0.7 : gpu.cfg.spec)
+            property real ringWidth: Number(gpu.cfg.ringWidth || 0)
+            property real ringStrength: Number(gpu.cfg.ringStrength || 0)
+
+            Behavior on mouseFade {
+                NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
+            }
+
+            fragmentShader: Qt.resolvedUrl("effects/glassliquid.frag.qsb")
+
+            onStatusChanged: {
+                if (status === ShaderEffect.Error) {
+                    console.warn("macOS Dock: Spotlight Liquid Glass shader unavailable:",
+                        log);
+                    gpu.liquidFailed = true;
+                }
+            }
+        }
+    }
+
+    // Verre d'origine (Dock, barre et fenêtre de conversation du Spotlight).
+    Loader {
+        active: gpu.refraction && !gpu.liquid
+
+        sourceComponent: ShaderEffect {
+            x: -gpu.pad
+            y: -gpu.pad
+            width: sceneContent.width
+            height: sceneContent.height
+
+            property var source: gpu.doubleBlur ? blurredTwice : blurred
             property vector2d regionSize: Qt.vector2d(width, height)
             property vector2d dockSize: Qt.vector2d(gpu.width, gpu.height)
             property real cornerRadius: gpu.cornerRadius

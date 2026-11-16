@@ -19,6 +19,10 @@ Item {
     property real originY: 0
     // Réglages reçus de DockBackground (voir configure).
     property var cfg: ({})
+    // Position du curseur sur le verre, en 0..1 (-1 : absent) : reflet de coin
+    // du Liquid Glass du menu d'applications du Spotlight (chemin GPU seulement).
+    property real mouseU: -1
+    property real mouseV: -1
     // Vrai quand le chemin GPU est inutilisable : on passe au processeur.
     property bool gpuBroken: false
 
@@ -55,6 +59,12 @@ Item {
             });
             item.originY = Qt.binding(function() {
                 return layer.originY;
+            });
+            item.mouseU = Qt.binding(function() {
+                return layer.mouseU;
+            });
+            item.mouseV = Qt.binding(function() {
+                return layer.mouseV;
             });
         }
         onStatusChanged: {

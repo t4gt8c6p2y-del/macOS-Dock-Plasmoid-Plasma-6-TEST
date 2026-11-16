@@ -142,6 +142,23 @@ PlasmoidItem {
         Plasmoid.configuration.spotlightBorderStrength, 0.8, 0, 1)
     readonly property real spotlightBorderWidth: boundedNumber(
         Plasmoid.configuration.spotlightBorderWidth, 1.5, 0.5, 4)
+    // Liquid Glass du menu d'applications.
+    readonly property real spotlightMenuBlur: boundedNumber(
+        Plasmoid.configuration.spotlightMenuBlur, 10, 0, 64)
+    readonly property real spotlightMenuRadius: boundedNumber(
+        Plasmoid.configuration.spotlightMenuRadius, 34, 10, 80)
+    readonly property real spotlightMenuRoundness: boundedNumber(
+        Plasmoid.configuration.spotlightMenuRoundness, 5, 2, 10)
+    readonly property real spotlightMenuThickness: boundedNumber(
+        Plasmoid.configuration.spotlightMenuThickness, 35, 1, 80)
+    readonly property real spotlightMenuRefraction: boundedNumber(
+        Plasmoid.configuration.spotlightMenuRefraction, 65, 0, 300)
+    readonly property real spotlightMenuIor: boundedNumber(
+        Plasmoid.configuration.spotlightMenuIor, 1.7, 1, 4)
+    readonly property real spotlightMenuChroma: boundedNumber(
+        Plasmoid.configuration.spotlightMenuChroma, 0.3, 0, 1)
+    readonly property real spotlightMenuSpec: boundedNumber(
+        Plasmoid.configuration.spotlightMenuSpec, 0.7, 0, 1)
     // Curseur de flou 2 % .. 100 % -> rayon de 1 à 60 pixels.
     readonly property real glassBlurRadius: wallpaperBlur * 60
     readonly property real glassThickness: boundedNumber(
@@ -5462,6 +5479,14 @@ PlasmoidItem {
         glassRim: root.spotlightGlassRim
         borderStrength: root.spotlightBorderStrength
         borderWidth: root.spotlightBorderWidth
+        menuBlurPx: root.spotlightMenuBlur
+        menuRadius: root.spotlightMenuRadius
+        menuRoundness: root.spotlightMenuRoundness
+        menuThickness: root.spotlightMenuThickness
+        menuRefraction: root.spotlightMenuRefraction
+        menuIor: root.spotlightMenuIor
+        menuChroma: root.spotlightMenuChroma
+        menuSpec: root.spotlightMenuSpec
         assistantEnabled: root.showSiriButton
 
         onFavoritesChangeRequested: (ids) => {

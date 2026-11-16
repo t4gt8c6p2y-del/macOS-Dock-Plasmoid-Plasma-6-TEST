@@ -52,6 +52,19 @@ Window {
     // Liseré : chaque point prend la couleur de ce qui est derrière lui.
     property real borderStrength: 0.8
     property real borderWidth: 1.5
+    // Liquid Glass du menu d'applications (réglages repris du dépôt
+    // liquidglass-kde-widgets : onglet Spotlight de la configuration). Ils ne
+    // concernent que le menu d'applications ; la barre et la fenêtre de
+    // conversation gardent leur verre.
+    property real menuBlurPx: 10
+    property real menuRadius: 34
+    // Exposant de la superellipse des coins : 2 = cercle, 5 = squircle.
+    property real menuRoundness: 5
+    property real menuThickness: 35
+    property real menuRefraction: 65
+    property real menuIor: 1.7
+    property real menuChroma: 0.3
+    property real menuSpec: 0.7
 
     signal favoritesChangeRequested(var ids)
     signal assistantRequested(bool freshConversation)
@@ -102,6 +115,14 @@ Window {
     property real compactUserWidth: 0
     property real compactUserHeight: 0
 
+    // Transformation de la barre en fenêtre de conversation (animation
+    // « goutte ») : 0 = forme de la barre, 1 = fenêtre ; légèrement au-delà de 1
+    // pendant le rebond. Opacités de la barre qui s'efface et du contenu de la
+    // fenêtre qui apparaît.
+    property real compactMorph: 1
+    property real compactContentOpacity: 1
+    property real barFadeOpacity: 1
+
     function resetCompactGeometry() {
         compactUserX = -1;
         compactUserY = -1;
@@ -127,7 +148,7 @@ Window {
     // Rayon des coins du panneau ; la sélection d'une ligne est une gélule de
     // (rowHeight - 4) px, dont le rayon est celui du panneau moins la marge
     // de 8 px : les deux contours sont concentriques.
-    readonly property real panelRadius: 34
+    readonly property real panelRadius: menuRadius
     readonly property real rowHeight: 56
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
@@ -195,6 +216,9 @@ Window {
         compactIntro.stop();
         compactSurface.scale = 1;
         compactSurface.opacity = 1;
+        compactMorph = 1;
+        compactContentOpacity = 1;
+        barFadeOpacity = 1;
         // La fenêtre de conversation ne reprend pas la position ni la taille
         // de la fois d'avant.
         resetCompactGeometry();
@@ -288,8 +312,10 @@ Window {
         }
     }
 
-    // La barre devient la fenêtre de conversation : elle apparaît en
-    // grandissant légèrement depuis sa position.
+    // La barre devient la fenêtre de conversation comme une goutte qui
+    // s'agrandit : la fenêtre part de la forme exacte de la barre (même
+    // position, même taille, coins en pilule), puis grandit vers sa taille avec
+    // un petit rebond ; la barre s'efface en fondu, le contenu apparaît ensuite.
     ParallelAnimation {
         id: compactIntro
 
@@ -298,23 +324,57 @@ Window {
             property: "opacity"
             from: 0
             to: 1
-            duration: 170
+            duration: 150
             easing.type: Easing.OutCubic
         }
 
         NumberAnimation {
-            target: compactSurface
-            property: "scale"
-            from: 0.93
-            to: 1
-            duration: 210
+            target: win
+            property: "barFadeOpacity"
+            from: 1
+            to: 0
+            duration: 150
             easing.type: Easing.OutCubic
+        }
+
+        NumberAnimation {
+            target: win
+            property: "compactMorph"
+            from: 0
+            to: 1
+            duration: 440
+            easing.type: Easing.OutBack
+            easing.overshoot: 1.15
+        }
+
+        SequentialAnimation {
+            PauseAnimation { duration: 130 }
+
+            NumberAnimation {
+                target: win
+                property: "compactContentOpacity"
+                from: 0
+                to: 1
+                duration: 220
+                easing.type: Easing.OutCubic
+            }
         }
     }
 
     onAiViewChanged: {
         if (aiView) {
+            // Départ immédiat à la forme de la barre : pas d'image à taille
+            // finale avant le début de l'animation.
+            compactMorph = 0;
+            compactContentOpacity = 0;
+            compactSurface.opacity = 0;
             compactIntro.restart();
+        } else {
+            compactIntro.stop();
+            compactMorph = 1;
+            compactContentOpacity = 1;
+            barFadeOpacity = 1;
+            compactSurface.opacity = 1;
         }
     }
 
@@ -1135,7 +1195,10 @@ Window {
     // --- Flou demandé à KWin ---------------------------------------------------------------
     // Configuration du verre du panneau (voir GlassGpu) : flou, Liquid Glass,
     // teinte et liseré calculés dans le shader.
-    readonly property var panelGlassCfg: ({
+    // Verre d'origine du Spotlight (réglages « Glass » de l'onglet Spotlight) :
+    // il sert à la fenêtre de conversation, et de secours au menu d'applications
+    // si le shader du Liquid Glass n'a pas pu être compilé.
+    readonly property var legacyGlassCfg: ({
         "fadeMs": 140,
         "source": String(wallpaperInfo.source || ""),
         "fillMode": wallpaperInfo.fillMode === undefined ? 2 : Number(wallpaperInfo.fillMode),
@@ -1154,6 +1217,22 @@ Window {
         "tint": panelTint
     })
 
+    // Liquid Glass du menu d'applications (shader glassliquid, porté du dépôt
+    // liquidglass-kde-widgets) : flou, réfraction « Snell sur un dôme » sur les
+    // bords, indice du verre, franges de couleur, reflet des bords, coins en
+    // squircle. Teinte et liseré restent ceux du Spotlight.
+    readonly property var panelGlassCfg: Object.assign({}, legacyGlassCfg, {
+        "radius": panelRadius,
+        "blur": menuBlurPx,
+        "liquid": true,
+        "roundness": menuRoundness,
+        "liquidThickness": menuThickness,
+        "liquidScale": menuRefraction,
+        "ior": menuIor,
+        "chroma": menuChroma,
+        "spec": menuSpec
+    })
+
     // Teinte bleu nuit, puis voile noir (glassDarken) : composés en une seule
     // couleur pour le shader.
     readonly property vector4d panelTint: {
@@ -1166,8 +1245,8 @@ Window {
 
     // Fenêtre de conversation : même verre que le panneau, mais plus sombre
     // (presque noir, comme la fenêtre de Siri sur macOS 27).
-    readonly property var compactGlassCfg: Object.assign({}, panelGlassCfg, {
-        "radius": compactRadius,
+    readonly property var compactGlassCfg: Object.assign({}, legacyGlassCfg, {
+        "radius": compactSurface.radius,
         "tint": Qt.vector4d(0.012, 0.014, 0.026, Math.max(0.78, panelTint.w))
     })
 
@@ -1193,7 +1272,10 @@ Window {
     // Fond de la barre : ce qui est derrière (fond d'écran ET fenêtres, en
     // direct) est flouté et assombri ; le noir du haut est posé par-dessus.
     readonly property var barBackdropCfg: Object.assign({}, barGlassCfg, {
-        "blur": 36,
+        // Flou au maximum, appliqué deux fois : on ne doit plus deviner ce qu'il
+        // y a derrière, seulement ses couleurs et ses grandes formes.
+        "blur": 64,
+        "doubleBlur": true,
         "strength": 0,
         "ringWidth": 0,
         "ringStrength": 0,
@@ -1225,7 +1307,8 @@ Window {
             radius: win.barHeight / 2
             width: win.barWidth
             height: win.barHeight
-            visible: !win.aiView
+            visible: !win.aiView || win.barFadeOpacity > 0.01
+            opacity: win.barFadeOpacity
             x: Math.round((win.width - width) / 2)
             y: win.stageTop
             color: "transparent"
@@ -1718,6 +1801,14 @@ Window {
                 windows: win.liveWindows
                 originX: panelSurface.x
                 originY: panelSurface.y
+                // Le reflet de coin suit le curseur (comme dans les widgets
+                // Liquid Glass).
+                mouseU: panelHover.hovered
+                    ? Math.max(0, Math.min(1, panelHover.point.position.x
+                        / Math.max(1, panelSurface.width))) : -1
+                mouseV: panelHover.hovered
+                    ? Math.max(0, Math.min(1, panelHover.point.position.y
+                        / Math.max(1, panelSurface.height))) : -1
                 Component.onCompleted: configure(win.panelGlassCfg)
 
                 Connections {
@@ -1726,6 +1817,10 @@ Window {
                         panelGlass.configure(win.panelGlassCfg);
                     }
                 }
+            }
+
+            HoverHandler {
+                id: panelHover
             }
 
             MouseArea {
@@ -2293,18 +2388,30 @@ Window {
         Item {
             id: compactSurface
 
-            readonly property real radius: win.compactRadius
             readonly property real minWidth: 320
             readonly property real minHeight: 300
-            width: win.compactUserWidth > 0 ? win.compactUserWidth : win.compactWidth
-            height: win.compactUserHeight > 0 ? win.compactUserHeight : win.compactHeight
-            visible: win.aiView
-            x: win.compactUserX >= 0
-                ? Math.max(0, Math.min(win.compactUserX, win.width - width))
-                : Math.round((win.width - width) / 2)
-            y: win.compactUserY >= 0
-                ? Math.max(0, Math.min(win.compactUserY, win.height - height))
+            // Taille et place de la fenêtre une fois la transformation finie.
+            readonly property real finalWidth: win.compactUserWidth > 0
+                ? win.compactUserWidth : win.compactWidth
+            readonly property real finalHeight: win.compactUserHeight > 0
+                ? win.compactUserHeight : win.compactHeight
+            readonly property real finalX: win.compactUserX >= 0
+                ? Math.max(0, Math.min(win.compactUserX, win.width - finalWidth))
+                : Math.round((win.width - finalWidth) / 2)
+            readonly property real finalY: win.compactUserY >= 0
+                ? Math.max(0, Math.min(win.compactUserY, win.height - finalHeight))
                 : win.stageTop
+            // Pendant la transformation, la fenêtre part de la barre (même
+            // taille, centrée au même endroit) et rejoint sa taille finale.
+            readonly property real morph: win.compactMorph
+            readonly property real radius: win.barHeight / 2
+                + (win.compactRadius - win.barHeight / 2)
+                * Math.max(0, Math.min(1, morph))
+            width: win.barWidth + (finalWidth - win.barWidth) * morph
+            height: win.barHeight + (finalHeight - win.barHeight) * morph
+            visible: win.aiView
+            x: finalX + (finalWidth - width) / 2
+            y: finalY
 
             // Teinte de secours : avant que le verre soit prêt.
             Rectangle {
@@ -2429,6 +2536,7 @@ Window {
             Rectangle {
                 id: closeButton
 
+                opacity: win.compactContentOpacity
                 x: 16
                 y: 16
                 width: 38
@@ -2457,6 +2565,7 @@ Window {
             // Ouvrir la conversation dans l'application Siri IA.
             Rectangle {
                 visible: win.assistantEnabled
+                opacity: win.compactContentOpacity
                 x: parent.width - width - 16
                 y: 16
                 width: 38
@@ -2483,6 +2592,7 @@ Window {
             }
 
             ChatTranscript {
+                opacity: win.compactContentOpacity
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -2510,6 +2620,7 @@ Window {
             Flow {
                 id: attachStrip
 
+                opacity: win.compactContentOpacity
                 readonly property bool shown: (!!win.chat && win.chat.attachments.length > 0)
                     || win.attachNotice.length > 0
 
@@ -2600,6 +2711,7 @@ Window {
             Item {
                 id: inputRow
 
+                opacity: win.compactContentOpacity
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom

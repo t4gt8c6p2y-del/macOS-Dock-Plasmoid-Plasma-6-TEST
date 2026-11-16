@@ -1509,3 +1509,27 @@ msgstr "Websuche: %1"
 
 msgid "You can attach up to %1 items."
 msgstr "Sie können bis zu %1 Elemente anhängen."
+
+msgid "Tint and Darken background apply to the whole Spotlight. The other settings of this section apply to the Siri conversation window; the application menu has its own Liquid Glass settings below."
+msgstr "Tönung und Hintergrund abdunkeln gelten für das ganze Spotlight. Die übrigen Einstellungen dieses Abschnitts betreffen das Siri-Unterhaltungsfenster; das Anwendungsmenü hat weiter unten eigene Liquid-Glass-Einstellungen."
+
+msgid "Application menu: Liquid Glass"
+msgstr "Anwendungsmenü: Liquid Glass"
+
+msgid "Liquid Glass of the application menu, taken from the Liquid Glass widgets project: the edges bend what is behind them like a glass dome. These settings only change the application menu."
+msgstr "Liquid Glass des Anwendungsmenüs, übernommen aus dem Projekt der Liquid-Glass-Widgets: Die Ränder verzerren, was dahinter liegt, wie eine Glaskuppel. Diese Einstellungen betreffen nur das Anwendungsmenü."
+
+msgid "Blur radius:"
+msgstr "Unschärferadius:"
+
+msgid "Corner smoothness:"
+msgstr "Eckenglättung:"
+
+msgid "Refraction strength:"
+msgstr "Stärke der Brechung:"
+
+msgid "Color fringing:"
+msgstr "Farbsäume:"
+
+msgid "Reset menu glass settings"
+msgstr "Menü-Glas zurücksetzen"
