@@ -23,6 +23,8 @@ Item {
     // du Liquid Glass du menu d'applications du Spotlight (chemin GPU seulement).
     property real mouseU: -1
     property real mouseV: -1
+    // Faux : le verre n'ouvre aucune capture de fenêtre (surface cachée).
+    property bool active: true
     // Vrai quand le chemin GPU est inutilisable : on passe au processeur.
     property bool gpuBroken: false
 
@@ -59,6 +61,9 @@ Item {
             });
             item.originY = Qt.binding(function() {
                 return layer.originY;
+            });
+            item.active = Qt.binding(function() {
+                return layer.active;
             });
             item.mouseU = Qt.binding(function() {
                 return layer.mouseU;

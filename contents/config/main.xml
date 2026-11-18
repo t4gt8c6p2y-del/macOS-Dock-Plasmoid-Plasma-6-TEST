@@ -244,29 +244,11 @@
     <entry name="spotlightLiveBackdrop" type="Bool">
       <default>true</default>
     </entry>
-    <entry name="spotlightGlassBlur" type="Int">
-      <default>14</default>
-    </entry>
     <entry name="spotlightGlassTint" type="Double">
       <default>0.3</default>
     </entry>
     <entry name="spotlightGlassDarken" type="Double">
       <default>0</default>
-    </entry>
-    <entry name="spotlightGlassProfile" type="Double">
-      <default>1.0</default>
-    </entry>
-    <entry name="spotlightGlassDispersion" type="Double">
-      <default>0.25</default>
-    </entry>
-    <entry name="spotlightGlassRim" type="Double">
-      <default>1.0</default>
-    </entry>
-    <entry name="spotlightGlassThickness" type="Int">
-      <default>34</default>
-    </entry>
-    <entry name="spotlightGlassStrength" type="Double">
-      <default>1.0</default>
     </entry>
     <entry name="spotlightBorderStrength" type="Double">
       <default>0.8</default>
@@ -277,12 +259,6 @@
     <!-- Liquid Glass du menu d'applications (réglages du dépôt liquidglass-kde-widgets). -->
     <entry name="spotlightMenuBlur" type="Int">
       <default>10</default>
-    </entry>
-    <entry name="spotlightMenuRadius" type="Int">
-      <default>34</default>
-    </entry>
-    <entry name="spotlightMenuRoundness" type="Double">
-      <default>5.0</default>
     </entry>
     <entry name="spotlightMenuThickness" type="Int">
       <default>35</default>

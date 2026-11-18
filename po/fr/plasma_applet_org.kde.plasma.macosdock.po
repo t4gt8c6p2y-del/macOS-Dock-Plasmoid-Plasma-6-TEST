@@ -699,7 +699,6 @@ msgstr "Intensité de la bordure :"
 msgid "Background blur:"
 msgstr "Flou de l’arrière-plan :"
 
-
 #: contents/ui/ConfigGeneral.qml
 msgid "Experimental. Blurs the desktop wallpaper behind the Dock with an adjustable intensity. Windows behind the Dock are not blurred. The wallpaper is detected automatically; if nothing happens, choose the image yourself below."
 msgstr "Expérimental. Floute le fond d’écran derrière le Dock avec une intensité réglable. Les fenêtres situées derrière le Dock ne sont pas floutées. Le fond d’écran est détecté automatiquement ; si rien ne se passe, choisissez l’image vous-même ci-dessous."
@@ -1512,9 +1511,6 @@ msgstr "Recherche web : %1"
 msgid "You can attach up to %1 items."
 msgstr "Vous pouvez joindre jusqu’à %1 éléments."
 
-msgid "Tint and Darken background apply to the whole Spotlight. The other settings of this section apply to the Siri conversation window; the application menu has its own Liquid Glass settings below."
-msgstr "Teinte et Assombrir l’arrière-plan s’appliquent à tout le Spotlight. Les autres réglages de cette section concernent la fenêtre de conversation Siri ; le menu d’applications a ses propres réglages Liquid Glass plus bas."
-
 msgid "Application menu: Liquid Glass"
 msgstr "Menu d’applications : Liquid Glass"
 
@@ -1523,9 +1519,6 @@ msgstr "Liquid Glass du menu d’applications, repris du projet de widgets Liqui
 
 msgid "Blur radius:"
 msgstr "Rayon du flou :"
-
-msgid "Corner smoothness:"
-msgstr "Douceur des coins :"
 
 msgid "Refraction strength:"
 msgstr "Force de la réfraction :"

@@ -38,17 +38,19 @@ Window {
     property var colorSampler: null
     property var backdropWindows: []
     property bool liveBackdrop: true
-    // Rayon du flou en px (nommé ainsi : « glassBlur » est l'identifiant de
-    // l'objet GlassBlur plus bas ; un même nom donnait un flou nul).
-    property real glassBlurPx: 14
     property real glassTint: 0.3
     // Voile noir supplémentaire (0..1) : assombrit l'arrière-plan du Spotlight.
     property real glassDarken: 0
-    property real glassThickness: 34
-    property real glassStrength: 1.0
-    property real glassProfile: 1.0
-    property real glassDispersion: 0.25
-    property real glassRim: 1.0
+    // Verre d'origine, sans réglage : il ne sert plus qu'à la fenêtre de
+    // conversation et de secours au menu d'applications (voir legacyGlassCfg).
+    // Rayon du flou en px (nommé ainsi : « glassBlur » est l'identifiant de
+    // l'objet GlassBlur plus bas ; un même nom donnait un flou nul).
+    readonly property real glassBlurPx: 14
+    readonly property real glassThickness: 34
+    readonly property real glassStrength: 1.0
+    readonly property real glassProfile: 1.0
+    readonly property real glassDispersion: 0.25
+    readonly property real glassRim: 1.0
     // Liseré : chaque point prend la couleur de ce qui est derrière lui.
     property real borderStrength: 0.8
     property real borderWidth: 1.5
@@ -57,9 +59,6 @@ Window {
     // concernent que le menu d'applications ; la barre et la fenêtre de
     // conversation gardent leur verre.
     property real menuBlurPx: 10
-    property real menuRadius: 34
-    // Exposant de la superellipse des coins : 2 = cercle, 5 = squircle.
-    property real menuRoundness: 5
     property real menuThickness: 35
     property real menuRefraction: 65
     property real menuIor: 1.7
@@ -148,7 +147,7 @@ Window {
     // Rayon des coins du panneau ; la sélection d'une ligne est une gélule de
     // (rowHeight - 4) px, dont le rayon est celui du panneau moins la marge
     // de 8 px : les deux contours sont concentriques.
-    readonly property real panelRadius: menuRadius
+    readonly property real panelRadius: 34
     readonly property real rowHeight: 56
     readonly property bool panelWanted: true
     readonly property real panelTargetHeight: {
@@ -428,8 +427,37 @@ Window {
     }
 
     // --- Applications ----------------------------------------------------------------
+    // La grille compte des centaines de cellules (icône, nom, zone de clic) :
+    // ouvrir le Spotlight ne la reconstruit que si la liste des applications a
+    // changé, et la liste n'est relue que si la dernière lecture date de plus de
+    // 15 secondes.
+    property double appsReadAt: 0
+    property string appsSignature: ""
+
+    function appsSignatureOf(list) {
+        var parts = [];
+        for (var i = 0; i < list.length; ++i) {
+            var app = list[i];
+            parts.push(app.desktopId + "|" + app.name + "|" + app.icon + "|" + app.category);
+        }
+        return parts.join("\n");
+    }
+
     function refreshApps() {
-        allApps = backend ? backend.applications() : [];
+        var now = Date.now();
+        if (allApps.length > 0 && now - appsReadAt < 15000) {
+            resetGridSelection();
+            return;
+        }
+        var fresh = backend ? backend.applications() : [];
+        appsReadAt = now;
+        var signature = appsSignatureOf(fresh);
+        if (fresh.length > 0 && allApps.length > 0 && signature === appsSignature) {
+            resetGridSelection();
+            return;
+        }
+        appsSignature = signature;
+        allApps = fresh;
         buildSections();
     }
 
@@ -1219,13 +1247,15 @@ Window {
 
     // Liquid Glass du menu d'applications (shader glassliquid, porté du dépôt
     // liquidglass-kde-widgets) : flou, réfraction « Snell sur un dôme » sur les
-    // bords, indice du verre, franges de couleur, reflet des bords, coins en
-    // squircle. Teinte et liseré restent ceux du Spotlight.
+    // bords, indice du verre, franges de couleur, reflet des bords. Les coins
+    // sont ceux du panneau (rayon panelRadius), comme la sélection. Teinte et
+    // liseré restent ceux du Spotlight.
     readonly property var panelGlassCfg: Object.assign({}, legacyGlassCfg, {
         "radius": panelRadius,
         "blur": menuBlurPx,
         "liquid": true,
-        "roundness": menuRoundness,
+        // Coins circulaires (exposant 2), concentriques à la sélection.
+        "roundness": 2,
         "liquidThickness": menuThickness,
         "liquidScale": menuRefraction,
         "ior": menuIor,
@@ -1405,6 +1435,8 @@ Window {
                 id: barBackdrop
 
                 anchors.fill: parent
+                // Pas de capture de fenêtres tant que la surface est cachée.
+                active: barSurface.visible
                 windows: win.liveWindows
                 originX: barSurface.x
                 originY: barSurface.y
@@ -1436,6 +1468,8 @@ Window {
                 id: barGlass
 
                 anchors.fill: parent
+                // Pas de capture de fenêtres tant que la surface est cachée.
+                active: barSurface.visible
                 windows: win.liveWindows
                 originX: barSurface.x
                 originY: barSurface.y
@@ -1798,6 +1832,8 @@ Window {
                 id: panelGlass
 
                 anchors.fill: parent
+                // Pas de capture de fenêtres tant que la surface est cachée.
+                active: panelSurface.visible
                 windows: win.liveWindows
                 originX: panelSurface.x
                 originY: panelSurface.y
@@ -2425,6 +2461,8 @@ Window {
                 id: compactGlass
 
                 anchors.fill: parent
+                // Pas de capture de fenêtres tant que la surface est cachée.
+                active: compactSurface.visible
                 windows: win.liveWindows
                 originX: compactSurface.x
                 originY: compactSurface.y

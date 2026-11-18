@@ -100,19 +100,11 @@ KCM.SimpleKCM {
     property alias cfg_showSiriButton: showSiriButtonCheckBox.checked
     property alias cfg_spotlightIconImage: spotlightIconImageField.text
     property alias cfg_spotlightLiveBackdrop: spotlightLiveBackdropCheck.checked
-    property alias cfg_spotlightGlassBlur: spotlightGlassBlurSlider.value
     property alias cfg_spotlightGlassTint: spotlightGlassTintSlider.value
     property alias cfg_spotlightGlassDarken: spotlightGlassDarkenSlider.value
-    property alias cfg_spotlightGlassProfile: spotlightGlassProfileSlider.value
-    property alias cfg_spotlightGlassDispersion: spotlightGlassDispersionSlider.value
-    property alias cfg_spotlightGlassRim: spotlightGlassRimSlider.value
-    property alias cfg_spotlightGlassThickness: spotlightGlassThicknessSlider.value
-    property alias cfg_spotlightGlassStrength: spotlightGlassStrengthSlider.value
     property alias cfg_spotlightBorderStrength: spotlightBorderStrengthSlider.value
     property alias cfg_spotlightBorderWidth: spotlightBorderWidthSlider.value
     property alias cfg_spotlightMenuBlur: spotlightMenuBlurSlider.value
-    property alias cfg_spotlightMenuRadius: spotlightMenuRadiusSlider.value
-    property alias cfg_spotlightMenuRoundness: spotlightMenuRoundnessSlider.value
     property alias cfg_spotlightMenuThickness: spotlightMenuThicknessSlider.value
     property alias cfg_spotlightMenuRefraction: spotlightMenuRefractionSlider.value
     property alias cfg_spotlightMenuIor: spotlightMenuIorSlider.value
@@ -209,19 +201,11 @@ KCM.SimpleKCM {
     property bool cfg_showSiriButtonDefault: true
     property string cfg_spotlightIconImageDefault: ""
     property bool cfg_spotlightLiveBackdropDefault: true
-    property int cfg_spotlightGlassBlurDefault: 14
     property real cfg_spotlightGlassTintDefault: 0.3
     property real cfg_spotlightGlassDarkenDefault: 0
-    property real cfg_spotlightGlassProfileDefault: 1.0
-    property real cfg_spotlightGlassDispersionDefault: 0.25
-    property real cfg_spotlightGlassRimDefault: 1.0
-    property int cfg_spotlightGlassThicknessDefault: 34
-    property real cfg_spotlightGlassStrengthDefault: 1.0
     property real cfg_spotlightBorderStrengthDefault: 0.8
     property real cfg_spotlightBorderWidthDefault: 1.5
     property int cfg_spotlightMenuBlurDefault: 10
-    property int cfg_spotlightMenuRadiusDefault: 34
-    property real cfg_spotlightMenuRoundnessDefault: 5.0
     property int cfg_spotlightMenuThicknessDefault: 35
     property int cfg_spotlightMenuRefractionDefault: 65
     property real cfg_spotlightMenuIorDefault: 1.7
@@ -277,29 +261,21 @@ KCM.SimpleKCM {
         "appGroupViewMode": [0, 1],
         "powerButtonPosition": [0, 1], "desktopSwitcherPosition": [0, 1],
         "desktopSwitcherLabelMode": [0, 1],
-        // Onglet « Spotlight » (verre de la barre et du panneau).
-        "spotlightGlassBlur": [0, 60], "spotlightGlassTint": [0, 1],
-        "spotlightGlassDarken": [0, 1], "spotlightGlassProfile": [0.5, 3],
-        "spotlightGlassDispersion": [0, 1], "spotlightGlassRim": [0, 2],
-        "spotlightGlassThickness": [4, 90], "spotlightGlassStrength": [0, 2],
+        // Onglet « Spotlight » : teinte, assombrissement et liseré.
+        "spotlightGlassTint": [0, 1], "spotlightGlassDarken": [0, 1],
         "spotlightBorderStrength": [0, 1], "spotlightBorderWidth": [0.5, 4],
         // Liquid Glass du menu d'applications.
-        "spotlightMenuBlur": [0, 64], "spotlightMenuRadius": [10, 80],
-        "spotlightMenuRoundness": [2, 10], "spotlightMenuThickness": [1, 80],
+        "spotlightMenuBlur": [0, 64], "spotlightMenuThickness": [1, 80],
         "spotlightMenuRefraction": [0, 300], "spotlightMenuIor": [1, 4],
         "spotlightMenuChroma": [0, 1], "spotlightMenuSpec": [0, 1]
     })
     // Réglages du verre du Spotlight (onglet « Spotlight ») : remis à zéro avec
     // « Réinitialiser ».
     readonly property var spotlightGlassKeys: [
-        "spotlightLiveBackdrop", "spotlightGlassBlur", "spotlightGlassTint",
-        "spotlightGlassDarken", "spotlightGlassProfile", "spotlightGlassDispersion",
-        "spotlightGlassRim",
-        "spotlightGlassThickness", "spotlightGlassStrength",
+        "spotlightLiveBackdrop", "spotlightGlassTint", "spotlightGlassDarken",
         "spotlightBorderStrength", "spotlightBorderWidth",
-        "spotlightMenuBlur", "spotlightMenuRadius", "spotlightMenuRoundness",
-        "spotlightMenuThickness", "spotlightMenuRefraction", "spotlightMenuIor",
-        "spotlightMenuChroma", "spotlightMenuSpec"
+        "spotlightMenuBlur", "spotlightMenuThickness", "spotlightMenuRefraction",
+        "spotlightMenuIor", "spotlightMenuChroma", "spotlightMenuSpec"
     ]
     readonly property var styleBooleanKeys: [
         "useThemeBackground", "hideOnMaximized", "showFolderView",
@@ -1066,13 +1042,6 @@ KCM.SimpleKCM {
                     Kirigami.FormData.label: i18n("Glass")
                 }
 
-                QQC2.Label {
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    text: i18n("Tint and Darken background apply to the whole Spotlight. The other settings of this section apply to the Siri conversation window; the application menu has its own Liquid Glass settings below.")
-                    opacity: 0.78
-                }
-
                 RowLayout {
                     Kirigami.FormData.label: i18n("Edge thickness:")
                     enabled: glassManageCheckBox.checked
@@ -1832,23 +1801,6 @@ KCM.SimpleKCM {
                 }
 
                 RowLayout {
-                    Kirigami.FormData.label: i18n("Background blur:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassBlurSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 60
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightGlassBlurSlider.value) + i18n(" px")
-                    }
-                }
-
-                RowLayout {
                     Kirigami.FormData.label: i18n("Darken background:")
 
                     QQC2.Slider {
@@ -1882,91 +1834,6 @@ KCM.SimpleKCM {
                     }
                 }
 
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Edge thickness:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassThicknessSlider
-                        Layout.fillWidth: true
-                        from: 4
-                        to: 90
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightGlassThicknessSlider.value) + i18n(" px")
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Lens strength:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassStrengthSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 2
-                        stepSize: 0.05
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightGlassStrengthSlider.value * 100) + "%"
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Edge profile:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassProfileSlider
-                        Layout.fillWidth: true
-                        from: 0.5
-                        to: 3
-                        stepSize: 0.1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: spotlightGlassProfileSlider.value.toFixed(1)
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Colored fringes:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassDispersionSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 1
-                        stepSize: 0.05
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightGlassDispersionSlider.value * 100) + "%"
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Edge highlight:")
-
-                    QQC2.Slider {
-                        id: spotlightGlassRimSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 2
-                        stepSize: 0.05
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightGlassRimSlider.value * 100) + "%"
-                    }
-                }
-
                 Kirigami.Separator {
                     Kirigami.FormData.isSection: true
                     Kirigami.FormData.label: i18n("Application menu: Liquid Glass")
@@ -1993,40 +1860,6 @@ KCM.SimpleKCM {
 
                     QQC2.Label {
                         text: Math.round(spotlightMenuBlurSlider.value) + i18n(" px")
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Corner radius:")
-
-                    QQC2.Slider {
-                        id: spotlightMenuRadiusSlider
-                        Layout.fillWidth: true
-                        from: 10
-                        to: 80
-                        stepSize: 1
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: Math.round(spotlightMenuRadiusSlider.value) + i18n(" px")
-                    }
-                }
-
-                RowLayout {
-                    Kirigami.FormData.label: i18n("Corner smoothness:")
-
-                    QQC2.Slider {
-                        id: spotlightMenuRoundnessSlider
-                        Layout.fillWidth: true
-                        from: 2
-                        to: 10
-                        stepSize: 0.5
-                        live: true
-                    }
-
-                    QQC2.Label {
-                        text: spotlightMenuRoundnessSlider.value.toFixed(1)
                     }
                 }
 
@@ -2121,8 +1954,6 @@ KCM.SimpleKCM {
                     text: i18n("Reset menu glass settings")
                     onClicked: {
                         spotlightMenuBlurSlider.value = configPage.cfg_spotlightMenuBlurDefault;
-                        spotlightMenuRadiusSlider.value = configPage.cfg_spotlightMenuRadiusDefault;
-                        spotlightMenuRoundnessSlider.value = configPage.cfg_spotlightMenuRoundnessDefault;
                         spotlightMenuThicknessSlider.value = configPage.cfg_spotlightMenuThicknessDefault;
                         spotlightMenuRefractionSlider.value = configPage.cfg_spotlightMenuRefractionDefault;
                         spotlightMenuIorSlider.value = configPage.cfg_spotlightMenuIorDefault;

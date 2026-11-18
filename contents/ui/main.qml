@@ -122,22 +122,10 @@ PlasmoidItem {
     readonly property bool spotlightLiveBackdrop:
         Plasmoid.configuration.spotlightLiveBackdrop === undefined
             ? true : Boolean(Plasmoid.configuration.spotlightLiveBackdrop)
-    readonly property real spotlightGlassBlur: boundedNumber(
-        Plasmoid.configuration.spotlightGlassBlur, 14, 0, 60)
     readonly property real spotlightGlassTint: boundedNumber(
         Plasmoid.configuration.spotlightGlassTint, 0.3, 0, 1)
     readonly property real spotlightGlassDarken: boundedNumber(
         Plasmoid.configuration.spotlightGlassDarken, 0, 0, 1)
-    readonly property real spotlightGlassProfile: boundedNumber(
-        Plasmoid.configuration.spotlightGlassProfile, 1.0, 0.5, 3)
-    readonly property real spotlightGlassDispersion: boundedNumber(
-        Plasmoid.configuration.spotlightGlassDispersion, 0.25, 0, 1)
-    readonly property real spotlightGlassRim: boundedNumber(
-        Plasmoid.configuration.spotlightGlassRim, 1.0, 0, 2)
-    readonly property real spotlightGlassThickness: boundedNumber(
-        Plasmoid.configuration.spotlightGlassThickness, 34, 4, 90)
-    readonly property real spotlightGlassStrength: boundedNumber(
-        Plasmoid.configuration.spotlightGlassStrength, 1.0, 0, 2)
     readonly property real spotlightBorderStrength: boundedNumber(
         Plasmoid.configuration.spotlightBorderStrength, 0.8, 0, 1)
     readonly property real spotlightBorderWidth: boundedNumber(
@@ -145,10 +133,6 @@ PlasmoidItem {
     // Liquid Glass du menu d'applications.
     readonly property real spotlightMenuBlur: boundedNumber(
         Plasmoid.configuration.spotlightMenuBlur, 10, 0, 64)
-    readonly property real spotlightMenuRadius: boundedNumber(
-        Plasmoid.configuration.spotlightMenuRadius, 34, 10, 80)
-    readonly property real spotlightMenuRoundness: boundedNumber(
-        Plasmoid.configuration.spotlightMenuRoundness, 5, 2, 10)
     readonly property real spotlightMenuThickness: boundedNumber(
         Plasmoid.configuration.spotlightMenuThickness, 35, 1, 80)
     readonly property real spotlightMenuRefraction: boundedNumber(
@@ -5469,19 +5453,11 @@ PlasmoidItem {
         colorSampler: wallpaperLocator
         backdropWindows: root.backdropWindows
         liveBackdrop: root.spotlightLiveBackdrop
-        glassBlurPx: root.spotlightGlassBlur
         glassTint: root.spotlightGlassTint
         glassDarken: root.spotlightGlassDarken
-        glassThickness: root.spotlightGlassThickness
-        glassStrength: root.spotlightGlassStrength
-        glassProfile: root.spotlightGlassProfile
-        glassDispersion: root.spotlightGlassDispersion
-        glassRim: root.spotlightGlassRim
         borderStrength: root.spotlightBorderStrength
         borderWidth: root.spotlightBorderWidth
         menuBlurPx: root.spotlightMenuBlur
-        menuRadius: root.spotlightMenuRadius
-        menuRoundness: root.spotlightMenuRoundness
         menuThickness: root.spotlightMenuThickness
         menuRefraction: root.spotlightMenuRefraction
         menuIor: root.spotlightMenuIor

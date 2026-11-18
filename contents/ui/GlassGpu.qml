@@ -41,7 +41,12 @@ Item {
     property bool liquidFailed: false
     // Vrai quand la fenêtre du Dock est affichée : sinon les flux de capture
     // restent éteints.
-    readonly property bool windowShown: Window.window !== null
+    // Faux quand la surface qui porte ce verre est cachée (par exemple la fenêtre
+    // de conversation du Spotlight tant qu'on n'y est pas) : ses flux de capture
+    // restent éteints. Chaque verre ouvre ses propres flux, un par fenêtre
+    // derrière lui, et chacun garde une image d'écran entier en mémoire.
+    property bool active: true
+    readonly property bool windowShown: active && Window.window !== null
         && Window.window !== undefined && Window.window.visible
 
     // Le verre n'apparaît qu'une fois les fenêtres derrière le Dock capturées

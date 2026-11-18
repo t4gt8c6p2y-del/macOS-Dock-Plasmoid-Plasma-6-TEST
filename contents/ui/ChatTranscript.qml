@@ -3,7 +3,9 @@ import "MathText.js" as MathText
 
 // Fil d'une conversation avec l'assistant : questions à droite (bulle bleue),
 // réponses à gauche (texte libre, sélectionnable, en Markdown), erreurs en
-// rouge, points animés pendant que l'assistant répond.
+// rouge. Comme dans ChatGPT : un point qui pulse pendant que l'assistant
+// réfléchit, puis la réponse s'écrit progressivement (mot par mot) avec un point
+// pulsant au bout du texte.
 ListView {
     id: view
 
@@ -31,8 +33,24 @@ ListView {
     topMargin: 8
     bottomMargin: 8
 
+    // Réponses qui s'écrivent progressivement (mot par mot).
+    property bool animateAnswers: true
+    // Réponses déjà animées (clé : heure du message) : une réponse ne s'anime
+    // qu'une fois, même si sa ligne est recréée.
+    property var revealedKeys: ({})
+    // Nombre de réponses en cours d'écriture ; pendant ce temps le fil suit le
+    // bas du texte, sauf si l'utilisateur fait défiler lui-même.
+    property int revealingRows: 0
+    property bool stickToEnd: true
+
     onCountChanged: scrollTimer.restart()
     onBusyChanged: scrollTimer.restart()
+    onContentHeightChanged: {
+        if (revealingRows > 0 && stickToEnd) {
+            positionViewAtEnd();
+        }
+    }
+    onMovementStarted: stickToEnd = false
 
     Timer {
         id: scrollTimer
@@ -66,6 +84,95 @@ ListView {
 
         width: view.width - view.leftMargin - view.rightMargin
         height: isUser ? userColumn.height : assistantColumn.height
+
+        // Écriture progressive d'une réponse qui vient d'arriver : nombre de
+        // caractères déjà affichés (-1 : texte complet, pas d'animation).
+        readonly property string rawText: isUser ? "" : String(modelData.text)
+        property int revealCount: -1
+        readonly property bool revealing: revealCount >= 0
+        property int revealStep: 1
+
+        function startReveal() {
+            var n = rawText.length;
+            if (n < 2) {
+                return;
+            }
+            // Environ 320 caractères par seconde, entre 0,45 s et 4,5 s au total ;
+            // une étape toutes les 40 ms (la mise en page du texte est refaite à
+            // chaque étape : plus espacée, elle ménage le processeur).
+            var duration = Math.min(4500, Math.max(450, n * 3.1));
+            revealStep = Math.max(1, Math.ceil(n * 40 / duration));
+            revealCount = 0;
+            view.stickToEnd = true;
+            view.revealingRows += 1;
+            fadeIn.start();
+            revealTimer.start();
+        }
+
+        function advanceReveal() {
+            var n = rawText.length;
+            var next = revealCount + revealStep;
+            // On ne coupe pas un mot en deux.
+            while (next < n && next < revealCount + revealStep + 14
+                    && !/\s/.test(rawText.charAt(next))) {
+                ++next;
+            }
+            if (next >= n) {
+                finishReveal();
+            } else {
+                revealCount = next;
+            }
+        }
+
+        function finishReveal() {
+            revealTimer.stop();
+            if (revealCount >= 0) {
+                revealCount = -1;
+                view.revealingRows = Math.max(0, view.revealingRows - 1);
+            }
+        }
+
+        Component.onCompleted: {
+            if (isUser || isError || !view.animateAnswers) {
+                return;
+            }
+            var key = String(modelData.time);
+            if (view.revealedKeys[key] === true) {
+                return;
+            }
+            view.revealedKeys[key] = true;
+            // Seule une réponse qui vient d'arriver s'écrit : pas celles d'une
+            // conversation que l'on rouvre.
+            var age = Date.now() - Number(modelData.time);
+            if (age >= 0 && age < 2500) {
+                startReveal();
+            }
+        }
+
+        Component.onDestruction: {
+            if (revealCount >= 0) {
+                view.revealingRows = Math.max(0, view.revealingRows - 1);
+            }
+        }
+
+        Timer {
+            id: revealTimer
+
+            interval: 40
+            repeat: true
+            onTriggered: row.advanceReveal()
+        }
+
+        NumberAnimation {
+            id: fadeIn
+
+            target: assistantColumn
+            property: "opacity"
+            from: 0
+            to: 1
+            duration: 220
+            easing.type: Easing.OutCubic
+        }
 
         // Largeur naturelle (sur une ligne) du texte de la question.
         Text {
@@ -130,22 +237,54 @@ ListView {
             spacing: 4
 
             TextEdit {
+                id: answerText
+
                 width: parent.width
                 readOnly: true
                 selectByMouse: true
                 wrapMode: TextEdit.Wrap
                 textFormat: row.isError ? TextEdit.PlainText : TextEdit.MarkdownText
-                // Formules LaTeX → vrais symboles (½, x², √, ×, π…).
-                text: row.isUser ? "" : (row.isError ? row.modelData.text : MathText.prettify(row.modelData.text))
+                // Formules LaTeX → vrais symboles (½, x², √, ×, π…). Pendant
+                // l'écriture progressive, seul le début de la réponse est affiché.
+                text: row.isUser ? "" : (row.isError ? row.modelData.text
+                    : MathText.prettify(row.revealing
+                        ? row.rawText.substring(0, row.revealCount) : row.rawText))
                 font.pixelSize: view.textSize
                 color: row.isError ? "#FF6B6B" : Qt.rgba(1, 1, 1, 0.95)
                 selectionColor: Qt.rgba(1, 1, 1, 0.3)
                 selectedTextColor: "white"
+
+                // Place de la fin du texte déjà écrit.
+                readonly property rect endRect: positionToRectangle(length)
+
+                // Point pulsant au bout du texte pendant qu'il s'écrit.
+                Rectangle {
+                    id: writingDot
+
+                    visible: row.revealing
+                    x: answerText.endRect.x + 5
+                    y: answerText.endRect.y + answerText.endRect.height / 2 - height / 2
+                    width: 10
+                    height: 10
+                    radius: 5
+                    color: Qt.rgba(1, 1, 1, 0.92)
+                    scale: 0.7
+
+                    SequentialAnimation on scale {
+                        running: row.revealing
+                        loops: Animation.Infinite
+
+                        NumberAnimation { to: 1.1; duration: 420; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 0.7; duration: 420; easing.type: Easing.InOutSine }
+                    }
+                }
             }
 
             // Pages citées par la recherche web de Gemini : un clic ouvre la page.
             Flow {
                 visible: !row.isError && row.sourceList.length > 0
+                opacity: row.revealing ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: 220 } }
                 width: parent.width
                 spacing: 8
 
@@ -184,6 +323,8 @@ ListView {
             // Recherches réellement faites par Gemini sur le web.
             Text {
                 visible: !row.isError && row.queryList.length > 0
+                opacity: row.revealing ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: 220 } }
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: i18n("Web search: %1", row.queryList.join(" · "))
@@ -194,6 +335,8 @@ ListView {
             // Recherche forcée, mais Gemini a répondu sans chercher.
             Text {
                 visible: !row.isError && row.modelData.noSearch === true
+                opacity: row.revealing ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: 220 } }
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: i18n("Gemini did not run a web search for this answer: it may come from memory and be out of date.")
@@ -204,6 +347,8 @@ ListView {
             Row {
                 spacing: 10
                 visible: !row.isError
+                opacity: row.revealing ? 0 : 1
+                Behavior on opacity { NumberAnimation { duration: 220 } }
 
                 Text {
                     text: row.modelData.label ? String(row.modelData.label)
@@ -241,32 +386,43 @@ ListView {
         height: view.busy ? 36 : 0
         visible: view.busy
 
-        Row {
-            x: view.leftMargin
+        // Comme dans ChatGPT : un seul point qui pulse pendant que l'assistant
+        // réfléchit.
+        Rectangle {
+            id: thinkingDot
+
+            x: view.leftMargin + 3
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
+            width: 12
+            height: 12
+            radius: 6
+            color: Qt.rgba(1, 1, 1, 0.92)
+            scale: 0.6
+            opacity: 0.5
 
-            Repeater {
-                model: 3
+            SequentialAnimation {
+                running: view.busy
+                loops: Animation.Infinite
 
-                delegate: Rectangle {
-                    id: dot
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: thinkingDot; property: "scale"; to: 1.0
+                        duration: 640; easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: thinkingDot; property: "opacity"; to: 1.0
+                        duration: 640; easing.type: Easing.InOutSine
+                    }
+                }
 
-                    required property int index
-
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: Qt.rgba(1, 1, 1, 0.6)
-
-                    SequentialAnimation on opacity {
-                        running: view.busy
-                        loops: Animation.Infinite
-
-                        PauseAnimation { duration: dot.index * 160 }
-                        NumberAnimation { to: 0.25; duration: 360 }
-                        NumberAnimation { to: 1.0; duration: 360 }
-                        PauseAnimation { duration: (2 - dot.index) * 160 }
+                ParallelAnimation {
+                    NumberAnimation {
+                        target: thinkingDot; property: "scale"; to: 0.6
+                        duration: 640; easing.type: Easing.InOutSine
+                    }
+                    NumberAnimation {
+                        target: thinkingDot; property: "opacity"; to: 0.5
+                        duration: 640; easing.type: Easing.InOutSine
                     }
                 }
             }
