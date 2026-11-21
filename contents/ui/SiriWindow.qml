@@ -359,7 +359,9 @@ Window {
 
     function send() {
         var text = input.text.trim();
-        if (!chat || text.length === 0 || chat.busy) {
+        // Une image (ou un fichier) ajoutée depuis le dernier envoi suffit :
+        // le message peut n'avoir aucun texte.
+        if (!chat || chat.busy || !chat.canSend(text)) {
             return;
         }
         input.text = "";
@@ -383,7 +385,13 @@ Window {
     function lastText(conversation) {
         for (var i = conversation.messages.length - 1; i >= 0; --i) {
             if (!conversation.messages[i].error) {
-                return String(conversation.messages[i].text).replace(/\s+/g, " ").trim();
+                var preview = String(conversation.messages[i].text).replace(/\s+/g, " ").trim();
+                // Message sans texte : une image seule.
+                var pictures = conversation.messages[i].images;
+                if (preview.length === 0 && Array.isArray(pictures) && pictures.length > 0) {
+                    return i18n("Image");
+                }
+                return preview;
             }
         }
         return "";
@@ -488,6 +496,19 @@ Window {
     function showAttachNotice(text) {
         attachNotice = text;
         attachNoticeTimer.restart();
+    }
+
+    // Ctrl+V : joint l'image ou les fichiers du presse-papiers. Renvoie false
+    // s'il n'y en a pas : le champ colle alors son texte comme d'habitude.
+    function pasteAttachments() {
+        if (!chat) {
+            return false;
+        }
+        var state = chat.pasteFromClipboard();
+        if (state === "full") {
+            showAttachNotice(i18n("You can attach up to %1 items.", chat.maxAttachments));
+        }
+        return state !== "none";
     }
 
     Timer {
@@ -1087,60 +1108,19 @@ Window {
                 Repeater {
                     model: win.chat ? win.chat.attachments : []
 
-                    delegate: Rectangle {
+                    delegate: AttachmentCard {
                         id: chip
 
                         required property var modelData
                         required property int index
 
-                        height: 26
-                        width: chipContent.implicitWidth + 22
-                        radius: 13
-                        color: Qt.rgba(1, 1, 1, 0.12)
-
-                        Row {
-                            id: chipContent
-
-                            anchors.centerIn: parent
-                            spacing: 6
-
-                            SpotlightGlyph {
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: chip.modelData.isDir ? "folder" : "files"
-                                size: 14
-                                lineWidth: 1.8
-                                color: Qt.rgba(1, 1, 1, 0.78)
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: Math.min(implicitWidth, 180)
-                                elide: Text.ElideMiddle
-                                text: chip.modelData.name
-                                font.pixelSize: 12
-                                color: Qt.rgba(1, 1, 1, 0.9)
-                            }
-
-                            SpotlightGlyph {
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: "close"
-                                size: 11
-                                lineWidth: 2.2
-                                color: removeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.5)
-
-                                MouseArea {
-                                    id: removeMouse
-
-                                    anchors.fill: parent
-                                    anchors.margins: -5
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (win.chat) {
-                                            win.chat.removeAttachment(chip.index);
-                                        }
-                                    }
-                                }
+                        path: modelData.path
+                        name: modelData.name
+                        isDir: modelData.isDir === true
+                        maxNameWidth: 180
+                        onRemoveRequested: {
+                            if (win.chat) {
+                                win.chat.removeAttachment(chip.index);
                             }
                         }
                     }
@@ -1228,6 +1208,11 @@ Window {
                                 && (event.modifiers & Qt.ShiftModifier) === 0) {
                             win.send();
                             event.accepted = true;
+                        } else if (event.matches(StandardKey.Paste)) {
+                            // Image ou fichiers : joints (sinon le texte est collé).
+                            if (win.pasteAttachments()) {
+                                event.accepted = true;
+                            }
                         } else if (event.key === Qt.Key_Escape) {
                             if (menu.opened) {
                                 menu.close();
@@ -1251,7 +1236,8 @@ Window {
                     width: 30
                     height: 30
                     radius: 15
-                    color: busy || input.text.trim().length > 0 ? win.accent : Qt.rgba(1, 1, 1, 0.18)
+                    color: busy || input.text.trim().length > 0 || (!!win.chat && win.chat.hasFresh)
+                        ? win.accent : Qt.rgba(1, 1, 1, 0.18)
 
                     SpotlightGlyph {
                         visible: !sendButton.busy

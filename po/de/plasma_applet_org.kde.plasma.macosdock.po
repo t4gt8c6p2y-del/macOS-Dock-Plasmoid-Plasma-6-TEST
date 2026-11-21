@@ -1526,3 +1526,12 @@ msgstr "Farbsäume:"
 
 msgid "Reset menu glass settings"
 msgstr "Menü-Glas zurücksetzen"
+
+msgid "Pasted image"
+msgstr "Eingefügtes Bild"
+
+msgid "Image"
+msgstr "Bild"
+
+msgid "%1 cannot read images. Choose Gemini or another AI that accepts images."
+msgstr "%1 kann keine Bilder lesen. Wählen Sie Gemini oder eine andere KI, die Bilder akzeptiert."

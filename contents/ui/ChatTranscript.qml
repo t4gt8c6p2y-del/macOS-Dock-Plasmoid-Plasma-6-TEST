@@ -81,6 +81,9 @@ ListView {
         readonly property var sourceList: Array.isArray(modelData.sources) ? modelData.sources : []
         readonly property var queryList: Array.isArray(modelData.queries) ? modelData.queries : []
         readonly property var attachedList: Array.isArray(modelData.attached) ? modelData.attached : []
+        // Images envoyées avec cette question : [{ path, name }].
+        readonly property var imageList: Array.isArray(modelData.images) ? modelData.images : []
+        readonly property bool hasText: String(modelData.text).trim().length > 0
 
         width: view.width - view.leftMargin - view.rightMargin
         height: isUser ? userColumn.height : assistantColumn.height
@@ -191,11 +194,39 @@ ListView {
             width: Math.min(row.width * 0.82, userMeasure.implicitWidth + 28)
             spacing: 4
 
+            // Images envoyées avec la question (au-dessus du texte, à droite).
+            Flow {
+                visible: row.imageList.length > 0
+                anchors.right: parent.right
+                width: row.width * 0.82
+                layoutDirection: Qt.RightToLeft
+                spacing: 6
+
+                Repeater {
+                    model: row.imageList
+
+                    delegate: RoundedImage {
+                        id: sentImage
+
+                        required property var modelData
+
+                        width: row.imageList.length === 1 ? (view.compact ? 190 : 240) : 108
+                        height: row.imageList.length === 1 ? (view.compact ? 136 : 170) : 108
+                        radius: 16
+                        decodeSize: 480
+                        source: sentImage.modelData.path
+                            ? "file://" + String(sentImage.modelData.path).split("/")
+                                .map(encodeURIComponent).join("/") : ""
+                    }
+                }
+            }
+
             Rectangle {
                 id: userBubble
 
+                visible: row.hasText
                 width: parent.width
-                height: userText.contentHeight + 20
+                height: row.hasText ? userText.contentHeight + 20 : 0
                 radius: 18
                 color: view.userColor
 

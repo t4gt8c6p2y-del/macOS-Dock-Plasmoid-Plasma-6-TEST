@@ -378,8 +378,37 @@ Item {
         return name.length > 0 ? name : String(path);
     }
 
+    // Images envoyées au modèle (et non lues comme du texte). Au plus
+    // maxHistoryImages : les plus récentes de la conversation.
+    readonly property int maxHistoryImages: 4
+    // Plus grand côté d'une image envoyée (les plus grandes sont réduites).
+    readonly property int imageMaxEdge: 1568
+    // Question envoyée au modèle quand l'utilisateur n'a écrit aucun texte.
+    readonly property string emptyQuestion: "The user sent this message without any text. "
+        + "If the attachment contains a question or a task, answer it; otherwise "
+        + "briefly describe what it is and offer to help."
+
+    function isImagePath(path) {
+        return /\.(png|jpe?g|gif|webp|bmp|tiff?)$/i.test(String(path));
+    }
+
+    function isImageAttachment(item) {
+        return !!item && !item.isDir && isImagePath(item.path);
+    }
+
+    // Pièces jointes ajoutées depuis le dernier envoi : elles suffisent à
+    // envoyer un message sans texte.
+    readonly property bool hasFresh: attachments.some(function (item) {
+        return item.fresh === true;
+    })
+
+    function canSend(text) {
+        return !busy && (String(text).trim().length > 0 || hasFresh);
+    }
+
     // Accepte un chemin ou une adresse file:// (celle des boîtes de dialogue).
-    function addAttachment(location, isDir) {
+    // « label » : nom affiché, si ce n'est pas celui du fichier.
+    function addAttachment(location, isDir, label) {
         var path = String(location);
         if (path.indexOf("file://") === 0) {
             path = decodeURIComponent(path.substring(7));
@@ -395,11 +424,40 @@ Item {
         }
         attachments = attachments.concat([{
             "path": path,
-            "name": attachmentName(path),
-            "isDir": Boolean(isDir)
+            "name": label !== undefined && String(label).length > 0
+                ? String(label) : attachmentName(path),
+            "isDir": Boolean(isDir),
+            "fresh": true
         }]);
         syncAttachments();
         return true;
+    }
+
+    // Ctrl+V : joint l'image ou les fichiers du presse-papiers. Renvoie
+    // « none » s'il n'y a rien à joindre (le champ colle alors son texte),
+    // « full » si la limite est atteinte, « added » sinon.
+    function pasteFromClipboard() {
+        if (!backend || typeof backend.clipboardAttachments !== "function") {
+            return "none";
+        }
+        var data = backend.clipboardAttachments();
+        if (!data || (data.kind !== "image" && data.kind !== "files")) {
+            return "none";
+        }
+        var items = data.kind === "image"
+            ? [{ "path": data.path, "isDir": false, "label": i18n("Pasted image") }]
+            : (Array.isArray(data.items) ? data.items : []);
+        if (items.length === 0) {
+            return "none";
+        }
+        var full = false;
+        for (var i = 0; i < items.length; ++i) {
+            if (!addAttachment(items[i].path, items[i].isDir, items[i].label)
+                    && attachments.length >= maxAttachments) {
+                full = true;
+            }
+        }
+        return full ? "full" : "added";
     }
 
     function removeAttachment(index) {
@@ -617,26 +675,38 @@ Item {
     function ask(text, provider, options) {
         var question = String(text).trim();
         var forced = Boolean(options && options.forceSearch);
-        if (question.length === 0 || busy) {
+        // Un message peut n'avoir aucun texte s'il porte une pièce jointe
+        // ajoutée depuis le dernier envoi (une image seule, par exemple).
+        if ((question.length === 0 && !hasFresh) || busy) {
             return false;
         }
         var providerIndex = provider === undefined ? activeProvider : provider;
+        // Les images sont envoyées une fois, avec ce message, et restent dans
+        // le fil ; les dossiers et fichiers restent joints à la conversation.
+        var sentImages = attachments.filter(isImageAttachment);
+        var joined = attachments.filter(function (item) {
+            return !isImageAttachment(item);
+        }).map(function (item) {
+            return Object.assign({}, item, { "fresh": false });
+        });
         var conversation = conversationById(currentId);
         if (!conversation) {
+            var title = question.length > 0 ? question
+                : (sentImages.length > 0 ? i18n("Image") : joined[0].name);
             conversation = {
                 "id": newId(),
-                "title": shorten(question),
+                "title": shorten(title),
                 "created": Date.now(),
                 "updated": Date.now(),
                 "pinned": false,
-                "attachments": attachments.slice(),
+                "attachments": joined,
                 "messages": []
             };
             conversations = [conversation].concat(conversations);
             currentId = conversation.id;
         }
-        var joined = attachments.slice();
         conversation.attachments = joined;
+        attachments = joined.slice();
         conversation.messages.push({
             "role": "user",
             "text": question,
@@ -644,6 +714,9 @@ Item {
             "provider": providerIndex,
             "attached": joined.map(function (item) {
                 return item.name;
+            }),
+            "images": sentImages.map(function (item) {
+                return { "path": item.path, "name": item.name };
             })
         });
         conversation.updated = Date.now();
@@ -660,6 +733,7 @@ Item {
         var conversationId = conversation.id;
         loadAttachments(joined, function (context) {
             var messages = chat.requestMessages(chat.conversationById(conversationId) || conversation);
+            chat.encodeImages(messages);
             if (context.length > 0 && messages.length > 0) {
                 messages[messages.length - 1].text = context + messages[messages.length - 1].text;
             }
@@ -725,16 +799,49 @@ Item {
         }).slice(-30);
         for (var i = 0; i < source.length; ++i) {
             var message = source[i];
+            var paths = Array.isArray(message.images)
+                ? message.images.map(function (item) {
+                    return item.path;
+                }) : [];
             if (result.length > 0 && result[result.length - 1].role === message.role) {
                 result[result.length - 1].text += "\n\n" + message.text;
+                result[result.length - 1].imagePaths = result[result.length - 1].imagePaths.concat(paths);
             } else {
-                result.push({ "role": message.role, "text": message.text });
+                result.push({ "role": message.role, "text": message.text, "imagePaths": paths });
             }
         }
         while (result.length > 0 && result[0].role !== "user") {
             result.shift();
         }
         return result;
+    }
+
+    // Lit les images des messages (les maxHistoryImages plus récentes) et les
+    // met en base64 dans « images » : [{ mime, data }]. Un message sans texte
+    // reçoit une consigne : aucune API n'accepte un message vide. Rien de tout
+    // cela n'est enregistré : l'historique ne garde que les chemins.
+    function encodeImages(messages) {
+        var budget = maxHistoryImages;
+        for (var i = messages.length - 1; i >= 0; --i) {
+            var message = messages[i];
+            var encoded = [];
+            for (var j = message.imagePaths.length - 1; j >= 0 && budget > 0; --j) {
+                var data = backend && typeof backend.encodeImage === "function"
+                    ? backend.encodeImage(message.imagePaths[j], imageMaxEdge) : null;
+                if (data && data.data) {
+                    encoded.unshift({ "mime": data.mime, "data": data.data });
+                    --budget;
+                }
+            }
+            message.images = encoded;
+            if (message.role === "user" && message.text.trim().length === 0) {
+                message.text = i === messages.length - 1 ? emptyQuestion : "(attachment)";
+            }
+        }
+    }
+
+    function hasImages(message) {
+        return !!message && Array.isArray(message.images) && message.images.length > 0;
     }
 
     function send(messages, provider, done, options) {
@@ -848,20 +955,28 @@ Item {
         var model = currentGeminiModel();
         var url = "https://generativelanguage.googleapis.com/v1beta/models/"
             + encodeURIComponent(model) + ":generateContent";
+        // Les images viennent avant le texte (l'ordre conseillé par Gemini).
         var contents = messages.map(function (message) {
+            var parts = (Array.isArray(message.images) ? message.images : []).map(function (picture) {
+                return { "inline_data": { "mime_type": picture.mime, "data": picture.data } };
+            });
+            parts.push({ "text": message.text });
             return {
                 "role": message.role === "user" ? "user" : "model",
-                "parts": [{ "text": message.text }]
+                "parts": parts
             };
         });
         var attempt = function (mode, retried) {
             var sent = contents;
             if (mode === 2 && sent.length > 0) {
-                // Consigne de recherche ajoutée à la dernière question.
+                // Consigne de recherche ajoutée à la dernière question (son
+                // texte est la dernière partie, après les images éventuelles).
+                var lastParts = sent[sent.length - 1].parts;
                 sent = sent.slice(0, sent.length - 1).concat([{
                     "role": "user",
-                    "parts": [{ "text": sent[sent.length - 1].parts[0].text + "\n\n"
-                        + chat.searchDirective(retried) }]
+                    "parts": lastParts.slice(0, lastParts.length - 1).concat([{
+                        "text": lastParts[lastParts.length - 1].text + "\n\n"
+                            + chat.searchDirective(retried) }])
                 }]);
             }
             var body = {
@@ -933,7 +1048,16 @@ Item {
         }
         var list = [{ "role": "system", "content": fullSystemPrompt(String(model).trim(), false) }];
         for (var i = 0; i < messages.length; ++i) {
-            list.push({ "role": messages[i].role, "content": messages[i].text });
+            var content = messages[i].text;
+            if (hasImages(messages[i])) {
+                // Format « vision » de l'API Chat Completions.
+                content = [{ "type": "text", "text": messages[i].text }].concat(
+                    messages[i].images.map(function (picture) {
+                        return { "type": "image_url", "image_url": {
+                            "url": "data:" + picture.mime + ";base64," + picture.data } };
+                    }));
+            }
+            list.push({ "role": messages[i].role, "content": content });
         }
         postJson(url, headers, {
             "model": String(model).trim(),
@@ -969,6 +1093,12 @@ Item {
         var executable = backend ? backend.findExecutable("opencode") : "";
         if (executable.length === 0) {
             finish(false, providerProblem(1));
+            return;
+        }
+        // Le CLI ne transmet que du texte : une image envoyée ici serait perdue.
+        if (messages.length > 0 && hasImages(messages[messages.length - 1])) {
+            finish(false, i18n("%1 cannot read images. Choose Gemini or another AI that accepts images.",
+                providerName(1)));
             return;
         }
         var model = String(glmModel).trim().length > 0 ? String(glmModel).trim()

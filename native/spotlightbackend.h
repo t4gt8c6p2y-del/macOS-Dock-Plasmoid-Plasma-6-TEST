@@ -131,6 +131,20 @@ public:
     Q_INVOKABLE void requestClipboardHistory();
     Q_INVOKABLE void setClipboardText(const QString &text);
 
+    // --- Pièces jointes de l'assistant (Ctrl+V) ---------------------------
+    /**
+     * Ce que contient le presse-papiers pour l'assistant : { kind: "none" |
+     * "text" | "files" | "image", items: [{ path, isDir }] (fichiers),
+     * path (image enregistrée en PNG dans le dossier de données) }.
+     */
+    Q_INVOKABLE QVariantMap clipboardAttachments();
+    /**
+     * Lit une image, la réduit (grand côté <= maxEdge) et l'encode en JPEG
+     * (PNG à défaut) en base64 : { mime, data, width, height }, ou un objet
+     * vide si l'image est illisible.
+     */
+    Q_INVOKABLE QVariantMap encodeImage(const QString &path, int maxEdge) const;
+
     // --- Commandes (assistant IA par le CLI OpenCode) ---------------------
     /** Chemin absolu du programme, ou chaîne vide s'il est introuvable. */
     Q_INVOKABLE QString findExecutable(const QString &name) const;

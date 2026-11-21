@@ -1,5 +1,6 @@
 #include "spotlightbackend.h"
 
+#include <QBuffer>
 #include <QCollator>
 #include <QDateTime>
 #include <QDBusConnection>
@@ -15,10 +16,14 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QImage>
+#include <QImageReader>
 #include <QLocale>
 #include <QMetaObject>
+#include <QMimeData>
 #include <QMimeDatabase>
 #include <QMimeType>
+#include <QPainter>
 #include <QPointer>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -725,6 +730,152 @@ void SpotlightBackend::setClipboardText(const QString &text)
                 }
                 call->deleteLater();
             });
+}
+
+// --- Pièces jointes collées (Ctrl+V) -----------------------------------------
+
+QVariantMap SpotlightBackend::clipboardAttachments()
+{
+    QVariantMap result;
+    result.insert(QStringLiteral("kind"), QStringLiteral("none"));
+
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    const QMimeData *mime = clipboard ? clipboard->mimeData() : nullptr;
+    if (!mime) {
+        return result;
+    }
+
+    // Fichiers ou dossiers copiés dans un gestionnaire de fichiers.
+    if (mime->hasUrls()) {
+        QVariantList items;
+        const QList<QUrl> urls = mime->urls();
+        for (const QUrl &url : urls) {
+            if (!url.isLocalFile()) {
+                continue;
+            }
+            const QFileInfo info(url.toLocalFile());
+            if (!info.exists()) {
+                continue;
+            }
+            QVariantMap item;
+            item.insert(QStringLiteral("path"), info.absoluteFilePath());
+            item.insert(QStringLiteral("isDir"), info.isDir());
+            items.append(item);
+            if (items.size() >= 16) {
+                break;
+            }
+        }
+        if (!items.isEmpty()) {
+            result.insert(QStringLiteral("kind"), QStringLiteral("files"));
+            result.insert(QStringLiteral("items"), items);
+            return result;
+        }
+    }
+
+    // Image (capture d'écran, « copier l'image » d'un navigateur…). Quand du
+    // texte accompagne l'image (cellules d'un tableur, par exemple), c'est le
+    // texte que l'utilisateur veut coller : sauf si ce texte n'est qu'une adresse
+    // web, ce qui est le cas d'un « copier l'image » de navigateur.
+    if (mime->hasImage()) {
+        const QString text = mime->hasText() ? mime->text().trimmed() : QString();
+        const bool onlyAddress = !text.contains(QLatin1Char('\n'))
+            && (text.startsWith(QLatin1String("http://")) || text.startsWith(QLatin1String("https://")));
+        if (text.isEmpty() || onlyAddress) {
+            const QImage image = qvariant_cast<QImage>(mime->imageData());
+            const QString folder = dataDirectory() + QStringLiteral("/pasted");
+            if (!image.isNull() && QDir().mkpath(folder)) {
+                // Les images collées de plus de 60 jours sont supprimées.
+                const QFileInfoList old = QDir(folder).entryInfoList(QDir::Files);
+                const QDateTime limit = QDateTime::currentDateTime().addDays(-60);
+                for (const QFileInfo &file : old) {
+                    if (file.lastModified() < limit) {
+                        QFile::remove(file.absoluteFilePath());
+                    }
+                }
+                const QString path = folder + QStringLiteral("/image-")
+                    + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss-zzz"))
+                    + QStringLiteral(".png");
+                if (image.save(path, "PNG")) {
+                    result.insert(QStringLiteral("kind"), QStringLiteral("image"));
+                    result.insert(QStringLiteral("path"), path);
+                    return result;
+                }
+            }
+        }
+    }
+
+    // Du texte seul : le champ de saisie le colle lui-même.
+    if (mime->hasText()) {
+        result.insert(QStringLiteral("kind"), QStringLiteral("text"));
+    }
+    return result;
+}
+
+QVariantMap SpotlightBackend::encodeImage(const QString &path, int maxEdge) const
+{
+    QVariantMap result;
+    maxEdge = qBound(256, maxEdge, 4096);
+
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QSize original = reader.size();
+    if (original.isValid() && qMax(original.width(), original.height()) > maxEdge) {
+        QSize scaled = original;
+        scaled.scale(maxEdge, maxEdge, Qt::KeepAspectRatio);
+        reader.setScaledSize(scaled);
+    }
+    QImage image = reader.read();
+    if (image.isNull()) {
+        return result;
+    }
+    if (qMax(image.width(), image.height()) > maxEdge) {
+        image = image.scaled(maxEdge, maxEdge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    // JPEG n'a pas de transparence : une image transparente est posée sur du blanc.
+    if (image.hasAlphaChannel()) {
+        QImage flat(image.size(), QImage::Format_RGB32);
+        flat.fill(Qt::white);
+        QPainter painter(&flat);
+        painter.drawImage(0, 0, image);
+        painter.end();
+        image = flat;
+    }
+
+    // Les API refusent les images trop lourdes : on réduit jusqu'à tenir dans 3,5 Mo.
+    const qsizetype limit = 3500 * 1024;
+    QByteArray bytes;
+    QString format = QStringLiteral("image/jpeg");
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        bytes.clear();
+        QBuffer buffer(&bytes);
+        buffer.open(QIODevice::WriteOnly);
+        bool saved = image.save(&buffer, "JPEG", 86);
+        if (!saved) {
+            // Pas de greffon JPEG : PNG.
+            bytes.clear();
+            QBuffer pngBuffer(&bytes);
+            pngBuffer.open(QIODevice::WriteOnly);
+            saved = image.save(&pngBuffer, "PNG");
+            format = QStringLiteral("image/png");
+        }
+        if (!saved) {
+            return result;
+        }
+        if (bytes.size() <= limit) {
+            break;
+        }
+        image = image.scaled(image.width() * 3 / 4, image.height() * 3 / 4, Qt::KeepAspectRatio,
+                             Qt::SmoothTransformation);
+    }
+    if (bytes.size() > limit) {
+        return result;
+    }
+
+    result.insert(QStringLiteral("mime"), format);
+    result.insert(QStringLiteral("data"), QString::fromLatin1(bytes.toBase64()));
+    result.insert(QStringLiteral("width"), image.width());
+    result.insert(QStringLiteral("height"), image.height());
+    return result;
 }
 
 // --- Commandes --------------------------------------------------------------

@@ -896,6 +896,20 @@ Window {
         }
     }
 
+    // Ctrl+V : joint l'image ou les fichiers du presse-papiers. Renvoie false
+    // s'il n'y en a pas : le champ colle alors son texte comme d'habitude.
+    function pasteAttachments() {
+        if (!chat) {
+            return false;
+        }
+        var state = chat.pasteFromClipboard();
+        if (state === "full") {
+            attachNotice = i18n("You can attach up to %1 items.", chat.maxAttachments);
+            attachNoticeTimer.restart();
+        }
+        return state !== "none";
+    }
+
     Timer {
         id: attachNoticeTimer
 
@@ -966,7 +980,9 @@ Window {
 
     function askAi(text) {
         var question = String(text).trim();
-        if (!chat || question.length === 0) {
+        // Une image (ou un fichier) ajoutée depuis le dernier envoi suffit :
+        // le message peut n'avoir aucun texte.
+        if (!chat || (question.length === 0 && !chat.hasFresh)) {
             return;
         }
         // Une réponse est déjà en cours : le texte tapé est conservé.
@@ -1273,11 +1289,15 @@ Window {
         return Qt.vector4d(0.03 * k, 0.05 * k, 0.11 * k, outA);
     }
 
-    // Fenêtre de conversation : même verre que le panneau, mais plus sombre
-    // (presque noir, comme la fenêtre de Siri sur macOS 27).
-    readonly property var compactGlassCfg: Object.assign({}, legacyGlassCfg, {
+    // Fenêtre de conversation : le même Liquid Glass que le menu d'applications
+    // (mêmes réglages), avec les coins de la fenêtre (qui suivent la
+    // transformation de la barre) et une teinte plus sombre (presque noire,
+    // comme la fenêtre de Siri sur macOS 27). La teinte reste assez légère pour
+    // que la réfraction des bords se voie : le noir en diagonale (darkLayer)
+    // fait le reste.
+    readonly property var compactGlassCfg: Object.assign({}, panelGlassCfg, {
         "radius": compactSurface.radius,
-        "tint": Qt.vector4d(0.012, 0.014, 0.026, Math.max(0.78, panelTint.w))
+        "tint": Qt.vector4d(0.012, 0.014, 0.026, Math.max(0.6, panelTint.w))
     })
 
     // La barre de recherche reste opaque : le verre ne dessine que son liseré.
@@ -2466,6 +2486,13 @@ Window {
                 windows: win.liveWindows
                 originX: compactSurface.x
                 originY: compactSurface.y
+                // Le reflet de coin suit le curseur, comme sur le menu.
+                mouseU: compactHover.hovered
+                    ? Math.max(0, Math.min(1, compactHover.point.position.x
+                        / Math.max(1, compactSurface.width))) : -1
+                mouseV: compactHover.hovered
+                    ? Math.max(0, Math.min(1, compactHover.point.position.y
+                        / Math.max(1, compactSurface.height))) : -1
                 Component.onCompleted: configure(win.compactGlassCfg)
 
                 Connections {
@@ -2474,6 +2501,10 @@ Window {
                         compactGlass.configure(win.compactGlassCfg);
                     }
                 }
+            }
+
+            HoverHandler {
+                id: compactHover
             }
 
             // Zone sombre de la fenêtre : un noir en diagonale, le plus profond
@@ -2675,60 +2706,19 @@ Window {
                 Repeater {
                     model: win.chat ? win.chat.attachments : []
 
-                    delegate: Rectangle {
+                    delegate: AttachmentCard {
                         id: chip
 
                         required property var modelData
                         required property int index
 
-                        height: 26
-                        width: chipContent.implicitWidth + 22
-                        radius: 13
-                        color: Qt.rgba(1, 1, 1, 0.16)
-
-                        Row {
-                            id: chipContent
-
-                            anchors.centerIn: parent
-                            spacing: 6
-
-                            SpotlightGlyph {
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: chip.modelData.isDir ? "folder" : "files"
-                                size: 14
-                                lineWidth: 1.8
-                                color: Qt.rgba(1, 1, 1, 0.78)
-                            }
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: Math.min(implicitWidth, 150)
-                                elide: Text.ElideMiddle
-                                text: chip.modelData.name
-                                font.pixelSize: 12
-                                color: Qt.rgba(1, 1, 1, 0.9)
-                            }
-
-                            SpotlightGlyph {
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: "close"
-                                size: 11
-                                lineWidth: 2.2
-                                color: removeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.5)
-
-                                MouseArea {
-                                    id: removeMouse
-
-                                    anchors.fill: parent
-                                    anchors.margins: -5
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (win.chat) {
-                                            win.chat.removeAttachment(chip.index);
-                                        }
-                                    }
-                                }
+                        path: modelData.path
+                        name: modelData.name
+                        isDir: modelData.isDir === true
+                        fill: Qt.rgba(1, 1, 1, 0.16)
+                        onRemoveRequested: {
+                            if (win.chat) {
+                                win.chat.removeAttachment(chip.index);
                             }
                         }
                     }
@@ -2857,6 +2847,11 @@ Window {
                             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                 win.askAi(win.query);
                                 event.accepted = true;
+                            } else if (event.matches(StandardKey.Paste)) {
+                                // Image ou fichiers : joints (sinon le texte est collé).
+                                if (win.pasteAttachments()) {
+                                    event.accepted = true;
+                                }
                             }
                         }
                     }
@@ -2868,7 +2863,9 @@ Window {
                     id: sendButton
 
                     readonly property bool busy: win.chat ? win.chat.currentBusy : false
+                    // Du texte, ou une image / un fichier prêt à partir.
                     readonly property bool typing: win.query.trim().length > 0
+                        || (!!win.chat && win.chat.hasFresh)
 
                     visible: busy || typing
                     anchors.right: parent.right

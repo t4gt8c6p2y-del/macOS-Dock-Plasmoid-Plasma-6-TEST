@@ -1528,3 +1528,12 @@ msgstr "Franges de couleur :"
 
 msgid "Reset menu glass settings"
 msgstr "Réinitialiser le verre du menu"
+
+msgid "Pasted image"
+msgstr "Image collée"
+
+msgid "Image"
+msgstr "Image"
+
+msgid "%1 cannot read images. Choose Gemini or another AI that accepts images."
+msgstr "%1 ne sait pas lire les images. Choisissez Gemini ou une autre IA qui accepte les images."
