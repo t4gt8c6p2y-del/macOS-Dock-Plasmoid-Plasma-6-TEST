@@ -68,6 +68,8 @@ Window {
     signal favoritesChangeRequested(var ids)
     signal assistantRequested(bool freshConversation)
     signal settingsRequested()
+    // Capture d'écran « Demander à Siri » (ScreenshotWindow) demandée depuis le menu.
+    signal screenshotRequested()
 
     // --- État --------------------------------------------------------------------
     // 0 = par défaut, 1 = applications, 2 = fichiers, 3 = presse-papiers
@@ -246,6 +248,21 @@ Window {
         contextMenu.close();
         expandAnimation.stop();
         visible = false;
+    }
+
+    // Ouvre la fenêtre de conversation avec une image déjà jointe : la zone
+    // choisie dans la capture d'écran « Demander à Siri ». L'image apparaît au-dessus
+    // de la barre d'écriture, prête à être envoyée avec ou sans texte.
+    function openWithImage(path) {
+        if (!chat) {
+            return;
+        }
+        // openSpotlight() démarre une conversation vierge (et vide les pièces
+        // jointes) : l'image est jointe ensuite.
+        openSpotlight("");
+        chat.addAttachment(path, false, i18n("Screenshot"));
+        aiView = true;
+        Qt.callLater(focusField);
     }
 
     // Agrandit la conversation du panneau vers l'application Siri IA : le
@@ -1094,6 +1111,7 @@ Window {
             entries.push({ "separator": true });
         }
         entries.push({ "id": "newinline", "text": i18n("New Siri AI conversation"), "glyph": "compose" });
+        entries.push({ "id": "screenshot", "text": i18n("Screenshot to Ask Siri…"), "glyph": "files" });
         if (assistantEnabled) {
             entries.push({ "id": "openchat", "text": i18n("Open Siri AI"), "glyph": "expand" });
         }
@@ -1132,6 +1150,9 @@ Window {
                 chat.startNew();
             }
             focusField();
+        } else if (id === "screenshot") {
+            closeSpotlight();
+            screenshotRequested();
         } else if (id === "newchat") {
             closeSpotlight();
             assistantRequested(true);

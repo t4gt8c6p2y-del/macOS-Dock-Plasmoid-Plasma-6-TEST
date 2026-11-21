@@ -84,6 +84,13 @@ ListView {
         // Images envoyées avec cette question : [{ path, name }].
         readonly property var imageList: Array.isArray(modelData.images) ? modelData.images : []
         readonly property bool hasText: String(modelData.text).trim().length > 0
+        // Taille des images de la question : une seule est grande (en entier),
+        // plusieurs sont des vignettes carrées.
+        readonly property real imageWidth: imageList.length === 1 ? (view.compact ? 200 : 260) : 108
+        readonly property real imageHeight: imageList.length === 1 ? (view.compact ? 150 : 190) : 108
+        readonly property real imagesWidth: imageList.length === 0 ? 0
+            : (imageList.length === 1 ? imageWidth
+                : Math.min(row.width * 0.82, Math.min(imageList.length, 3) * (imageWidth + 6) - 6))
 
         width: view.width - view.leftMargin - view.rightMargin
         height: isUser ? userColumn.height : assistantColumn.height
@@ -191,14 +198,14 @@ ListView {
 
             visible: row.isUser
             anchors.right: parent.right
-            width: Math.min(row.width * 0.82, userMeasure.implicitWidth + 28)
+            width: Math.min(row.width * 0.82,
+                Math.max(userMeasure.implicitWidth + 28, row.imagesWidth))
             spacing: 4
 
-            // Images envoyées avec la question (au-dessus du texte, à droite).
+            // Images envoyées avec la question, au-dessus du texte, à droite.
             Flow {
                 visible: row.imageList.length > 0
-                anchors.right: parent.right
-                width: row.width * 0.82
+                width: parent.width
                 layoutDirection: Qt.RightToLeft
                 spacing: 6
 
@@ -210,11 +217,13 @@ ListView {
 
                         required property var modelData
 
-                        width: row.imageList.length === 1 ? (view.compact ? 190 : 240) : 108
-                        height: row.imageList.length === 1 ? (view.compact ? 136 : 170) : 108
+                        width: row.imageWidth
+                        height: row.imageHeight
                         radius: 16
-                        decodeSize: 480
-                        source: sentImage.modelData.path
+                        decodeSize: 640
+                        fillMode: row.imageList.length === 1 ? Image.PreserveAspectFit
+                            : Image.PreserveAspectCrop
+                        source: sentImage.modelData && sentImage.modelData.path
                             ? "file://" + String(sentImage.modelData.path).split("/")
                                 .map(encodeURIComponent).join("/") : ""
                     }
@@ -225,7 +234,8 @@ ListView {
                 id: userBubble
 
                 visible: row.hasText
-                width: parent.width
+                anchors.right: parent.right
+                width: Math.min(parent.width, userMeasure.implicitWidth + 28)
                 height: row.hasText ? userText.contentHeight + 20 : 0
                 radius: 18
                 color: view.userColor

@@ -285,6 +285,11 @@ void SpotlightDBusService::openAssistant()
     m_backend->emitOpenAssistant();
 }
 
+void SpotlightDBusService::screenshot()
+{
+    m_backend->emitScreenshot();
+}
+
 KRunnerCompatService::KRunnerCompatService(SpotlightBackend *backend)
     : QObject(backend)
     , m_backend(backend)
@@ -506,6 +511,11 @@ void SpotlightBackend::emitQuery(const QString &text)
 void SpotlightBackend::emitOpenAssistant()
 {
     Q_EMIT assistantRequested();
+}
+
+void SpotlightBackend::emitScreenshot()
+{
+    Q_EMIT screenshotRequested();
 }
 
 // --- Applications -----------------------------------------------------------
@@ -876,6 +886,65 @@ QVariantMap SpotlightBackend::encodeImage(const QString &path, int maxEdge) cons
     result.insert(QStringLiteral("width"), image.width());
     result.insert(QStringLiteral("height"), image.height());
     return result;
+}
+
+// --- Capture d'écran « Demander à Siri » --------------------------------------
+
+QString SpotlightBackend::newCapturePath()
+{
+    discardCapture();
+    const QString folder = dataDirectory() + QStringLiteral("/capture");
+    QDir().mkpath(folder);
+    // Un nom neuf à chaque capture : l'image affichée n'est jamais celle d'une
+    // capture précédente restée dans le cache de QML.
+    m_capturePath = folder + QStringLiteral("/capture-")
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss-zzz"))
+        + QStringLiteral(".png");
+    return m_capturePath;
+}
+
+QString SpotlightBackend::cropCapture(double x, double y, double w, double h)
+{
+    if (m_capturePath.isEmpty()) {
+        return QString();
+    }
+    const QImage source(m_capturePath);
+    if (source.isNull()) {
+        discardCapture();
+        return QString();
+    }
+    const double fx = qBound(0.0, x, 1.0);
+    const double fy = qBound(0.0, y, 1.0);
+    const double fw = qBound(0.0, w, 1.0 - fx);
+    const double fh = qBound(0.0, h, 1.0 - fy);
+    QRect rect(qRound(fx * source.width()), qRound(fy * source.height()),
+               qRound(fw * source.width()), qRound(fh * source.height()));
+    rect = rect.intersected(source.rect());
+    if (rect.width() < 4 || rect.height() < 4) {
+        discardCapture();
+        return QString();
+    }
+
+    const QString folder = dataDirectory() + QStringLiteral("/pasted");
+    QString result;
+    if (QDir().mkpath(folder)) {
+        const QString path = folder + QStringLiteral("/screenshot-")
+            + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss-zzz"))
+            + QStringLiteral(".png");
+        if (source.copy(rect).save(path, "PNG")) {
+            result = path;
+        }
+    }
+    discardCapture();
+    return result;
+}
+
+void SpotlightBackend::discardCapture()
+{
+    if (!m_capturePath.isEmpty()) {
+        QFile::remove(m_capturePath);
+        m_capturePath.clear();
+    }
 }
 
 // --- Commandes --------------------------------------------------------------

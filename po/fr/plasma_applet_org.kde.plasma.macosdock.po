@@ -1537,3 +1537,21 @@ msgstr "Image"
 
 msgid "%1 cannot read images. Choose Gemini or another AI that accepts images."
 msgstr "%1 ne sait pas lire les images. Choisissez Gemini ou une autre IA qui accepte les images."
+
+msgid "Screenshot to Ask Siri…"
+msgstr "Capture d’écran pour Siri…"
+
+msgid "Screenshot"
+msgstr "Capture d’écran"
+
+msgid "Ask Siri"
+msgstr "Demander à Siri"
+
+msgid "Drag to choose an area · Enter: whole screen · Esc: cancel"
+msgstr "Faites glisser pour choisir une zone · Entrée : tout l’écran · Échap : annuler"
+
+msgid "Spectacle is needed to take screenshots, but it was not found."
+msgstr "Spectacle est nécessaire pour les captures d’écran, mais il est introuvable."
+
+msgid "The screenshot failed."
+msgstr "La capture d’écran a échoué."

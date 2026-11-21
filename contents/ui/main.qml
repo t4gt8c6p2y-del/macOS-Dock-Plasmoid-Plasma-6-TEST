@@ -5408,6 +5408,10 @@ PlasmoidItem {
         replaceLauncher: root.spotlightReplaceLauncher
 
         onAssistantRequested: siriWindow.openSiri(false)
+        onScreenshotRequested: {
+            spotlightWindow.closeSpotlight();
+            screenshotWindow.start();
+        }
     }
 
     // Les identifiants viennent uniquement de la configuration locale de Plasma
@@ -5471,7 +5475,20 @@ PlasmoidItem {
         onAssistantRequested: (freshConversation) => {
             siriWindow.openSiri(freshConversation);
         }
+        onScreenshotRequested: screenshotWindow.start()
         onSettingsRequested: Plasmoid.internalAction("configure").trigger()
+    }
+
+    // Capture d'écran « Demander à Siri » : la zone choisie s'ouvre dans la
+    // fenêtre de conversation du Spotlight.
+    ScreenshotWindow {
+        id: screenshotWindow
+
+        backend: spotlightBackend
+
+        onImageReady: (path) => {
+            spotlightWindow.openWithImage(path);
+        }
     }
 
     SiriWindow {

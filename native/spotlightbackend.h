@@ -35,6 +35,8 @@ public Q_SLOTS:
     Q_SCRIPTABLE void hide();
     Q_SCRIPTABLE void query(const QString &text);
     Q_SCRIPTABLE void openAssistant();
+    // Capture d'écran « Demander à Siri » (voir ScreenshotWindow.qml).
+    Q_SCRIPTABLE void screenshot();
 
 private:
     SpotlightBackend *m_backend;
@@ -145,6 +147,19 @@ public:
      */
     Q_INVOKABLE QVariantMap encodeImage(const QString &path, int maxEdge) const;
 
+    // --- Capture d'écran « Demander à Siri » ------------------------------
+    /** Chemin neuf (dossier de données) où enregistrer la capture plein écran. */
+    Q_INVOKABLE QString newCapturePath();
+    /**
+     * Découpe la capture plein écran : x, y, w, h sont des fractions (0..1) de
+     * l'image. Le morceau est enregistré en PNG dans le dossier des images
+     * collées ; la capture plein écran est supprimée. Renvoie le chemin du
+     * morceau, ou une chaîne vide en cas d'échec.
+     */
+    Q_INVOKABLE QString cropCapture(double x, double y, double w, double h);
+    /** Supprime la capture plein écran (capture annulée). */
+    Q_INVOKABLE void discardCapture();
+
     // --- Commandes (assistant IA par le CLI OpenCode) ---------------------
     /** Chemin absolu du programme, ou chaîne vide s'il est introuvable. */
     Q_INVOKABLE QString findExecutable(const QString &name) const;
@@ -173,6 +188,7 @@ public:
     void emitHide();
     void emitQuery(const QString &text);
     void emitOpenAssistant();
+    void emitScreenshot();
 
 Q_SIGNALS:
     void dbusActiveChanged();
@@ -182,6 +198,7 @@ Q_SIGNALS:
     void hideRequested();
     void queryRequested(const QString &text);
     void assistantRequested();
+    void screenshotRequested();
     void filesFound(const QString &query, const QVariantList &results);
     void clipboardHistoryReady(const QStringList &items, bool available);
     void processFinished(int id, int exitCode, const QString &standardOutput,
@@ -204,4 +221,5 @@ private:
     std::shared_ptr<std::atomic<int>> m_fileGeneration;
     int m_nextProcessId = 0;
     QHash<int, QProcess *> m_processes;
+    QString m_capturePath;
 };
