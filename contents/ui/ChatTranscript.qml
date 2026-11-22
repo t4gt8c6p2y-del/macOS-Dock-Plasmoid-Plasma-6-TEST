@@ -21,6 +21,8 @@ ListView {
     property string emptyText: ""
 
     signal copyRequested(string text)
+    // Clic sur une image envoyée : la fenêtre l'affiche en grand (ImageViewer).
+    signal imageClicked(string path)
 
     readonly property real textSize: compact ? 14 : 15
 
@@ -248,6 +250,12 @@ ListView {
                             : Image.PreserveAspectCrop
                         source: "file://" + String(sentImage.modelData.path).split("/")
                             .map(encodeURIComponent).join("/")
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: view.imageClicked(String(sentImage.modelData.path))
+                        }
                     }
                 }
             }

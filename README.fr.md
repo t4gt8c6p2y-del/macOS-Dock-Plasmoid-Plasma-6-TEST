@@ -55,6 +55,19 @@ couleurs du thème Qt.
 - `install.sh` copie `spotlight-integration.sh` dans `~/.local/share/macosdock/` et l'exécute : la touche Windows ouvre le Spotlight et KRunner est masqué. Annulation : `~/.local/share/macosdock/spotlight-integration.sh disable`, ou ignorer l'étape avec `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh`. Déconnectez-vous puis reconnectez-vous une fois.
 - Le modèle GLM gratuit n'est accessible que par la commande `opencode` (opencode.ai) ; Gemini demande une clé gratuite sur aistudio.google.com/apikey.
 
+### Pièces jointes et captures d'écran
+
+- **Pièces jointes** : dans l'app Siri IA et dans la fenêtre de conversation du Spotlight, `Ctrl+V` joint une image ou des fichiers (copiés depuis une capture d'écran, un navigateur ou le gestionnaire de fichiers) ; le bouton `+` permet aussi de les choisir. Une image s'affiche en aperçu, un autre fichier par une icône de son type (PDF, Word, tableur…). Une image peut être envoyée sans aucun texte, et un clic sur une image de la conversation l'ouvre en grand (clic à côté, croix ou `Échap` pour fermer). Les images sont envoyées à Gemini et aux services compatibles OpenAI ; la commande `opencode` ne reçoit que du texte.
+- **Capture d'écran → Demander à Siri** : le plasmoïde a sa propre interface de capture, avec un seul bouton **Demander à Siri** à la place de la barre d'annotations de Spectacle (cette barre appartient à Spectacle : le plasmoïde ne peut ni la modifier ni la masquer). Faites glisser pour choisir une zone (`Entrée` prend tout l'écran, `Échap` annule), puis cliquez sur **Demander à Siri** : la fenêtre de conversation du Spotlight s'ouvre avec l'image au-dessus de la barre d'écriture, prête à être envoyée avec ou sans texte.
+- **Lancer une capture** : clic droit sur le bouton `+` de la fenêtre de conversation du Spotlight, puis *Capture d'écran pour Siri…* ; ou associez un raccourci clavier à cette commande (Paramètres système → Clavier → Raccourcis → Ajouter → Commande ou script) :
+
+  ```bash
+  dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.screenshot
+  ```
+
+  Pour y affecter votre touche de capture habituelle (par exemple `Impr. écran`), retirez d'abord cette touche de l'entrée *Spectacle* dans les mêmes réglages de raccourcis, puis affectez-la à la commande ci-dessus.
+- **Prérequis** : [Spectacle](https://apps.kde.org/fr/spectacle/) doit rester installé : il prend la photo en arrière-plan, sans afficher sa propre interface, car un plasmoïde ne peut pas lire l'écran seul sous Wayland.
+
 ## Prérequis
 
 - KDE Plasma 6
@@ -107,6 +120,10 @@ réglages du Dock.
 Lors d’une mise à niveau depuis une ancienne version, retirez d’abord le Dock
 de son ancien panneau Plasma. Si ce panneau a été créé uniquement pour le Dock,
 supprimez le panneau entier. Ajoutez ensuite le composant directement au bureau.
+
+## Animation de réduction comme sur macOS
+
+Pour obtenir la même animation de réduction des fenêtres que sur macOS, ouvrez **Paramètres système → Animations**, choisissez **Lampe magique** pour l'effet de **réduction des fenêtres**, et réglez la **durée de l'animation** sur **150 ms**.
 
 ## Licence
 

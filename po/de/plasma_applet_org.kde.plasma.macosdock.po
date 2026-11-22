@@ -1553,3 +1553,6 @@ msgstr "Für Screenshots wird Spectacle benötigt, es wurde aber nicht gefunden.
 
 msgid "The screenshot failed."
 msgstr "Der Screenshot ist fehlgeschlagen."
+
+msgid "Image not found"
+msgstr "Bild nicht gefunden"

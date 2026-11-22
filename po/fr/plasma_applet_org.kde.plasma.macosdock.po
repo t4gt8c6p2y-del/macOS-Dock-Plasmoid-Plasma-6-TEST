@@ -1555,3 +1555,6 @@ msgstr "Spectacle est nécessaire pour les captures d’écran, mais il est intr
 
 msgid "The screenshot failed."
 msgstr "La capture d’écran a échoué."
+
+msgid "Image not found"
+msgstr "Image introuvable"

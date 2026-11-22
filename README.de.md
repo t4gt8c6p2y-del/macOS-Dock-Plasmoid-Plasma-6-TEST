@@ -53,6 +53,19 @@ Fenstersteuerung und einem zum Qt-Farbschema passenden Blur-Hintergrund.
 - `install.sh` kopiert `spotlight-integration.sh` nach `~/.local/share/macosdock/` und führt es aus: Die Windows-Taste öffnet Spotlight, KRunner wird maskiert. Rückgängig: `~/.local/share/macosdock/spotlight-integration.sh disable`, oder den Schritt mit `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh` überspringen. Einmal ab- und wieder anmelden.
 - Das kostenlose GLM-Modell ist nur über den Befehl `opencode` (opencode.ai) erreichbar; Gemini braucht einen kostenlosen Schlüssel von aistudio.google.com/apikey.
 
+### Anhänge und Screenshots
+
+- **Anhänge**: In der Siri-KI-App und im Unterhaltungsfenster von Spotlight fügt `Strg+V` ein Bild oder Dateien an (kopiert aus einem Screenshot, einem Browser oder dem Dateimanager); auch über die Schaltfläche `+` lassen sie sich auswählen. Ein Bild erscheint als Vorschau, jede andere Datei mit einem Symbol ihres Typs (PDF, Word, Tabelle …). Ein Bild kann ganz ohne Text gesendet werden, und ein Klick auf ein Bild in der Unterhaltung öffnet es in voller Größe (zum Schließen daneben klicken, das Kreuz oder `Esc`). Bilder gehen an Gemini und OpenAI-kompatible Dienste; der Befehl `opencode` erhält nur Text.
+- **Screenshot → Siri fragen**: Das Plasmoid hat eine eigene Aufnahmeoberfläche mit einer einzigen Schaltfläche **Siri fragen** statt der Anmerkungsleiste von Spectacle (diese Leiste gehört zu Spectacle und lässt sich vom Plasmoid weder ändern noch ausblenden). Einen Bereich aufziehen (`Eingabe` nimmt den ganzen Bildschirm, `Esc` bricht ab) und auf **Siri fragen** klicken: Das Unterhaltungsfenster von Spotlight öffnet sich mit dem Bild über der Schreibleiste, bereit zum Senden mit oder ohne Text.
+- **Aufnahme starten**: Rechtsklick auf die Schaltfläche `+` im Unterhaltungsfenster von Spotlight, dann *Screenshot für Siri…*; oder ein Tastenkürzel mit diesem Befehl belegen (Systemeinstellungen → Tastatur → Kurzbefehle → Neu hinzufügen → Befehl oder Skript):
+
+  ```bash
+  dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.screenshot
+  ```
+
+  Um dafür die gewohnte Screenshot-Taste (zum Beispiel `Druck`) zu verwenden, diese Taste zuerst beim Eintrag *Spectacle* in denselben Kurzbefehl-Einstellungen entfernen und dann dem Befehl oben zuweisen.
+- **Voraussetzung**: [Spectacle](https://apps.kde.org/de/spectacle/) muss installiert bleiben: Es nimmt das Bild im Hintergrund auf, ohne seine Oberfläche zu zeigen, weil ein Plasmoid unter Wayland den Bildschirm nicht selbst lesen kann.
+
 ## Voraussetzungen
 
 - KDE Plasma 6
@@ -108,6 +121,10 @@ Wenn du von einer älteren Version aktualisierst, entferne das Dock zuerst aus
 der bisherigen Plasma-Leiste. Falls diese Leiste ausschließlich für das Dock
 angelegt wurde, entferne die ganze Leiste. Füge das Miniprogramm anschließend
 direkt zur Arbeitsfläche hinzu.
+
+## Minimieranimation wie unter macOS
+
+Für dieselbe Fensterminimierung wie unter macOS öffne **Systemeinstellungen → Animationen**, wähle für das **Minimieren von Fenstern** den Effekt **Magische Lampe** und stelle die **Animationsdauer** auf **150 ms**.
 
 ## Lizenz
 

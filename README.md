@@ -53,6 +53,19 @@ color scheme.
 - `install.sh` copies `spotlight-integration.sh` to `~/.local/share/macosdock/` and runs it: the Windows key opens Spotlight and KRunner is masked. Undo with `~/.local/share/macosdock/spotlight-integration.sh disable`, or skip the step with `MACOSDOCK_SKIP_SPOTLIGHT=1 ./install.sh`. Log out and back in once.
 - The free GLM model is reachable only through the `opencode` command (opencode.ai); Gemini needs a free key from aistudio.google.com/apikey.
 
+### Attachments and screenshots
+
+- **Attachments**: in the Siri AI app and in the Spotlight conversation window, press `Ctrl+V` to attach an image or files (copied from a screenshot, a browser, or the file manager), or use the `+` button. An image shows a preview, any other file a type icon (PDF, Word, spreadsheet…). An image can be sent without any text, and a click on an image in the conversation opens it full size (click outside, the cross, or `Esc` to close). Images are sent to Gemini and OpenAI-compatible services; the `opencode` command only receives text.
+- **Screenshot → Ask Siri**: the plugin has its own capture interface, with a single **Ask Siri** button instead of the annotation toolbar of Spectacle (that toolbar belongs to Spectacle and cannot be changed or hidden by the plasmoid). Drag to choose an area (`Enter` takes the whole screen, `Esc` cancels), then click **Ask Siri**: the Spotlight conversation window opens with the image above the writing bar, ready to be sent with or without text.
+- **Starting a capture**: right-click the `+` button of the Spotlight conversation window and choose *Screenshot to Ask Siri…*, or bind a keyboard shortcut to this command (System Settings → Keyboard → Shortcuts → Add New → Command or Script):
+
+  ```bash
+  dbus-send --session --type=method_call --dest=org.macosdock.Spotlight /Spotlight org.macosdock.Spotlight.screenshot
+  ```
+
+  To use your usual screenshot key (for example `Print`) for it, first remove that key from the *Spectacle* entry in the same shortcut settings, then assign it to the command above.
+- **Requirement**: [Spectacle](https://apps.kde.org/spectacle/) must stay installed: it takes the picture in the background, without showing its own interface, because a plasmoid cannot read the screen by itself on Wayland.
+
 ## Requirements
 
 - KDE Plasma 6
@@ -102,6 +115,10 @@ Android-style grid or the compact list in the widget settings.
 When upgrading from an older version, first remove the Dock from its previous
 Plasma panel. If that panel was created only for the Dock, remove the entire
 panel. Then add the widget directly to the desktop.
+
+## macOS-style minimize animation
+
+For the same window minimize animation as on macOS, open **System Settings → Animations**, set the effect for **minimizing windows** to **Magic Lamp**, and set the **animation duration** to **150 ms**.
 
 ## License
 

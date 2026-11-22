@@ -1086,6 +1086,9 @@ Window {
                         win.backend.setClipboardText(text);
                     }
                 }
+                onImageClicked: function (path) {
+                    imageViewer.show(path);
+                }
             }
 
             // Dossiers et fichiers donnés à l'IA (pastilles), et message éventuel.
@@ -1401,6 +1404,15 @@ Window {
         width: 12
         height: 12
         cursorShape: Qt.SizeFDiagCursor
+    }
+
+    // Image de la conversation agrandie (clic sur une image envoyée).
+    ImageViewer {
+        id: imageViewer
+
+        anchors.fill: parent
+        z: 100
+        onClosed: input.forceActiveFocus()
     }
 
     NativeGlassMenu {

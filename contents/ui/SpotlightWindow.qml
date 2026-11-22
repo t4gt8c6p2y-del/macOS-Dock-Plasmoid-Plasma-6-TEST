@@ -1368,6 +1368,16 @@ Window {
             onPressed: win.closeSpotlight()
         }
 
+        // Image de la conversation agrandie (clic sur une image envoyée), par-dessus
+        // tout le reste.
+        ImageViewer {
+            id: imageViewer
+
+            anchors.fill: parent
+            z: 100
+            onClosed: win.focusField()
+        }
+
         // ---- La barre de recherche ----
         // Fond sombre quasi opaque, sans verre liquide ni flou (comme sur la
         // capture de macOS) : presque noir en haut, un peu plus clair en bas,
@@ -2703,6 +2713,9 @@ Window {
                     if (win.backend) {
                         win.backend.setClipboardText(text);
                     }
+                }
+                onImageClicked: function (path) {
+                    imageViewer.show(path);
                 }
             }
 
