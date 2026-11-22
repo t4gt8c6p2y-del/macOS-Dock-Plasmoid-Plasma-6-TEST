@@ -82,7 +82,20 @@ ListView {
         readonly property var queryList: Array.isArray(modelData.queries) ? modelData.queries : []
         readonly property var attachedList: Array.isArray(modelData.attached) ? modelData.attached : []
         // Images envoyées avec cette question : [{ path, name }].
-        readonly property var imageList: Array.isArray(modelData.images) ? modelData.images : []
+        // (Lue élément par élément : accepte un vrai tableau comme une liste
+        // venue du modèle, sans dépendre de Array.isArray.)
+        readonly property var imageList: {
+            var list = modelData.images;
+            var found = [];
+            if (list && typeof list.length === "number") {
+                for (var i = 0; i < list.length; ++i) {
+                    if (list[i] && list[i].path) {
+                        found.push(list[i]);
+                    }
+                }
+            }
+            return found;
+        }
         readonly property bool hasText: String(modelData.text).trim().length > 0
         // Taille des images de la question : une seule est grande (en entier),
         // plusieurs sont des vignettes carrées.
@@ -203,11 +216,18 @@ ListView {
             spacing: 4
 
             // Images envoyées avec la question, au-dessus du texte, à droite.
-            Flow {
+            // Placées à la main (sans Flow) : la hauteur est connue dès la création.
+            Item {
+                id: imagesBox
+
+                readonly property int perRow: row.imageList.length === 1 ? 1
+                    : Math.max(1, Math.floor((width + 6) / (row.imageWidth + 6)))
+                readonly property int rowCount: Math.ceil(row.imageList.length / Math.max(1, perRow))
+
                 visible: row.imageList.length > 0
                 width: parent.width
-                layoutDirection: Qt.RightToLeft
-                spacing: 6
+                height: row.imageList.length === 0 ? 0
+                    : rowCount * (row.imageHeight + 6) - 6
 
                 Repeater {
                     model: row.imageList
@@ -216,16 +236,18 @@ ListView {
                         id: sentImage
 
                         required property var modelData
+                        required property int index
 
                         width: row.imageWidth
                         height: row.imageHeight
+                        x: imagesBox.width - ((index % imagesBox.perRow) + 1) * (width + 6) + 6
+                        y: Math.floor(index / imagesBox.perRow) * (height + 6)
                         radius: 16
                         decodeSize: 640
                         fillMode: row.imageList.length === 1 ? Image.PreserveAspectFit
                             : Image.PreserveAspectCrop
-                        source: sentImage.modelData && sentImage.modelData.path
-                            ? "file://" + String(sentImage.modelData.path).split("/")
-                                .map(encodeURIComponent).join("/") : ""
+                        source: "file://" + String(sentImage.modelData.path).split("/")
+                            .map(encodeURIComponent).join("/")
                     }
                 }
             }

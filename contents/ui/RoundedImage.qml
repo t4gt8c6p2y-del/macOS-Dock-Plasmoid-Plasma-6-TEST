@@ -27,6 +27,16 @@ Item {
         border.color: Qt.rgba(1, 1, 1, 0.16)
     }
 
+    // Image introuvable (fichier supprimé) : un pictogramme dans le cadre.
+    SpotlightGlyph {
+        visible: image.status === Image.Error
+        anchors.centerIn: parent
+        kind: "files"
+        size: Math.max(14, Math.min(30, root.height * 0.45))
+        lineWidth: 1.6
+        color: Qt.rgba(1, 1, 1, 0.38)
+    }
+
     Image {
         id: image
 
