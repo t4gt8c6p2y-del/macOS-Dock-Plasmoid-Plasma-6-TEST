@@ -15,6 +15,8 @@ Item {
     property real maxNameWidth: 150
 
     signal removeRequested()
+    // Clic sur l'aperçu d'une image : la fenêtre l'affiche en grand.
+    signal openRequested()
 
     readonly property string extension: {
         var base = card.path.length > 0 ? card.path : card.name;
@@ -68,6 +70,15 @@ Item {
         anchors.fill: parent
         radius: 13
         source: card.isImage ? card.fileUrl : ""
+    }
+
+    // Un clic sur l'aperçu l'agrandit (sous le bouton de retrait, qui a z: 2).
+    MouseArea {
+        z: 1
+        enabled: card.showPreview
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: card.openRequested()
     }
 
     Rectangle {

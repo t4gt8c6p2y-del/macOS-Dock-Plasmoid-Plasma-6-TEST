@@ -2750,6 +2750,7 @@ Window {
                         name: modelData.name
                         isDir: modelData.isDir === true
                         fill: Qt.rgba(1, 1, 1, 0.16)
+                        onOpenRequested: imageViewer.show(chip.path)
                         onRemoveRequested: {
                             if (win.chat) {
                                 win.chat.removeAttachment(chip.index);

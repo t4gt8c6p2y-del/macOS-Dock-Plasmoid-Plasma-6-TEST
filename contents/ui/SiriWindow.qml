@@ -1121,6 +1121,7 @@ Window {
                         name: modelData.name
                         isDir: modelData.isDir === true
                         maxNameWidth: 180
+                        onOpenRequested: imageViewer.show(chip.path)
                         onRemoveRequested: {
                             if (win.chat) {
                                 win.chat.removeAttachment(chip.index);
