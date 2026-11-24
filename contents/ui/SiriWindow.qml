@@ -18,6 +18,9 @@ Window {
 
     property var backend: null
     property var chat: null
+    // Prompts enregistrés (onglet « Prompts » des réglages) : { icon, image,
+    // title, text }. Leurs pastilles s'affichent au-dessus de la zone de saisie.
+    property var prompts: []
 
     signal settingsRequested()
 
@@ -306,6 +309,21 @@ Window {
 
     function focusInput() {
         input.forceActiveFocus();
+    }
+
+    // Ajoute le texte d'un prompt à la zone de saisie (après ce qui s'y trouve).
+    function insertPrompt(text) {
+        var addition = String(text);
+        if (addition.length === 0) {
+            return;
+        }
+        var current = input.text;
+        if (current.length > 0 && !/\s$/.test(current)) {
+            current += " ";
+        }
+        input.text = current + addition;
+        input.forceActiveFocus();
+        input.cursorPosition = input.text.length;
     }
 
     onVisibilityChanged: {
@@ -1100,7 +1118,7 @@ Window {
 
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: inputBar.top
+                anchors.bottom: promptBar.top
                 anchors.leftMargin: 22
                 anchors.rightMargin: 22
                 anchors.bottomMargin: shown ? 8 : 0
@@ -1137,6 +1155,23 @@ Window {
                     text: win.attachNotice
                     font.pixelSize: 12
                     color: "#FFB454"
+                }
+            }
+
+            // Raccourcis de prompts : au-dessus de la zone de saisie, sous les
+            // fichiers joints. Aucune place n'est prise s'il n'y en a pas.
+            PromptBar {
+                id: promptBar
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: inputBar.top
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.bottomMargin: shown ? 8 : 0
+                prompts: win.prompts
+                onPromptChosen: function (text) {
+                    win.insertPrompt(text);
                 }
             }
 

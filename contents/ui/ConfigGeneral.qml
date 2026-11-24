@@ -125,6 +125,8 @@ KCM.SimpleKCM {
     property alias cfg_customAiUrl: customAiUrlField.text
     property alias cfg_customAiKey: customAiKeyField.text
     property alias cfg_customAiModel: customAiModelField.text
+    // Onglet « Prompts » : chaque entrée est un JSON { icon, image, title, text }.
+    property var cfg_aiPrompts: []
     property var cfg_launchers: []
     property var cfg_appGroups: []
 
@@ -226,6 +228,7 @@ KCM.SimpleKCM {
     property string cfg_customAiUrlDefault: ""
     property string cfg_customAiKeyDefault: ""
     property string cfg_customAiModelDefault: ""
+    property var cfg_aiPromptsDefault: []
     property var cfg_appGroupsDefault: []
     property var cfg_launchersDefault: []
 
@@ -307,7 +310,7 @@ KCM.SimpleKCM {
     // spotlightFavorites : les applications mises en favoris dans le menu
     // d'applications du Spotlight.
     readonly property var contentListKeys: ["launchers", "appGroups", "folderUrls",
-        "userSeparators", "spotlightFavorites"]
+        "userSeparators", "spotlightFavorites", "aiPrompts"]
 
     function effectiveStyleValue(key) {
         if (key === "borderStrength") {
@@ -574,6 +577,71 @@ KCM.SimpleKCM {
         request.send();
     }
 
+    // --- Onglet « Prompts » -------------------------------------------------
+    // Le modèle de la liste est chargé depuis cfg_aiPrompts, puis réécrit dans
+    // cfg_aiPrompts à chaque modification (sans recharger le modèle : le champ
+    // en cours de saisie garde le focus).
+    property bool promptWriting: false
+
+    ListModel {
+        id: promptModel
+    }
+
+    function loadPrompts() {
+        promptModel.clear();
+        var raw = cfg_aiPrompts || [];
+        for (var i = 0; i < raw.length; ++i) {
+            try {
+                var item = JSON.parse(String(raw[i]));
+                promptModel.append({
+                    "pIcon": String(item.icon || ""),
+                    "pImage": String(item.image || ""),
+                    "pTitle": String(item.title || ""),
+                    "pText": String(item.text || "")
+                });
+            } catch (error) {
+                continue;
+            }
+        }
+    }
+
+    function savePrompts() {
+        var list = [];
+        for (var i = 0; i < promptModel.count; ++i) {
+            var row = promptModel.get(i);
+            list.push(JSON.stringify({
+                "icon": row.pIcon, "image": row.pImage,
+                "title": row.pTitle, "text": row.pText
+            }));
+        }
+        promptWriting = true;
+        cfg_aiPrompts = list;
+        promptWriting = false;
+    }
+
+    onCfg_aiPromptsChanged: {
+        if (!promptWriting) {
+            loadPrompts();
+        }
+    }
+
+    Component.onCompleted: loadPrompts()
+
+    FileDialog {
+        id: promptImageDialog
+
+        property int targetIndex: -1
+
+        title: i18n("Choose the image for this prompt")
+        nameFilters: [i18n("Images (*.png *.jpg *.jpeg *.webp *.bmp *.svg *.ico)")]
+        onAccepted: {
+            if (targetIndex >= 0 && targetIndex < promptModel.count) {
+                promptModel.setProperty(targetIndex, "pImage", String(selectedFile));
+                configPage.savePrompts();
+            }
+        }
+    }
+
     // Presse-papiers : un TextEdit invisible est le moyen le plus simple
     // d'accéder au presse-papiers du système depuis QML.
     TextEdit {
@@ -626,6 +694,10 @@ KCM.SimpleKCM {
 
             QQC2.TabButton {
                 text: i18n("Spotlight")
+            }
+
+            QQC2.TabButton {
+                text: i18n("Prompts")
             }
         }
 
@@ -684,7 +756,7 @@ KCM.SimpleKCM {
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: i18n("The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock.")
+                    text: i18n("The spacing stays exactly as set here. It is reduced only when the Dock is about to touch the edges of the screen, so the icons never leave it.")
                     opacity: 0.78
                 }
 
@@ -2198,6 +2270,203 @@ KCM.SimpleKCM {
                     opacity: 0.78
                 }
             
+            }
+
+            // Onglet Prompts : textes que l'on envoie souvent à Siri IA.
+            Kirigami.FormLayout {
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Save the prompts you type often. Each one appears as a round button above the message bar, in Siri AI and when you talk to it from the Spotlight or a screenshot. A click puts its text in the message bar, ready to be sent or completed. Nothing is shown if the list is empty.")
+                    opacity: 0.78
+                }
+
+                Repeater {
+                    model: promptModel
+
+                    delegate: QQC2.Frame {
+                        id: promptCard
+
+                        required property int index
+                        required property string pIcon
+                        required property string pImage
+                        required property string pTitle
+                        required property string pText
+
+                        Layout.fillWidth: true
+
+                        contentItem: ColumnLayout {
+                            spacing: Kirigami.Units.smallSpacing
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                // Aperçu du logo : l'image s'il y en a une, sinon le symbole.
+                                Rectangle {
+                                    Layout.preferredWidth: 40
+                                    Layout.preferredHeight: 40
+                                    radius: 20
+                                    color: Kirigami.Theme.alternateBackgroundColor
+                                    border.width: 1
+                                    border.color: Kirigami.Theme.disabledTextColor
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 24
+                                        height: 24
+                                        visible: promptCard.pImage.length > 0
+                                            && status !== Image.Error
+                                        fillMode: Image.PreserveAspectFit
+                                        asynchronous: true
+                                        sourceSize.width: 96
+                                        sourceSize.height: 96
+                                        source: promptCard.pImage.length === 0 ? ""
+                                            : (promptCard.pImage.indexOf("://") >= 0
+                                                ? promptCard.pImage : "file://" + promptCard.pImage)
+                                    }
+
+                                    QQC2.Label {
+                                        anchors.centerIn: parent
+                                        visible: promptCard.pImage.length === 0
+                                        text: promptCard.pIcon.length > 0 ? promptCard.pIcon : "•"
+                                        font.pixelSize: 20
+                                    }
+                                }
+
+                                QQC2.TextField {
+                                    Layout.preferredWidth: Kirigami.Units.gridUnit * 4
+                                    text: promptCard.pIcon
+                                    maximumLength: 8
+                                    placeholderText: i18n("Symbol")
+                                    selectByMouse: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    onTextEdited: {
+                                        promptModel.setProperty(promptCard.index, "pIcon", text);
+                                        configPage.savePrompts();
+                                    }
+                                }
+
+                                QQC2.ComboBox {
+                                    model: ["✍️", "📝", "🌐", "💡", "🧠", "📚", "🔍", "🛠️", "🐛",
+                                        "🧾", "📧", "🎯", "⭐", "❓", "🔁", "✂️", "📊", "🗣️"]
+                                    currentIndex: -1
+                                    displayText: i18n("Symbols")
+                                    onActivated: {
+                                        promptModel.setProperty(promptCard.index, "pIcon", currentText);
+                                        configPage.savePrompts();
+                                    }
+                                }
+
+                                QQC2.Button {
+                                    icon.name: "document-open"
+                                    text: i18n("Image…")
+                                    onClicked: {
+                                        promptImageDialog.targetIndex = promptCard.index;
+                                        promptImageDialog.open();
+                                    }
+
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: i18n("Use an image instead of the symbol")
+                                }
+
+                                QQC2.Button {
+                                    icon.name: "edit-clear"
+                                    enabled: promptCard.pImage.length > 0
+                                    onClicked: {
+                                        promptModel.setProperty(promptCard.index, "pImage", "");
+                                        configPage.savePrompts();
+                                    }
+
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: i18n("Remove the image")
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                QQC2.TextField {
+                                    Layout.fillWidth: true
+                                    text: promptCard.pTitle
+                                    placeholderText: i18n("Name (shown when hovering the button)")
+                                    selectByMouse: true
+                                    onTextEdited: {
+                                        promptModel.setProperty(promptCard.index, "pTitle", text);
+                                        configPage.savePrompts();
+                                    }
+                                }
+
+                                QQC2.Button {
+                                    icon.name: "go-up"
+                                    enabled: promptCard.index > 0
+                                    onClicked: {
+                                        promptModel.move(promptCard.index, promptCard.index - 1, 1);
+                                        configPage.savePrompts();
+                                    }
+
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: i18n("Move left")
+                                }
+
+                                QQC2.Button {
+                                    icon.name: "go-down"
+                                    enabled: promptCard.index < promptModel.count - 1
+                                    onClicked: {
+                                        promptModel.move(promptCard.index, promptCard.index + 1, 1);
+                                        configPage.savePrompts();
+                                    }
+
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: i18n("Move right")
+                                }
+
+                                QQC2.Button {
+                                    icon.name: "edit-delete"
+                                    onClicked: {
+                                        promptModel.remove(promptCard.index);
+                                        configPage.savePrompts();
+                                    }
+
+                                    QQC2.ToolTip.visible: hovered
+                                    QQC2.ToolTip.text: i18n("Delete this prompt")
+                                }
+                            }
+
+                            QQC2.TextArea {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Kirigami.Units.gridUnit * 5
+                                text: promptCard.pText
+                                wrapMode: TextEdit.Wrap
+                                placeholderText: i18n("The prompt text…")
+                                selectByMouse: true
+                                onTextChanged: {
+                                    if (text !== promptCard.pText) {
+                                        promptModel.setProperty(promptCard.index, "pText", text);
+                                        configPage.savePrompts();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                QQC2.Button {
+                    icon.name: "list-add"
+                    text: i18n("Add a prompt")
+                    onClicked: {
+                        promptModel.append({ "pIcon": "✨", "pImage": "",
+                            "pTitle": "", "pText": "" });
+                        configPage.savePrompts();
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: promptModel.count === 0
+                    text: i18n("No prompt yet.")
+                    opacity: 0.78
+                }
             }
         }
     }

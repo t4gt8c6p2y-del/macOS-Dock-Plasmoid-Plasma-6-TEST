@@ -25,6 +25,9 @@ Window {
     // --- Fournis par main.qml ------------------------------------------------
     property var backend: null
     property var chat: null
+    // Prompts enregistrés (onglet « Prompts » des réglages) : { icon, image,
+    // title, text }. Leurs pastilles s'affichent au-dessus de la zone de saisie.
+    property var prompts: []
     // Identifiants (desktopId) des applications favorites.
     property var favorites: []
     property bool assistantEnabled: true
@@ -77,6 +80,9 @@ Window {
     property string query: ""
     // Vrai : le panneau montre la conversation avec l'assistant.
     property bool aiView: false
+    // Vrai : le menu ouvert est celui du modèle d'IA (puce en haut de la
+    // conversation), et non le menu « … » ou « + ».
+    property bool modelMenuShown: false
     property var glassTheme: ({})
     property var allApps: []
     property var sections: []
@@ -285,6 +291,20 @@ Window {
         }
     }
 
+    // Ajoute le texte d'un prompt à la zone de saisie (après ce qui s'y trouve).
+    function insertPrompt(text) {
+        var addition = String(text);
+        if (addition.length === 0) {
+            return;
+        }
+        var current = query;
+        if (current.length > 0 && !/\s$/.test(current)) {
+            current += " ";
+        }
+        query = current + addition;
+        focusField();
+    }
+
     function focusField() {
         var input = aiView ? aiField : field;
         input.forceActiveFocus();
@@ -379,6 +399,11 @@ Window {
 
     onAiViewChanged: {
         if (aiView) {
+            // Les modèles Gemini de la clé sont chargés dès que la conversation
+            // s'ouvre : le menu du modèle est alors complet au premier clic.
+            if (chat) {
+                chat.refreshGeminiModels(false);
+            }
             // Départ immédiat à la forme de la barre : pas d'image à taille
             // finale avant le début de l'animation.
             compactMorph = 0;
@@ -1120,8 +1145,59 @@ Window {
         return entries;
     }
 
+    // Entrées du menu du modèle : seules les IA utilisables y figurent. Pour
+    // Gemini, chaque modèle que la clé peut utiliser est une entrée.
+    function modelEntries() {
+        var entries = [];
+        if (!chat) {
+            return entries;
+        }
+        if (chat.providerReady(0)) {
+            var models = chat.geminiModelChoices();
+            var currentModel = chat.currentGeminiModel();
+            for (var i = 0; i < models.length; ++i) {
+                entries.push({ "id": "gemini:" + models[i],
+                    "text": chat.geminiLabel(models[i]), "glyph": "sparkle",
+                    "checked": chat.activeProvider === 0
+                        && models[i] === currentModel });
+            }
+        }
+        var others = [];
+        for (var index = 1; index < chat.providerCount; ++index) {
+            if (chat.providerReady(index)) {
+                others.push({ "id": "provider" + index,
+                    "text": chat.providerName(index), "glyph": "sparkle",
+                    "checked": chat.activeProvider === index });
+            }
+        }
+        if (entries.length > 0 && others.length > 0) {
+            entries.push({ "separator": true });
+        }
+        entries = entries.concat(others);
+        if (entries.length === 0) {
+            entries.push({ "id": "none", "text": i18n("No AI available"),
+                "glyph": "", "enabled": false });
+        }
+        entries.push({ "separator": true });
+        entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
+        return entries;
+    }
+
+    function openModelMenu() {
+        if (!chat) {
+            return;
+        }
+        contextMenu.close();
+        chat.refreshGeminiModels(false);
+        modelMenuShown = true;
+        moreMenu.entries = modelEntries();
+        var anchor = modelChip.mapToItem(null, modelChip.width, modelChip.height + 6);
+        moreMenu.openAt(anchor.x, anchor.y, true);
+    }
+
     function openAiMenu() {
         contextMenu.close();
+        modelMenuShown = false;
         moreMenu.entries = aiEntries();
         var anchor = plusButton.mapToItem(null, 0, -6);
         moreMenu.openAt(anchor.x, anchor.y, false, "up");
@@ -1129,6 +1205,7 @@ Window {
 
     function openMoreMenu() {
         contextMenu.close();
+        modelMenuShown = false;
         moreMenu.entries = moreEntries();
         var anchor = moreButton.mapToItem(null, moreButton.width, moreButton.height + 6);
         moreMenu.openAt(anchor.x, anchor.y, true);
@@ -1142,6 +1219,9 @@ Window {
             Qt.callLater(function () {
                 win.scrollToSection(0);
             });
+        } else if (id.indexOf("gemini:") === 0 && chat) {
+            chat.setGeminiModel(id.substring(7));
+            focusField();
         } else if (id.indexOf("provider") === 0 && chat) {
             chat.setActiveProvider(Number(id.substring(8)));
             focusField();
@@ -2691,6 +2771,65 @@ Window {
                 }
             }
 
+            // Modèle d'IA utilisé pour la prochaine question : un clic ouvre
+            // la liste des modèles (comme dans l'application Siri IA).
+            Rectangle {
+                id: modelChip
+
+                visible: !!win.chat
+                opacity: win.compactContentOpacity
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 20
+                height: 30
+                width: Math.min(chipRow.implicitWidth + 24,
+                    Math.max(60, parent.width - 2 * (16 + 38 + 12)))
+                radius: 15
+                color: Qt.rgba(1, 1, 1, chipMouse.containsMouse
+                    || (moreMenu.opened && win.modelMenuShown) ? 0.26 : 0.16)
+
+                Row {
+                    id: chipRow
+
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        // Limite calculée sur la fenêtre (et non sur la puce) :
+                        // sinon la largeur de la puce dépendrait de la sienne.
+                        width: Math.min(implicitWidth,
+                            Math.max(40, compactSurface.width - 2 * (16 + 38 + 12) - 24 - 18))
+                        elide: Text.ElideRight
+                        text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
+                        font.pixelSize: 13
+                        color: Qt.rgba(1, 1, 1, 0.92)
+                    }
+
+                    SpotlightGlyph {
+                        anchors.verticalCenter: parent.verticalCenter
+                        kind: "chevronDown"
+                        size: 12
+                        lineWidth: 2
+                        color: Qt.rgba(1, 1, 1, 0.7)
+                    }
+                }
+
+                MouseArea {
+                    id: chipMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (moreMenu.opened && win.modelMenuShown) {
+                            moreMenu.close();
+                        } else {
+                            win.openModelMenu();
+                        }
+                    }
+                }
+            }
+
             ChatTranscript {
                 opacity: win.compactContentOpacity
                 anchors.left: parent.left
@@ -2729,7 +2868,7 @@ Window {
 
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: inputRow.top
+                anchors.bottom: promptBar.top
                 anchors.leftMargin: 20
                 anchors.rightMargin: 20
                 anchors.bottomMargin: shown ? 8 : 0
@@ -2766,6 +2905,24 @@ Window {
                     text: win.attachNotice
                     font.pixelSize: 12
                     color: "#FFB454"
+                }
+            }
+
+            // Raccourcis de prompts : au-dessus de la zone de saisie, sous les
+            // fichiers joints. Aucune place n'est prise s'il n'y en a pas.
+            PromptBar {
+                id: promptBar
+
+                opacity: win.compactContentOpacity
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: inputRow.top
+                anchors.leftMargin: 20
+                anchors.rightMargin: 20
+                anchors.bottomMargin: shown ? 8 : 0
+                prompts: win.prompts
+                onPromptChosen: function (text) {
+                    win.insertPrompt(text);
                 }
             }
 
@@ -3038,6 +3195,18 @@ Window {
 
     // Menus natifs : ce sont des fenêtres à part, donc avec leur propre
     // flou et leur propre effet Liquid Glass (comme le clic droit du Dock).
+    // La liste des modèles arrive après la requête : le menu déjà ouvert se
+    // complète sans qu'il faille le rouvrir.
+    Connections {
+        target: win.chat
+
+        function onGeminiModelsChanged() {
+            if (moreMenu.opened && win.modelMenuShown) {
+                moreMenu.entries = win.modelEntries();
+            }
+        }
+    }
+
     NativeGlassMenu {
         id: moreMenu
 

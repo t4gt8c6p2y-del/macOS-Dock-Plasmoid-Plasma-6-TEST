@@ -332,5 +332,10 @@
     <entry name="customAiModel" type="String">
       <default></default>
     </entry>
+    <!--
+      Prompts enregistrés (onglet « Prompts »). Chaque entrée est un JSON :
+      { "icon": symbole, "image": chemin d'une image, "title": nom, "text": prompt }.
+    -->
+    <entry name="aiPrompts" type="StringList"/>
   </group>
 </kcfg>

@@ -49,9 +49,10 @@ PlasmoidItem {
     readonly property bool isVertical:
         dockLocation === PlasmaCore.Types.LeftEdge
         || dockLocation === PlasmaCore.Types.RightEdge
-    // Espace entre les icônes (réglage « Espacement des icônes »). Il est
-    // réduit automatiquement si le Dock, agrandi au maximum, dépasserait de
-    // l'écran : les icônes restent toujours dans le fond du Dock.
+    // Espace entre les icônes (réglage « Espacement des icônes »). Il reste
+    // toujours celui des réglages, et n'est réduit que si le Dock, AU REPOS,
+    // est sur le point de toucher les bords de l'écran. L'agrandissement au
+    // survol, lui, s'adapte à la place restante (voir effectiveMaxScale).
     readonly property real configuredItemSpacing: boundedNumber(
         Plasmoid.configuration.iconSpacing, 4, 0, 32)
     readonly property real itemSpacing:
@@ -441,8 +442,32 @@ PlasmoidItem {
             ? desktopSwitcherMainExtent + desktopSwitcherSectionSpacing : 0
     readonly property real restMainLength: iconRestMainLength
         + desktopSwitcherMainExtent + desktopSwitcherSectionSpacing
+    // Place libre de chaque côté du Dock au repos : c'est elle qui limite
+    // l'agrandissement au survol (et non l'espacement des icônes).
+    readonly property real zoomRoom: {
+        var screen = baseWindow ? baseWindow.screen : null;
+        if (!screen) {
+            return 100000;
+        }
+        var screenMain = isVertical ? screen.height : screen.width;
+        return Math.max(0, screenMain - 2 * panelEdgeMargin
+            - (restMainLength + 2 * mainMargin + 2 * windowPadding));
+    }
+    // Agrandissement de l'ensemble du Dock pour un grossissement maximal de
+    // 2 : l'expansion est proportionnelle à (grossissement - 1).
+    readonly property real unitWaveExpansion:
+        maximumWaveExpansion(dockItemCount, 2.0)
+    // Grossissement maximal réellement utilisé : celui des réglages tant que
+    // le Dock agrandi tient dans l'écran, sinon réduit pour qu'il y tienne.
+    readonly property real effectiveMaxScale: {
+        if (maxScale <= 1.0 || unitWaveExpansion <= 0.001) {
+            return maxScale;
+        }
+        return 1.0 + Math.max(0, Math.min(maxScale - 1.0,
+            zoomRoom / unitWaveExpansion));
+    }
     readonly property real maximumExpansion:
-        maximumWaveExpansion(dockItemCount)
+        maximumWaveExpansion(dockItemCount, effectiveMaxScale)
     readonly property bool hasDockContent:
         dockItemCount > 0 || desktopSwitcherVisible
     readonly property real preferredMainLength: hasDockContent
@@ -917,13 +942,11 @@ PlasmoidItem {
         id: sessionManagement
     }
 
-    // Espacement réellement utilisé. Jusqu'à 4 px (valeur d'origine) rien ne
-    // change. Au-delà, on le limite pour que la fenêtre agrandie du Dock
-    // (survol, grossissement maximal) tienne dans l'écran.
+    // Espacement réellement utilisé : celui des réglages, tant que le Dock AU
+    // REPOS (icônes, séparations, marges) tient dans l'écran. Il ne diminue
+    // que lorsque le Dock est sur le point de toucher les bords. Le
+    // grossissement au survol n'entre pas dans le calcul.
     function fittedItemSpacing(requested) {
-        if (requested <= 4) {
-            return requested;
-        }
         var screen = baseWindow ? baseWindow.screen : null;
         var count = dockItemCount;
         if (!screen || count < 2) {
@@ -933,10 +956,9 @@ PlasmoidItem {
         var fixedLength = count * baseIconSize
             + sectionBreakAfterDockIndices.length * utilitySectionGap
             + desktopSwitcherMainExtent + desktopSwitcherSectionSpacing
-            + count * baseIconSize * (maxScale - 1.0)
             + 2 * mainMargin + 2 * windowPadding + 2 * panelEdgeMargin;
         var room = (screenMain - fixedLength) / (count - 1);
-        return Math.max(4, Math.min(requested, room));
+        return Math.max(0, Math.min(requested, room));
     }
 
     function boundedNumber(value, fallback, minimum, maximum) {
@@ -1386,8 +1408,8 @@ PlasmoidItem {
         return waveScale(Math.abs(pointer - center), maximum);
     }
 
-    function maximumWaveExpansion(count) {
-        if (count <= 0 || maxScale <= 1.0) {
+    function maximumWaveExpansion(count, scaleMax) {
+        if (count <= 0 || scaleMax <= 1.0) {
             return 0;
         }
 
@@ -1402,7 +1424,7 @@ PlasmoidItem {
             for (var index = 0; index < count; ++index) {
                 var center = baseIconSize / 2 + dockIndexOffset(index);
                 expansion += baseIconSize
-                    * (waveScale(Math.abs(pointer - center), maxScale) - 1.0);
+                    * (waveScale(Math.abs(pointer - center), scaleMax) - 1.0);
             }
             largest = Math.max(largest, expansion);
         }
@@ -5414,6 +5436,28 @@ PlasmoidItem {
         }
     }
 
+    // Prompts de l'onglet « Prompts » : chaque entrée est un JSON
+    // { icon, image, title, text }. Les entrées illisibles ou sans texte sont
+    // ignorées.
+    readonly property var aiPrompts: {
+        var raw = Plasmoid.configuration.aiPrompts || [];
+        var list = [];
+        for (var i = 0; i < raw.length; ++i) {
+            try {
+                var item = JSON.parse(String(raw[i]));
+                if (item && String(item.text || "").length > 0) {
+                    list.push({ "icon": String(item.icon || ""),
+                        "image": String(item.image || ""),
+                        "title": String(item.title || ""),
+                        "text": String(item.text) });
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        return list;
+    }
+
     // Les identifiants viennent uniquement de la configuration locale de Plasma
     // (~/.config) : ils ne sont jamais écrits dans le dépôt Git.
     AiChat {
@@ -5452,6 +5496,7 @@ PlasmoidItem {
 
         backend: spotlightBackend
         chat: aiChat
+        prompts: root.aiPrompts
         favorites: Plasmoid.configuration.spotlightFavorites || []
         wallpaperInfo: root.wallpaperInfo
         colorSampler: wallpaperLocator
@@ -5496,6 +5541,7 @@ PlasmoidItem {
 
         backend: spotlightBackend
         chat: aiChat
+        prompts: root.aiPrompts
 
         onSettingsRequested: Plasmoid.internalAction("configure").trigger()
     }
@@ -6222,7 +6268,7 @@ PlasmoidItem {
                             root.taskDockStartIndex
                                 + root.visualIndexForModelIndex(index),
                             root.lastPointerMain, root.overlayZoomActive,
-                            overlayContent.mainLength, root.maxScale,
+                            overlayContent.mainLength, root.effectiveMaxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
                         x: root.isVertical ? 0
@@ -6249,7 +6295,7 @@ PlasmoidItem {
                         utilityType: "folder"
                         displayScale: root.scaleForIndex(dockIndex,
                             root.lastPointerMain, root.overlayZoomActive,
-                            overlayContent.mainLength, root.maxScale,
+                            overlayContent.mainLength, root.effectiveMaxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
                         x: root.isVertical ? 0
@@ -6294,7 +6340,7 @@ PlasmoidItem {
                         dockIndex: root.removableVolumeDockStartIndex + index
                         displayScale: root.scaleForIndex(dockIndex,
                             root.lastPointerMain, root.overlayZoomActive,
-                            overlayContent.mainLength, root.maxScale,
+                            overlayContent.mainLength, root.effectiveMaxScale,
                             root.baseIconSize)
                         displayCrossExtent: root.maximumIconSize
                         x: root.isVertical ? 0
@@ -6315,7 +6361,7 @@ PlasmoidItem {
                     utilityType: "trash"
                     displayScale: root.scaleForIndex(dockIndex,
                         root.lastPointerMain, root.overlayZoomActive,
-                        overlayContent.mainLength, root.maxScale,
+                        overlayContent.mainLength, root.effectiveMaxScale,
                         root.baseIconSize)
                     displayCrossExtent: root.maximumIconSize
                     x: root.isVertical ? 0
@@ -6334,7 +6380,7 @@ PlasmoidItem {
                     dockIndex: root.powerButtonDockIndex
                     displayScale: root.scaleForIndex(dockIndex,
                         root.lastPointerMain, root.overlayZoomActive,
-                        overlayContent.mainLength, root.maxScale,
+                        overlayContent.mainLength, root.effectiveMaxScale,
                         root.baseIconSize)
                     displayCrossExtent: root.maximumIconSize
                     x: root.isVertical ? 0

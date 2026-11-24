@@ -738,10 +738,6 @@ msgid "Icon spacing:"
 msgstr "Symbolabstand:"
 
 #: contents/ui/ConfigGeneral.qml
-msgid "The Dock grows with the spacing. If it would no longer fit on the screen, the spacing is reduced automatically so the icons never leave the Dock."
-msgstr "Das Dock wächst mit dem Abstand. Würde es nicht mehr auf den Bildschirm passen, wird der Abstand automatisch verringert, damit die Symbole das Dock nie verlassen."
-
-#: contents/ui/ConfigGeneral.qml
 msgid "Border light:"
 msgstr "Randlicht:"
 
@@ -1556,3 +1552,67 @@ msgstr "Der Screenshot ist fehlgeschlagen."
 
 msgid "Image not found"
 msgstr "Bild nicht gefunden"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Prompts"
+msgstr "Prompts"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Save the prompts you type often. Each one appears as a round button above the message bar, in Siri AI and when you talk to it from the Spotlight or a screenshot. A click puts its text in the message bar, ready to be sent or completed. Nothing is shown if the list is empty."
+msgstr "Speichern Sie die Prompts, die Sie oft eingeben. Jeder erscheint als runde Schaltfläche über der Nachrichtenleiste, in Siri KI und wenn Sie vom Spotlight oder von einem Screenshot aus mit ihr sprechen. Ein Klick setzt den Text in die Nachrichtenleiste, bereit zum Senden oder Ergänzen. Ist die Liste leer, wird nichts angezeigt."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Choose the image for this prompt"
+msgstr "Bild für diesen Prompt wählen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Symbol"
+msgstr "Symbol"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Symbols"
+msgstr "Symbole"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Image…"
+msgstr "Bild…"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Use an image instead of the symbol"
+msgstr "Ein Bild statt des Symbols verwenden"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Remove the image"
+msgstr "Bild entfernen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Name (shown when hovering the button)"
+msgstr "Name (beim Überfahren der Schaltfläche angezeigt)"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Move left"
+msgstr "Nach links verschieben"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Move right"
+msgstr "Nach rechts verschieben"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Delete this prompt"
+msgstr "Diesen Prompt löschen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The prompt text…"
+msgstr "Der Prompt-Text…"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Add a prompt"
+msgstr "Prompt hinzufügen"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "No prompt yet."
+msgstr "Noch kein Prompt."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "The spacing stays exactly as set here. It is reduced only when the Dock is about to touch the edges of the screen, so the icons never leave it."
+msgstr "Der Abstand bleibt genau wie hier eingestellt. Er wird nur verringert, wenn das Dock die Bildschirmränder fast berührt, damit die Symbole das Dock nie verlassen."

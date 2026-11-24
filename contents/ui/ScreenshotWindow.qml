@@ -2,7 +2,8 @@ import QtQuick
 import org.kde.layershell as LayerShell
 
 // Capture d'écran « Demander à Siri » : l'écran est figé, on trace la zone à
-// envoyer, et une barre avec un seul bouton « Demander à Siri » apparaît. Le
+// envoyer (puis on la redimensionne par ses poignées ou on la déplace en la
+// glissant), et une barre avec un seul bouton « Demander à Siri » apparaît. Le
 // bouton ouvre la fenêtre de conversation du Spotlight, avec la zone capturée
 // jointe au-dessus de la barre d'écriture (voir SpotlightWindow.openWithImage).
 //
@@ -165,6 +166,106 @@ Window {
         return Math.max(low, Math.min(high, value));
     }
 
+    // --- Ajuster la zone une fois tracée ------------------------------------------
+    // Les poignées des bords et des coins la redimensionnent ; la glisser par
+    // l'intérieur la déplace. Une fois la zone normalisée (beginAdjust), le
+    // point d'appui est son coin haut gauche et le point courant son coin bas
+    // droit.
+    readonly property real minSelection: 24
+    property real moveWidth: 0
+    property real moveHeight: 0
+    property real moveOriginX: 0
+    property real moveOriginY: 0
+
+    function beginAdjust() {
+        var x = selX;
+        var y = selY;
+        var w = selW;
+        var h = selH;
+        anchorX = x;
+        anchorY = y;
+        pointX = x + w;
+        pointY = y + h;
+        moveWidth = w;
+        moveHeight = h;
+        moveOriginX = x;
+        moveOriginY = y;
+    }
+
+    // edges : combinaison de Qt.LeftEdge, RightEdge, TopEdge et BottomEdge ;
+    // (px, py) : position du pointeur dans la fenêtre.
+    function adjustEdges(edges, px, py) {
+        var x = clamp(px, 0, width);
+        var y = clamp(py, 0, height);
+        if (edges & Qt.LeftEdge) {
+            anchorX = Math.min(x, pointX - minSelection);
+        }
+        if (edges & Qt.RightEdge) {
+            pointX = Math.max(x, anchorX + minSelection);
+        }
+        if (edges & Qt.TopEdge) {
+            anchorY = Math.min(y, pointY - minSelection);
+        }
+        if (edges & Qt.BottomEdge) {
+            pointY = Math.max(y, anchorY + minSelection);
+        }
+    }
+
+    function moveSelection(dx, dy) {
+        var x = clamp(moveOriginX + dx, 0, Math.max(0, width - moveWidth));
+        var y = clamp(moveOriginY + dy, 0, Math.max(0, height - moveHeight));
+        anchorX = x;
+        anchorY = y;
+        pointX = x + moveWidth;
+        pointY = y + moveHeight;
+    }
+
+    // Poignée de la zone : un point (coin) ou une bande (bord) à saisir.
+    component SelHandle: MouseArea {
+        id: handle
+
+        required property int edges
+
+        readonly property bool corner:
+            (edges & (Qt.LeftEdge | Qt.RightEdge)) !== 0
+            && (edges & (Qt.TopEdge | Qt.BottomEdge)) !== 0
+
+        visible: win.ready
+        z: 2
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton
+        cursorShape: {
+            if (edges === (Qt.LeftEdge | Qt.TopEdge)
+                    || edges === (Qt.RightEdge | Qt.BottomEdge)) {
+                return Qt.SizeFDiagCursor;
+            }
+            if (corner) {
+                return Qt.SizeBDiagCursor;
+            }
+            return (edges & (Qt.LeftEdge | Qt.RightEdge)) !== 0
+                ? Qt.SizeHorCursor : Qt.SizeVerCursor;
+        }
+
+        onPressed: win.beginAdjust()
+        onPositionChanged: function (mouse) {
+            if (pressed) {
+                var point = handle.mapToItem(null, mouse.x, mouse.y);
+                win.adjustEdges(handle.edges, point.x, point.y);
+            }
+        }
+
+        // Point visible : aux coins et au milieu de chaque bord.
+        Rectangle {
+            anchors.centerIn: parent
+            width: handle.corner ? 12 : 10
+            height: width
+            radius: width / 2
+            color: "white"
+            border.width: 1
+            border.color: Qt.rgba(0, 0, 0, 0.35)
+        }
+    }
+
     // --- Écran figé ---------------------------------------------------------------
     Item {
         id: stage
@@ -300,6 +401,101 @@ Window {
                 }
             }
             onReleased: win.dragging = false
+        }
+
+        // Glisser la zone par l'intérieur la déplace.
+        MouseArea {
+            id: moveArea
+
+            property real startX: 0
+            property real startY: 0
+
+            visible: win.ready
+            z: 1
+            x: win.selX
+            y: win.selY
+            width: win.selW
+            height: win.selH
+            acceptedButtons: Qt.LeftButton
+            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.SizeAllCursor
+            onPressed: function (mouse) {
+                win.beginAdjust();
+                var point = mapToItem(null, mouse.x, mouse.y);
+                startX = point.x;
+                startY = point.y;
+            }
+            onPositionChanged: function (mouse) {
+                if (pressed) {
+                    var point = mapToItem(null, mouse.x, mouse.y);
+                    win.moveSelection(point.x - startX, point.y - startY);
+                }
+            }
+        }
+
+        // Poignées : les quatre coins, puis le milieu de chaque bord (bandes
+        // qui longent le bord, pour l'attraper facilement).
+        SelHandle {
+            edges: Qt.LeftEdge | Qt.TopEdge
+            x: win.selX - 11
+            y: win.selY - 11
+            width: 22
+            height: 22
+        }
+
+        SelHandle {
+            edges: Qt.RightEdge | Qt.TopEdge
+            x: win.selX + win.selW - 11
+            y: win.selY - 11
+            width: 22
+            height: 22
+        }
+
+        SelHandle {
+            edges: Qt.LeftEdge | Qt.BottomEdge
+            x: win.selX - 11
+            y: win.selY + win.selH - 11
+            width: 22
+            height: 22
+        }
+
+        SelHandle {
+            edges: Qt.RightEdge | Qt.BottomEdge
+            x: win.selX + win.selW - 11
+            y: win.selY + win.selH - 11
+            width: 22
+            height: 22
+        }
+
+        SelHandle {
+            edges: Qt.TopEdge
+            x: win.selX + win.selW / 2 - 18
+            y: win.selY - 9
+            width: 36
+            height: 18
+        }
+
+        SelHandle {
+            edges: Qt.BottomEdge
+            x: win.selX + win.selW / 2 - 18
+            y: win.selY + win.selH - 9
+            width: 36
+            height: 18
+        }
+
+        SelHandle {
+            edges: Qt.LeftEdge
+            x: win.selX - 9
+            y: win.selY + win.selH / 2 - 18
+            width: 18
+            height: 36
+        }
+
+        SelHandle {
+            edges: Qt.RightEdge
+            x: win.selX + win.selW - 9
+            y: win.selY + win.selH / 2 - 18
+            width: 18
+            height: 36
         }
 
         // Consigne, tant qu'aucune zone n'est choisie.
