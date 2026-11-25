@@ -1513,7 +1513,7 @@ Window {
                 maximumLineCount: 4
                 elide: Text.ElideRight
                 text: card.preview
-                font.pixelSize: 12.5
+                font.pixelSize: 13
                 color: Qt.rgba(0, 0, 0, 0.45)
             }
 
