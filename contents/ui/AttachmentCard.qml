@@ -12,6 +12,8 @@ Item {
     property bool isDir: false
     // Fond de la pastille (fichiers qui ne sont pas des images).
     property color fill: Qt.rgba(1, 1, 1, 0.12)
+    // Fond clair (app Siri IA) : textes foncés.
+    property bool light: false
     property real maxNameWidth: 150
 
     signal removeRequested()
@@ -133,14 +135,14 @@ Item {
                 elide: Text.ElideMiddle
                 text: card.name
                 font.pixelSize: 12
-                color: Qt.rgba(1, 1, 1, 0.92)
+                color: card.light ? Qt.rgba(0, 0, 0, 0.85) : Qt.rgba(1, 1, 1, 0.92)
             }
 
             Text {
                 visible: text.length > 0
                 text: card.info.label
                 font.pixelSize: 10
-                color: Qt.rgba(1, 1, 1, 0.48)
+                color: card.light ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(1, 1, 1, 0.48)
             }
         }
     }
@@ -156,14 +158,17 @@ Item {
         height: 20
         radius: 10
         color: card.showPreview ? Qt.rgba(0, 0, 0, closeMouse.containsMouse ? 0.75 : 0.5)
-            : Qt.rgba(1, 1, 1, closeMouse.containsMouse ? 0.2 : 0)
+            : (card.light ? Qt.rgba(0, 0, 0, closeMouse.containsMouse ? 0.12 : 0)
+                : Qt.rgba(1, 1, 1, closeMouse.containsMouse ? 0.2 : 0))
 
         SpotlightGlyph {
             anchors.centerIn: parent
             kind: "close"
             size: 10
             lineWidth: 2.2
-            color: closeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.7)
+            color: card.showPreview || !card.light
+                ? (closeMouse.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.7))
+                : Qt.rgba(0, 0, 0, closeMouse.containsMouse ? 0.8 : 0.55)
         }
 
         MouseArea {

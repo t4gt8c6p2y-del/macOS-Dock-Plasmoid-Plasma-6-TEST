@@ -13,6 +13,15 @@ ListView {
     property bool busy: false
     property bool compact: false
     property color accent: "#0A84FF"
+    // Fond clair (app Siri IA) : textes foncés au lieu de textes clairs.
+    property bool light: false
+    readonly property color ink: light ? "#1D1D1F" : Qt.rgba(1, 1, 1, 0.95)
+    readonly property color inkSoft: light ? Qt.rgba(0, 0, 0, 0.45) : Qt.rgba(1, 1, 1, 0.42)
+    readonly property color inkEmpty: light ? Qt.rgba(0, 0, 0, 0.4) : Qt.rgba(1, 1, 1, 0.5)
+    readonly property color inkStrong: light ? "#000000" : "white"
+    readonly property color linkColor: light ? "#0A64D8" : "#6CB6FF"
+    readonly property color selectionFill: light ? Qt.rgba(0.04, 0.52, 1, 0.3) : Qt.rgba(1, 1, 1, 0.3)
+    readonly property color dotColor: light ? Qt.rgba(0, 0, 0, 0.72) : Qt.rgba(1, 1, 1, 0.92)
     // Couleur de la bulle des questions (bleue par défaut ; grise dans le
     // Spotlight, comme la fenêtre de Siri).
     property color userColor: accent
@@ -70,7 +79,7 @@ ListView {
         wrapMode: Text.WordWrap
         text: view.emptyText
         font.pixelSize: view.textSize
-        color: Qt.rgba(1, 1, 1, 0.5)
+        color: view.inkEmpty
     }
 
     delegate: Item {
@@ -296,7 +305,7 @@ ListView {
                 elide: Text.ElideLeft
                 text: i18n("Attached: %1", row.attachedList.join(", "))
                 font.pixelSize: 12
-                color: Qt.rgba(1, 1, 1, 0.42)
+                color: view.inkSoft
             }
         }
 
@@ -321,9 +330,9 @@ ListView {
                     : MathText.prettify(row.revealing
                         ? row.rawText.substring(0, row.revealCount) : row.rawText))
                 font.pixelSize: view.textSize
-                color: row.isError ? "#FF6B6B" : Qt.rgba(1, 1, 1, 0.95)
-                selectionColor: Qt.rgba(1, 1, 1, 0.3)
-                selectedTextColor: "white"
+                color: row.isError ? "#FF6B6B" : view.ink
+                selectionColor: view.selectionFill
+                selectedTextColor: view.inkStrong
 
                 // Place de la fin du texte déjà écrit.
                 readonly property rect endRect: positionToRectangle(length)
@@ -338,7 +347,7 @@ ListView {
                     width: 10
                     height: 10
                     radius: 5
-                    color: Qt.rgba(1, 1, 1, 0.92)
+                    color: view.dotColor
                     scale: 0.7
 
                     SequentialAnimation on scale {
@@ -362,7 +371,7 @@ ListView {
                 Text {
                     text: i18n("Sources:")
                     font.pixelSize: 12
-                    color: Qt.rgba(1, 1, 1, 0.42)
+                    color: view.inkSoft
                 }
 
                 Repeater {
@@ -377,7 +386,7 @@ ListView {
                         font.pixelSize: 12
                         elide: Text.ElideRight
                         width: Math.min(implicitWidth, row.width - 60)
-                        color: sourceArea.containsMouse ? "white" : "#6CB6FF"
+                        color: sourceArea.containsMouse ? view.inkStrong : view.linkColor
 
                         MouseArea {
                             id: sourceArea
@@ -400,7 +409,7 @@ ListView {
                 wrapMode: Text.WordWrap
                 text: i18n("Web search: %1", row.queryList.join(" · "))
                 font.pixelSize: 12
-                color: Qt.rgba(1, 1, 1, 0.42)
+                color: view.inkSoft
             }
 
             // Recherche forcée, mais Gemini a répondu sans chercher.
@@ -425,13 +434,13 @@ ListView {
                     text: row.modelData.label ? String(row.modelData.label)
                         : (row.modelData.provider !== undefined ? view.providerNameFor(row.modelData.provider) : "")
                     font.pixelSize: 12
-                    color: Qt.rgba(1, 1, 1, 0.42)
+                    color: view.inkSoft
                 }
 
                 Text {
                     text: i18n("Copy")
                     font.pixelSize: 12
-                    color: copyArea.containsMouse ? "white" : Qt.rgba(1, 1, 1, 0.42)
+                    color: copyArea.containsMouse ? view.inkStrong : view.inkSoft
 
                     MouseArea {
                         id: copyArea
@@ -467,7 +476,7 @@ ListView {
             width: 12
             height: 12
             radius: 6
-            color: Qt.rgba(1, 1, 1, 0.92)
+            color: view.dotColor
             scale: 0.6
             opacity: 0.5
 

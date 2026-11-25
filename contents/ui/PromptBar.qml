@@ -3,23 +3,25 @@ import QtQuick
 // Raccourcis de prompts : une rangée de pastilles rondes au-dessus de la zone
 // de saisie. Chaque pastille porte le symbole (ou l'image) choisi dans les
 // réglages (onglet « Prompts ») ; un clic envoie son texte dans la zone de
-// saisie. La rangée n'occupe aucune place (hauteur nulle) tant qu'aucun prompt
-// n'est défini.
+// saisie, alignées à gauche et petites. La rangée n'occupe aucune place
+// (hauteur nulle) tant qu'aucun prompt n'est défini.
 Item {
     id: bar
 
     // Liste de { icon, image, title, text }.
     property var prompts: []
-    property color fill: Qt.rgba(1, 1, 1, 0.12)
-    property color hoverFill: Qt.rgba(1, 1, 1, 0.24)
+    // Fond clair (app Siri IA) : pastilles et symboles foncés.
+    property bool light: false
+    property color fill: light ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(1, 1, 1, 0.12)
+    property color hoverFill: light ? Qt.rgba(0, 0, 0, 0.13) : Qt.rgba(1, 1, 1, 0.24)
 
     // Texte du prompt choisi.
     signal promptChosen(string text)
 
     readonly property bool shown: prompts && prompts.length > 0
-    readonly property real chipSize: 34
+    readonly property real chipSize: 26
 
-    height: shown ? chipSize + 4 : 0
+    height: shown ? chipSize + 2 : 0
     visible: shown
 
     // Bulle d'aide (titre du prompt) : dessinée ici, hors du Flickable qui
@@ -50,10 +52,10 @@ Item {
         Row {
             id: row
 
-            // Centrée tant qu'elle tient dans la largeur.
-            x: Math.max(0, (flick.width - width) / 2)
-            y: 2
-            spacing: 8
+            // Alignée à gauche, comme la zone de saisie.
+            x: 0
+            y: 1
+            spacing: 6
 
             Repeater {
                 model: bar.prompts
@@ -76,8 +78,8 @@ Item {
                         id: picture
 
                         anchors.centerIn: parent
-                        width: parent.width - 12
-                        height: parent.height - 12
+                        width: parent.width - 8
+                        height: parent.height - 8
                         visible: chip.hasImage
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
@@ -107,8 +109,8 @@ Item {
                             var title = String(chip.modelData.title || "").trim();
                             return title.length > 0 ? title.charAt(0).toUpperCase() : "•";
                         }
-                        font.pixelSize: 17
-                        color: "white"
+                        font.pixelSize: 13
+                        color: bar.light ? Qt.rgba(0, 0, 0, 0.78) : "white"
                     }
 
                     MouseArea {

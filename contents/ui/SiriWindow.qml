@@ -2,8 +2,9 @@ import QtQuick
 import "effects" as DockEffects
 
 // « Siri IA » : l'application de conversation du Dock, à la manière de
-// l'app Siri de macOS 27. À gauche, l'historique des discussions (liste
-// façon Messages, recherche, épinglage) ; à droite, la conversation en cours
+// l'app Siri de macOS 27 (thème clair). À gauche, l'historique des discussions
+// en cartes sur deux colonnes (recherche par le bouton filtre, épinglage) ;
+// à droite, sur fond blanc, la conversation en cours
 // avec Gemini, GLM ou le fournisseur personnalisé. L'historique est partagé
 // avec les réponses données depuis le Spotlight.
 //
@@ -12,7 +13,7 @@ import "effects" as DockEffects
 // quelle autre. Les boutons rouge / orange / vert de la barre du haut
 // appellent ces fonctions du compositeur. La fenêtre est créée une fois au
 // chargement du Dock et seulement masquée à la fermeture : elle se rouvre
-// donc instantanément. Le fond est noir.
+// donc instantanément.
 Window {
     id: win
 
@@ -25,6 +26,11 @@ Window {
     signal settingsRequested()
 
     readonly property color accent: "#0A84FF"
+    // Palette claire : barre latérale grise, volet de droite blanc.
+    readonly property color sidebarColor: "#E9E7ED"
+    readonly property color paneColor: "#FFFFFF"
+    // Recherche dans les discussions (bouton filtre).
+    property bool searchOpen: false
     readonly property real screenWidth: screen ? screen.width : 1920
     readonly property real screenHeight: screen ? screen.height : 1080
     // Vrai quand KWin a maximisé la fenêtre (plus de coins arrondis ni de liseré).
@@ -38,7 +44,8 @@ Window {
 
     readonly property real normalWidth: Math.min(940, screenWidth - 40)
     readonly property real normalHeight: Math.min(620, screenHeight - 60)
-    readonly property real sidebarWidth: 280
+    // Deux colonnes de cartes dans la barre latérale (comme l'app Siri de macOS 27).
+    readonly property real sidebarWidth: Math.max(250, Math.min(340, width * 0.35))
     readonly property real titleBarHeight: 52
     // Thème « Liquid Glass for KDE » (rayon des coins vu par KWin).
     property var glassTheme: ({})
@@ -311,6 +318,50 @@ Window {
         input.forceActiveFocus();
     }
 
+    function toggleSearch() {
+        searchOpen = !searchOpen;
+        if (searchOpen) {
+            searchField.forceActiveFocus();
+        } else {
+            searchField.text = "";
+            focusInput();
+        }
+    }
+
+    // Première image envoyée dans la conversation (la plus récente), en URL :
+    // elle illustre la carte. Chaîne vide s'il n'y en a pas.
+    function conversationImage(conversation) {
+        if (!conversation || !conversation.messages) {
+            return "";
+        }
+        for (var i = conversation.messages.length - 1; i >= 0; --i) {
+            var list = conversation.messages[i].images;
+            if (list && typeof list.length === "number") {
+                for (var j = 0; j < list.length; ++j) {
+                    if (list[j] && list[j].path) {
+                        return "file://" + String(list[j].path).split("/")
+                            .map(encodeURIComponent).join("/");
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    // Hauteur approximative d'une carte : sert seulement à choisir la colonne.
+    function estimateCardHeight(conversation) {
+        var titleLength = String(conversation.title || "").length;
+        var previewLength = lastText(conversation).length;
+        var height = 28 + 16 + 6 + Math.min(3, Math.max(1, Math.ceil(titleLength / 13))) * 19;
+        if (previewLength > 0) {
+            height += 4 + Math.min(4, Math.ceil(previewLength / 17)) * 16;
+        }
+        if (conversationImage(conversation).length > 0) {
+            height += 92;
+        }
+        return height;
+    }
+
     // Ajoute le texte d'un prompt à la zone de saisie (après ce qui s'y trouve).
     function insertPrompt(text) {
         var addition = String(text);
@@ -401,6 +452,9 @@ Window {
     }
 
     function lastText(conversation) {
+        if (!conversation || !conversation.messages) {
+            return "";
+        }
         for (var i = conversation.messages.length - 1; i >= 0; --i) {
             if (!conversation.messages[i].error) {
                 var preview = String(conversation.messages[i].text).replace(/\s+/g, " ").trim();
@@ -652,7 +706,7 @@ Window {
     // n'est pas maximisée. Aucun contour n'est dessiné ici : le liseré est celui
     // de l'effet Liquid Glass de KWin, tracé le long de la forme indiquée par
     // updateGlass() (donc exactement sur le bord de la fenêtre).
-    // Liseré : un anneau de 1 px, clair en haut, plus discret en bas.
+    // Liseré : un anneau de 1 px, discret (fenêtre claire).
     Rectangle {
         id: edgeRing
 
@@ -662,9 +716,9 @@ Window {
         anchors.fill: parent
         radius: win.cornerRadius
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.42) }
-            GradientStop { position: 0.3; color: Qt.rgba(1, 1, 1, 0.16) }
-            GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.22) }
+            GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.10) }
+            GradientStop { position: 0.3; color: Qt.rgba(0, 0, 0, 0.14) }
+            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.20) }
         }
     }
 
@@ -674,9 +728,25 @@ Window {
         anchors.fill: parent
         anchors.margins: win.ownEdges && !win.maximized ? 1 : 0
         radius: Math.max(0, win.cornerRadius - anchors.margins)
-        color: "#000000"
+        // Fond de la barre latérale ; le volet de droite est blanc.
+        color: win.sidebarColor
 
         Keys.onEscapePressed: win.closeSiri()
+
+        // ---- Volet de droite : fond blanc (coins gauches droits) ----
+        Rectangle {
+            x: win.sidebarWidth
+            width: parent.width - win.sidebarWidth
+            height: parent.height
+            radius: frame.radius
+            color: win.paneColor
+
+            Rectangle {
+                width: Math.max(1, frame.radius)
+                height: parent.height
+                color: parent.color
+            }
+        }
 
         // ---- Barre du haut : boutons de fenêtre et déplacement ----
         Item {
@@ -751,16 +821,90 @@ Window {
                 }
             }
 
-            // Titre de la conversation, au-dessus du volet de droite.
+            // Filtre : affiche ou masque la recherche dans les discussions.
+            Rectangle {
+                id: filterButton
+
+                x: win.sidebarWidth - 14 - width
+                anchors.verticalCenter: parent.verticalCenter
+                width: 32
+                height: 32
+                radius: 16
+                color: win.searchOpen ? Qt.rgba(0.04, 0.52, 1, 0.2)
+                    : Qt.rgba(0, 0, 0, filterMouse.containsMouse ? 0.13 : 0.07)
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 3
+
+                    Repeater {
+                        model: [13, 9, 5]
+
+                        delegate: Rectangle {
+                            required property int modelData
+
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: modelData
+                            height: 1.8
+                            radius: 1
+                            color: win.searchOpen ? win.accent : Qt.rgba(0, 0, 0, 0.66)
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: filterMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: win.toggleSearch()
+                }
+            }
+
+            // Nouvelle conversation, en haut à gauche du volet de droite.
+            Rectangle {
+                id: composeButton
+
+                x: win.sidebarWidth + 16
+                anchors.verticalCenter: parent.verticalCenter
+                width: 32
+                height: 32
+                radius: 10
+                color: Qt.rgba(0, 0, 0, composeMouse.containsMouse ? 0.13 : 0.07)
+
+                SpotlightGlyph {
+                    anchors.centerIn: parent
+                    kind: "compose"
+                    size: 17
+                    color: Qt.rgba(0, 0, 0, 0.7)
+                }
+
+                MouseArea {
+                    id: composeMouse
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (win.chat) {
+                            win.chat.startNew();
+                        }
+                        win.focusInput();
+                    }
+                }
+            }
+
+            // Titre de la conversation, à côté du bouton de nouvelle conversation.
             Text {
-                x: win.sidebarWidth + 24
-                width: Math.max(40, parent.width - win.sidebarWidth - 24 - providerChip.width - 36)
+                x: composeButton.x + composeButton.width + 12
+                width: Math.max(40, providerChip.x - x - 12)
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
                 text: win.chat && win.chat.current ? win.chat.current.title : "Siri IA"
-                font.pixelSize: 15
+                font.pixelSize: 14
                 font.weight: Font.DemiBold
-                color: Qt.rgba(1, 1, 1, 0.92)
+                color: Qt.rgba(0, 0, 0, 0.62)
             }
 
             // Fournisseur utilisé pour la prochaine question.
@@ -773,7 +917,7 @@ Window {
                 height: 30
                 width: chipRow.implicitWidth + 24
                 radius: 15
-                color: Qt.rgba(1, 1, 1, chipMouse.containsMouse || menu.opened ? 0.2 : 0.11)
+                color: Qt.rgba(0, 0, 0, chipMouse.containsMouse || menu.opened ? 0.13 : 0.07)
 
                 Row {
                     id: chipRow
@@ -786,7 +930,7 @@ Window {
                         // Pour Gemini : avec le modèle (« Gemini 3.8 Flash »).
                         text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
                         font.pixelSize: 13
-                        color: Qt.rgba(1, 1, 1, 0.92)
+                        color: Qt.rgba(0, 0, 0, 0.78)
                     }
 
                     SpotlightGlyph {
@@ -794,7 +938,7 @@ Window {
                         kind: "chevronDown"
                         size: 12
                         lineWidth: 2
-                        color: Qt.rgba(1, 1, 1, 0.7)
+                        color: Qt.rgba(0, 0, 0, 0.5)
                     }
                 }
 
@@ -815,7 +959,7 @@ Window {
             }
         }
 
-        // ---- Barre latérale : recherche et historique ----
+        // ---- Barre latérale : recherche et cartes des discussions ----
         Item {
             id: sidebar
 
@@ -824,209 +968,144 @@ Window {
             width: win.sidebarWidth
             height: parent.height - win.titleBarHeight
 
-            Row {
-                id: sidebarHeader
+            // Discussions réparties en deux colonnes de cartes (comme les notes
+            // de l'app Siri de macOS 27) : chaque carte va dans la colonne la
+            // moins haute (hauteur estimée).
+            readonly property var cardColumns: {
+                var columns = [[], []];
+                if (!win.chat) {
+                    return columns;
+                }
+                void win.chat.conversations;
+                var list = win.chat.sortedConversations(searchField.text);
+                var heights = [0, 0];
+                for (var i = 0; i < list.length; ++i) {
+                    var target = heights[0] <= heights[1] ? 0 : 1;
+                    columns[target].push(list[i]);
+                    heights[target] += win.estimateCardHeight(list[i]) + 8;
+                }
+                return columns;
+            }
 
+            // Recherche (affichée par le bouton filtre).
+            Rectangle {
+                id: searchBox
+
+                visible: win.searchOpen
                 x: 14
                 y: 0
                 width: parent.width - 28
-                height: 36
-                spacing: 8
+                height: 34
+                radius: 17
+                color: Qt.rgba(0, 0, 0, 0.07)
 
-                Rectangle {
-                    width: parent.width - 36 - 8
-                    height: 34
-                    radius: 17
-                    color: Qt.rgba(1, 1, 1, 0.1)
-
-                    SpotlightGlyph {
-                        x: 11
-                        anchors.verticalCenter: parent.verticalCenter
-                        kind: "search"
-                        size: 15
-                        color: Qt.rgba(1, 1, 1, 0.55)
-                    }
-
-                    TextInput {
-                        id: searchField
-
-                        x: 34
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - 34 - 12
-                        color: "white"
-                        selectionColor: Qt.rgba(1, 1, 1, 0.3)
-                        font.pixelSize: 14
-                        clip: true
-
-                        Text {
-                            visible: searchField.text.length === 0
-                            text: i18n("Search")
-                            font: searchField.font
-                            color: Qt.rgba(1, 1, 1, 0.45)
-                        }
-                    }
+                SpotlightGlyph {
+                    x: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "search"
+                    size: 15
+                    color: Qt.rgba(0, 0, 0, 0.45)
                 }
 
-                // Nouvelle conversation.
-                Rectangle {
-                    width: 34
-                    height: 34
-                    radius: 17
-                    color: Qt.rgba(1, 1, 1, newMouse.containsMouse ? 0.2 : 0.1)
+                TextInput {
+                    id: searchField
 
-                    SpotlightGlyph {
-                        anchors.centerIn: parent
-                        kind: "compose"
-                        size: 17
-                        color: Qt.rgba(1, 1, 1, 0.9)
-                    }
+                    x: 34
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 34 - 12
+                    color: "#1D1D1F"
+                    selectionColor: Qt.rgba(0.04, 0.52, 1, 0.3)
+                    font.pixelSize: 14
+                    clip: true
+                    Keys.onEscapePressed: win.toggleSearch()
 
-                    MouseArea {
-                        id: newMouse
-
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (win.chat) {
-                                win.chat.startNew();
-                            }
-                            win.focusInput();
-                        }
+                    Text {
+                        visible: searchField.text.length === 0
+                        text: i18n("Search")
+                        font: searchField.font
+                        color: Qt.rgba(0, 0, 0, 0.4)
                     }
                 }
             }
 
-            ListView {
-                id: conversationList
+            Flickable {
+                id: cardScroll
 
-                x: 8
-                y: 46
-                width: parent.width - 16
-                height: parent.height - 46 - 8
+                readonly property real gap: 8
+                readonly property real sideMargin: 12
+                readonly property real columnWidth: (width - 2 * sideMargin - gap) / 2
+
+                x: 0
+                y: win.searchOpen ? 44 : 4
+                width: parent.width
+                height: parent.height - y - 4
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                spacing: 2
-                model: {
-                    if (!win.chat) {
-                        return [];
+                contentWidth: width
+                contentHeight: Math.max(leftColumn.height, rightColumn.height) + 12
+
+                Column {
+                    id: leftColumn
+
+                    x: cardScroll.sideMargin
+                    y: 4
+                    width: cardScroll.columnWidth
+                    spacing: cardScroll.gap
+
+                    Repeater {
+                        model: sidebar.cardColumns[0]
+
+                        delegate: ConversationCard {
+                            required property var modelData
+
+                            conversation: modelData
+                            width: leftColumn.width
+                        }
                     }
-                    void win.chat.conversations;
-                    return win.chat.sortedConversations(searchField.text);
                 }
 
-                delegate: Item {
-                    id: conversationRow
+                Column {
+                    id: rightColumn
 
-                    required property var modelData
+                    x: cardScroll.sideMargin + cardScroll.columnWidth + cardScroll.gap
+                    y: 4
+                    width: cardScroll.columnWidth
+                    spacing: cardScroll.gap
 
-                    readonly property bool selected: !!win.chat && win.chat.currentId === modelData.id
+                    Repeater {
+                        model: sidebar.cardColumns[1]
 
-                    width: conversationList.width
-                    height: 70
+                        delegate: ConversationCard {
+                            required property var modelData
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 14
-                        color: conversationRow.selected ? Qt.rgba(1, 1, 1, 0.16)
-                            : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
-                    }
-
-                    Column {
-                        x: 14
-                        y: 10
-                        width: parent.width - 14 - 12
-                        spacing: 2
-
-                        Row {
-                            width: parent.width
-                            spacing: 6
-
-                            SpotlightGlyph {
-                                visible: Boolean(conversationRow.modelData.pinned)
-                                anchors.verticalCenter: parent.verticalCenter
-                                kind: "pin"
-                                size: 12
-                                color: Qt.rgba(1, 1, 1, 0.6)
-                            }
-
-                            Text {
-                                width: parent.width - (conversationRow.modelData.pinned ? 18 : 0) - dateText.implicitWidth - 6
-                                elide: Text.ElideRight
-                                text: conversationRow.modelData.title
-                                font.pixelSize: 14
-                                font.weight: Font.DemiBold
-                                color: "white"
-                            }
-
-                            Text {
-                                id: dateText
-
-                                text: win.dateLabel(conversationRow.modelData.updated)
-                                font.pixelSize: 12
-                                color: Qt.rgba(1, 1, 1, 0.5)
-                            }
-                        }
-
-                        Text {
-                            width: parent.width
-                            height: 30
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
-                            text: win.lastText(conversationRow.modelData)
-                            font.pixelSize: 13
-                            color: Qt.rgba(1, 1, 1, 0.55)
-                        }
-                    }
-
-                    MouseArea {
-                        id: rowMouse
-
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: function (mouse) {
-                            if (mouse.button === Qt.RightButton) {
-                                var point = conversationRow.mapToItem(null, mouse.x, mouse.y);
-                                win.openConversationMenu(conversationRow.modelData.id, point.x, point.y);
-                            } else if (win.chat) {
-                                win.chat.select(conversationRow.modelData.id);
-                                win.focusInput();
-                            }
+                            conversation: modelData
+                            width: rightColumn.width
                         }
                     }
                 }
 
                 Text {
-                    anchors.centerIn: parent
-                    visible: conversationList.count === 0
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 40
+                    visible: sidebar.cardColumns[0].length + sidebar.cardColumns[1].length === 0
                     width: parent.width - 40
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
                     text: searchField.text.length > 0 ? i18n("No conversations found")
                         : i18n("Your conversations will appear here")
                     font.pixelSize: 13
-                    color: Qt.rgba(1, 1, 1, 0.45)
+                    color: Qt.rgba(0, 0, 0, 0.45)
                 }
             }
-        }
-
-        Rectangle {
-            x: win.sidebarWidth
-            y: win.titleBarHeight
-            width: 1
-            height: parent.height - win.titleBarHeight
-            color: Qt.rgba(1, 1, 1, 0.12)
         }
 
         // ---- Volet de droite : la conversation ----
         Item {
             id: conversationPane
 
-            x: win.sidebarWidth + 1
+            x: win.sidebarWidth
             y: win.titleBarHeight
-            width: parent.width - win.sidebarWidth - 1
+            width: parent.width - win.sidebarWidth
             height: parent.height - win.titleBarHeight
 
             // Écran d'accueil : l'orbe de Siri.
@@ -1069,7 +1148,7 @@ Window {
                         width: 38
                         height: 20
                         radius: 10
-                        color: Qt.rgba(1, 1, 1, 0.28)
+                        color: Qt.rgba(1, 1, 1, 0.4)
                     }
                 }
 
@@ -1079,13 +1158,14 @@ Window {
                     text: i18n("How can I help?")
                     font.pixelSize: 20
                     font.weight: Font.DemiBold
-                    color: Qt.rgba(1, 1, 1, 0.92)
+                    color: "#1D1D1F"
                 }
             }
 
             ChatTranscript {
                 id: transcript
 
+                light: true
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -1135,6 +1215,8 @@ Window {
                         required property var modelData
                         required property int index
 
+                        light: true
+                        fill: Qt.rgba(0, 0, 0, 0.06)
                         path: modelData.path
                         name: modelData.name
                         isDir: modelData.isDir === true
@@ -1154,15 +1236,17 @@ Window {
                     verticalAlignment: Text.AlignVCenter
                     text: win.attachNotice
                     font.pixelSize: 12
-                    color: "#FFB454"
+                    color: "#D9822B"
                 }
             }
 
-            // Raccourcis de prompts : au-dessus de la zone de saisie, sous les
-            // fichiers joints. Aucune place n'est prise s'il n'y en a pas.
+            // Raccourcis de prompts : petits, alignés à gauche, au-dessus de la
+            // zone de saisie et sous les fichiers joints. Aucune place n'est
+            // prise s'il n'y en a pas.
             PromptBar {
                 id: promptBar
 
+                light: true
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: inputBar.top
@@ -1175,23 +1259,37 @@ Window {
                 }
             }
 
+            // Bouton « + » : joindre un dossier ou des fichiers.
+            InputTool {
+                id: attachButton
+
+                diameter: 40
+                glyph: "plus"
+                active: !!win.chat && win.chat.attachments.length > 0
+                anchors.left: parent.left
+                anchors.leftMargin: 20
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 22
+                onClicked: win.openAttachMenu()
+            }
+
             // Zone de saisie.
             Rectangle {
                 id: inputBar
 
-                anchors.left: parent.left
+                anchors.left: attachButton.right
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                anchors.leftMargin: 20
+                anchors.leftMargin: 10
                 anchors.rightMargin: 20
                 anchors.bottomMargin: 18
                 height: Math.max(48, Math.min(150, input.contentHeight + 24))
                 radius: Math.min(24, height / 2)
-                color: Qt.rgba(1, 1, 1, 0.11)
+                color: Qt.rgba(0, 0, 0, 0.045)
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, input.activeFocus ? 0.3 : 0.14)
+                border.color: Qt.rgba(0, 0, 0, input.activeFocus ? 0.26 : 0.1)
 
-                // Boutons à gauche : joindre un dossier / forcer la recherche web.
+                // Bouton à gauche : forcer la recherche web (Gemini seulement).
                 Row {
                     id: toolRow
 
@@ -1199,14 +1297,6 @@ Window {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 9
                     spacing: 6
-
-                    InputTool {
-                        id: attachButton
-
-                        glyph: "folderPlus"
-                        active: !!win.chat && win.chat.attachments.length > 0
-                        onClicked: win.openAttachMenu()
-                    }
 
                     // La recherche web intégrée n'existe que pour Gemini.
                     InputTool {
@@ -1229,9 +1319,9 @@ Window {
                     width: parent.width - x - 56
                     height: parent.height - 24
                     wrapMode: TextEdit.Wrap
-                    color: "white"
-                    selectionColor: Qt.rgba(1, 1, 1, 0.3)
-                    selectedTextColor: "white"
+                    color: "#1D1D1F"
+                    selectionColor: Qt.rgba(0.04, 0.52, 1, 0.3)
+                    selectedTextColor: "#000000"
                     font.pixelSize: 15
                     clip: true
 
@@ -1239,7 +1329,7 @@ Window {
                         visible: input.text.length === 0 && input.preeditText.length === 0
                         text: i18n("Ask Siri AI…")
                         font: input.font
-                        color: Qt.rgba(1, 1, 1, 0.45)
+                        color: Qt.rgba(0, 0, 0, 0.4)
                     }
 
                     Keys.onPressed: function (event) {
@@ -1276,7 +1366,7 @@ Window {
                     height: 30
                     radius: 15
                     color: busy || input.text.trim().length > 0 || (!!win.chat && win.chat.hasFresh)
-                        ? win.accent : Qt.rgba(1, 1, 1, 0.18)
+                        ? win.accent : Qt.rgba(0, 0, 0, 0.16)
 
                     SpotlightGlyph {
                         visible: !sendButton.busy
@@ -1324,26 +1414,27 @@ Window {
         z: 50
     }
 
-    // Petit bouton rond de la zone de saisie, avec une bulle d'aide au survol.
+    // Bouton rond de la zone de saisie (fond clair).
     component InputTool: Rectangle {
         id: tool
 
         property string glyph: ""
         property bool active: false
+        property real diameter: 30
 
         signal clicked()
 
-        width: 30
-        height: 30
-        radius: 15
-        color: active ? win.accent : Qt.rgba(1, 1, 1, toolMouse.containsMouse ? 0.22 : 0.1)
+        width: diameter
+        height: diameter
+        radius: diameter / 2
+        color: active ? win.accent : Qt.rgba(0, 0, 0, toolMouse.containsMouse ? 0.13 : 0.06)
 
         SpotlightGlyph {
             anchors.centerIn: parent
             kind: tool.glyph
-            size: 17
+            size: Math.round(tool.diameter * 0.57)
             lineWidth: 1.9
-            color: tool.active ? "white" : Qt.rgba(1, 1, 1, 0.85)
+            color: tool.active ? "white" : Qt.rgba(0, 0, 0, 0.66)
         }
 
         MouseArea {
@@ -1353,6 +1444,104 @@ Window {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: tool.clicked()
+        }
+    }
+
+    // Carte d'une discussion dans la barre latérale : date, titre, début du
+    // dernier message et, s'il y en a une, la dernière image envoyée.
+    component ConversationCard: Item {
+        id: card
+
+        property var conversation: ({})
+
+        readonly property bool selected: !!win.chat && win.chat.currentId === conversation.id
+        readonly property string picture: win.conversationImage(conversation)
+        readonly property string preview: win.lastText(conversation)
+
+        height: body.implicitHeight + 28
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 24
+            color: card.selected ? "#FFFFFF"
+                : Qt.rgba(1, 1, 1, cardMouse.containsMouse ? 0.85 : 0.66)
+            border.width: card.selected ? 2 : 0
+            border.color: win.accent
+        }
+
+        Column {
+            id: body
+
+            x: 14
+            y: 14
+            width: parent.width - 28
+            spacing: 4
+
+            Row {
+                spacing: 4
+
+                SpotlightGlyph {
+                    visible: Boolean(card.conversation.pinned)
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "pin"
+                    size: 11
+                    color: Qt.rgba(0, 0, 0, 0.5)
+                }
+
+                Text {
+                    text: win.dateLabel(card.conversation.updated)
+                    font.pixelSize: 11
+                    color: Qt.rgba(0, 0, 0, 0.45)
+                }
+            }
+
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+                text: card.conversation.title
+                font.pixelSize: 15
+                font.weight: Font.Bold
+                color: "#1D1D1F"
+            }
+
+            Text {
+                visible: card.preview.length > 0
+                width: parent.width
+                wrapMode: Text.WordWrap
+                maximumLineCount: 4
+                elide: Text.ElideRight
+                text: card.preview
+                font.pixelSize: 12.5
+                color: Qt.rgba(0, 0, 0, 0.45)
+            }
+
+            RoundedImage {
+                visible: card.picture.length > 0
+                width: parent.width
+                height: 84
+                radius: 16
+                source: card.picture
+                decodeSize: 320
+            }
+        }
+
+        MouseArea {
+            id: cardMouse
+
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: function (mouse) {
+                if (mouse.button === Qt.RightButton) {
+                    var point = card.mapToItem(null, mouse.x, mouse.y);
+                    win.openConversationMenu(card.conversation.id, point.x, point.y);
+                } else if (win.chat) {
+                    win.chat.select(card.conversation.id);
+                    win.focusInput();
+                }
+            }
         }
     }
 
