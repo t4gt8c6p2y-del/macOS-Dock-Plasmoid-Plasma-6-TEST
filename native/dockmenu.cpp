@@ -22,6 +22,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QSize>
+#include <QSizeF>
 #include <QStyleOptionMenuItem>
 #include <QStylePainter>
 #include <QTimer>
@@ -159,6 +160,16 @@ public:
     void setRevealOrigin(const QPointF &fraction)
     {
         m_originFraction = fraction;
+    }
+
+    // L'ouverture part d'un rectangle de la taille du bouton (ou de la ligne du
+    // menu parent) collé au coin du menu : à droite si right, en bas si bottom.
+    void setRevealFromButton(const QSizeF &size, bool right, bool bottom)
+    {
+        m_hasButton = size.isValid() && size.width() > 0 && size.height() > 0;
+        m_buttonSize = size;
+        m_buttonRight = right;
+        m_buttonBottom = bottom;
     }
 
     // Position de la pointe le long du bord (depuis le coin de la fenêtre).
@@ -373,6 +384,26 @@ private:
     // petit point et s'étire un peu plus vite en hauteur qu'en largeur.
     QTransform revealTransform() const
     {
+        if (m_hasButton) {
+            const QRectF full = QRectF(rect()).marginsRemoved(contentsMargins());
+            const QSizeF start(qMin(m_buttonSize.width(), full.width()),
+                               qMin(m_buttonSize.height(), full.height()));
+            const QPointF startPos(m_buttonRight ? full.right() - start.width() : full.left(),
+                                   m_buttonBottom ? full.bottom() - start.height() : full.top());
+            const qreal ex = dropEase(m_progress);
+            const qreal ey = dropEase(qMin<qreal>(1, m_progress * 1.18));
+            const QRectF now(startPos.x() + (full.x() - startPos.x()) * ex,
+                             startPos.y() + (full.y() - startPos.y()) * ey,
+                             start.width() + (full.width() - start.width()) * ex,
+                             start.height() + (full.height() - start.height()) * ey);
+            const qreal bx = qMax<qreal>(0.04, now.width() / qMax<qreal>(1, full.width()));
+            const qreal by = qMax<qreal>(0.04, now.height() / qMax<qreal>(1, full.height()));
+            QTransform fromButton;
+            fromButton.translate(now.x(), now.y());
+            fromButton.scale(bx, by);
+            fromButton.translate(-full.x(), -full.y());
+            return fromButton;
+        }
         const qreal sx = qMax<qreal>(0.04, 0.12 + 0.88 * dropEase(m_progress));
         const qreal sy = qMax<qreal>(0.04, 0.12 + 0.88 * dropEase(qMin<qreal>(1, m_progress * 1.18)));
         const QPointF origin = revealOrigin();
@@ -430,7 +461,7 @@ private:
         }
         QPainter painter(this);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.setOpacity(qBound<qreal>(0, m_progress * 2.4, 1));
+        painter.setOpacity(qBound<qreal>(0, m_progress * (m_hasButton ? 3.2 : 2.4), 1));
         painter.setTransform(revealTransform());
         painter.drawPixmap(QPointF(0, 0), m_snapshot);
     }
@@ -440,6 +471,10 @@ private:
     QVariantAnimation *m_animation = nullptr;
     QPixmap m_snapshot;
     QPointF m_originFraction{0, 0};
+    QSizeF m_buttonSize;
+    bool m_hasButton = false;
+    bool m_buttonRight = false;
+    bool m_buttonBottom = false;
     qreal m_progress = 1;
     bool m_animating = false;
     bool m_capturing = false;
@@ -518,9 +553,17 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
                     subMenu->windowHandle()->setTransientParent(menu->windowHandle());
                     // Les marges transparentes des deux menus s'ajouteraient :
                     // on rapproche le sous-menu (comme avant ces marges).
+                    // Le sous-menu se pose PAR-DESSUS son menu : il part de la
+                    // ligne qui l'ouvre, légèrement en retrait du bord gauche.
                     const int pad = subMenu->pad();
+                    const int inset = 14;
+                    const int parentWidth = menu->width();
                     subMenu->windowHandle()->setProperty(
-                        "_q_waylandPopupOffset", QPoint(-2 * pad, -pad));
+                        "_q_waylandPopupOffset", QPoint(inset - parentWidth, -pad));
+                    const QRect row = menu->actionGeometry(subMenu->menuAction());
+                    subMenu->setRevealFromButton(
+                        QSizeF(parentWidth - 2 * pad - inset, row.isNull() ? 30 : row.height()),
+                        false, false);
                 }
             });
             addItems(subMenu, children);
@@ -547,7 +590,7 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
 
 bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
                      const QString &direction, const QVariantList &items,
-                     bool bubble, bool rim)
+                     bool bubble, bool rim, const QRectF &button)
 {
     if (!parentWindow || items.isEmpty() || !available()) {
         return false;
@@ -663,6 +706,20 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
         case BubbleMenu::TailSide::None:
             break;
         }
+    } else if (button.isValid()) {
+        // Menu posé sur le bouton qui l'a ouvert (voir popup() dans le .h).
+        const int pad = shapedMenu->pad();
+        const bool up = direction == QLatin1String("up");
+        const bool toLeft = direction == QLatin1String("left");
+        position.rx() += toLeft ? pad - size.width() : -pad;
+        position.ry() += up ? pad - size.height() : -pad;
+        gravityEdges = (up ? Qt::TopEdge : Qt::BottomEdge)
+            | (toLeft ? Qt::LeftEdge : Qt::RightEdge);
+        offset = QPoint(toLeft ? pad : -pad, up ? pad : -pad);
+        if (up) {
+            constraintAdjustment = 1 | 8 | 2;
+        }
+        shapedMenu->setRevealFromButton(button.size(), toLeft, up);
     } else if (direction == QLatin1String("up")) {
         position.ry() -= size.height();
         gravityEdges = Qt::TopEdge | Qt::RightEdge;

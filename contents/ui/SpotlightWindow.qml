@@ -1160,24 +1160,21 @@ Window {
         chat.refreshGroqModels(false);
         modelMenuShown = true;
         moreMenu.entries = modelEntries();
-        var anchor = modelChip.mapToItem(null, modelChip.width, modelChip.height + 6);
-        moreMenu.openAt(anchor.x, anchor.y, true);
+        moreMenu.openFrom(modelChip, true);
     }
 
     function openAiMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = aiEntries();
-        var anchor = plusButton.mapToItem(null, 0, -6);
-        moreMenu.openAt(anchor.x, anchor.y, false, "up");
+        moreMenu.openFrom(plusButton, false, "up");
     }
 
     function openMoreMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = moreEntries();
-        var anchor = moreButton.mapToItem(null, moreButton.width, moreButton.height + 6);
-        moreMenu.openAt(anchor.x, anchor.y, true);
+        moreMenu.openFrom(moreButton, true);
     }
 
     function handleMoreMenu(id) {

@@ -77,6 +77,11 @@ Item {
         groqModels = [];
         groqModelsKey = "";
         providerSettingsChanged();
+        // La liste des modèles est lue tout de suite : le menu de choix de l'IA
+        // est fabriqué à l'ouverture et ne peut pas attendre la réponse.
+        Qt.callLater(function () {
+            chat.refreshGroqModels(true);
+        });
     }
     onGlmBackendChanged: providerSettingsChanged()
     onGlmKeyChanged: providerSettingsChanged()
@@ -86,6 +91,7 @@ Item {
     Component.onCompleted: Qt.callLater(function () {
         chat.settled = true;
         chat.selectAvailableProvider();
+        chat.refreshGroqModels(false);
     })
 
     // --- Modèles Gemini disponibles pour la clé ------------------------------------
@@ -285,7 +291,11 @@ Item {
 
     // Modèles de conversation de la clé (le modèle réglé est toujours présent).
     function groqModelChoices() {
-        var list = groqModels.slice();
+        // Tant que la liste de la clé n'est pas arrivée (ou si Groq est
+        // injoignable), quelques modèles courants sont proposés.
+        var list = groqModels.length > 0 ? groqModels.slice()
+            : ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b",
+                "llama-3.1-8b-instant"];
         var current = currentGroqModel();
         if (list.indexOf(current) < 0) {
             list.unshift(current);

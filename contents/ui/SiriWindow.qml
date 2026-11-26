@@ -500,8 +500,7 @@ Window {
         chat.refreshGroqModels(false);
         var entries = chat.serviceMenuEntries();
         menu.entries = entries;
-        var anchor = providerChip.mapToItem(null, providerChip.width, providerChip.height + 6);
-        menu.openAt(anchor.x, anchor.y, true);
+        menu.openFrom(providerChip, true);
     }
 
     // --- Dossiers et fichiers donnés à l'IA ---------------------------------------
@@ -525,8 +524,7 @@ Window {
                 "glyph": "trash" });
         }
         menu.entries = entries;
-        var anchor = attachButton.mapToItem(null, 0, -6);
-        menu.openAt(anchor.x, anchor.y, false, "up");
+        menu.openFrom(attachButton, false, "up");
     }
 
     function pickAttachment(kind) {
@@ -1002,32 +1000,80 @@ Window {
             height: parent.height - win.titleBarHeight
 
             // Discussions filtrées par la recherche, les plus récentes d'abord
-            // (épinglées en tête).
-            readonly property var sortedList: {
-                if (!win.chat) {
-                    return [];
+            // (épinglées en tête), et leur répartition en deux colonnes (mode
+            // cartes : chaque carte va dans la colonne la moins haute, hauteur
+            // estimée). Ces listes ne sont remplacées que si leur contenu a
+            // changé : chaque enregistrement de la conversation en fabrique une
+            // copie, et les remplacer à chaque fois recréait toutes les cartes
+            // (images comprises).
+            property var sortedList: []
+            property var cardColumns: [[], []]
+            property string listSignature: ""
+
+            function rebuildLists() {
+                var list = win.chat ? win.chat.sortedConversations(searchField.text) : [];
+                var parts = [win.listMode ? "L" : "C"];
+                for (var k = 0; k < list.length; ++k) {
+                    var item = list[k];
+                    parts.push(String(item.id) + ":" + String(item.updated) + ":"
+                        + String(item.title) + ":" + (item.pinned ? 1 : 0) + ":"
+                        + (item.messages ? item.messages.length : 0));
                 }
-                void win.chat.conversations;
-                return win.chat.sortedConversations(searchField.text);
+                var signature = parts.join("|");
+                if (signature === sidebar.listSignature) {
+                    return;
+                }
+                sidebar.listSignature = signature;
+                var columns = [[], []];
+                if (!win.listMode) {
+                    var heights = [0, 0];
+                    for (var i = 0; i < list.length; ++i) {
+                        var target = heights[0] <= heights[1] ? 0 : 1;
+                        columns[target].push(list[i]);
+                        heights[target] += win.estimateCardHeight(list[i]) + 8;
+                    }
+                }
+                sidebar.sortedList = list;
+                sidebar.cardColumns = columns;
             }
 
-            // Mode cartes : deux colonnes (comme les notes de l'app Siri de
-            // macOS 27) ; chaque carte va dans la colonne la moins haute
-            // (hauteur estimée).
-            readonly property var cardColumns: {
-                var columns = [[], []];
-                if (win.listMode) {
-                    return columns;
-                }
-                var list = sidebar.sortedList;
-                var heights = [0, 0];
-                for (var i = 0; i < list.length; ++i) {
-                    var target = heights[0] <= heights[1] ? 0 : 1;
-                    columns[target].push(list[i]);
-                    heights[target] += win.estimateCardHeight(list[i]) + 8;
-                }
-                return columns;
+            Timer {
+                id: rebuildTimer
+
+                interval: 80
+                repeat: false
+                onTriggered: sidebar.rebuildLists()
             }
+
+            Connections {
+                target: win.chat
+
+                function onConversationsChanged() {
+                    rebuildTimer.restart();
+                }
+            }
+
+            Connections {
+                target: searchField
+
+                function onTextChanged() {
+                    rebuildTimer.restart();
+                }
+            }
+
+            Connections {
+                target: win
+
+                function onListModeChanged() {
+                    sidebar.rebuildLists();
+                }
+
+                function onChatChanged() {
+                    sidebar.rebuildLists();
+                }
+            }
+
+            Component.onCompleted: sidebar.rebuildLists()
 
             // Contenu qui défile (liste ou cartes) : il passe derrière la
             // recherche, qui le floute (verre).
@@ -1320,22 +1366,45 @@ Window {
                     fragmentShader: Qt.resolvedUrl("effects/glassrefract.frag.qsb")
                 }
 
-                // Repli sans shader : le flou seul, dans la forme de la barre.
+                // Sans le shader (qsb absent), le verre est imité en QML : le
+                // fond est lu un peu plus petit que la barre, donc agrandi comme
+                // à travers une lentille ; les bords reçoivent des franges de
+                // couleur, un reflet courbe et une ombre portée.
                 Loader {
                     anchors.fill: parent
                     active: !searchBox.refracting
 
                     sourceComponent: Item {
+                        // Ombre portée : la barre se détache du fond.
+                        Rectangle {
+                            x: -1
+                            y: 3
+                            width: parent.width + 2
+                            height: parent.height
+                            radius: height / 2
+                            color: Qt.rgba(0, 0, 0, win.lightMode ? 0.07 : 0.28)
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 1.5
+                            width: parent.width
+                            height: parent.height
+                            radius: height / 2
+                            color: Qt.rgba(0, 0, 0, win.lightMode ? 0.08 : 0.22)
+                        }
+
                         ShaderEffectSource {
-                            id: plainBlur
+                            id: lensCopy
 
                             anchors.fill: parent
                             visible: false
-                            live: false
+                            // Ne se redessine que quand le flou change (peu souvent).
+                            live: true
                             sourceItem: blurFx
-                            sourceRect: Qt.rect(searchBox.lens, searchBox.lens,
-                                searchBox.width, searchBox.height)
-                            Component.onCompleted: scheduleUpdate()
+                            // Zone lue plus petite que la barre : effet de loupe.
+                            sourceRect: Qt.rect(searchBox.lens + 7, searchBox.lens + 5,
+                                searchBox.width - 14, searchBox.height - 10)
                         }
 
                         Item {
@@ -1354,18 +1423,70 @@ Window {
 
                         MultiEffect {
                             anchors.fill: parent
-                            source: plainBlur
+                            source: lensCopy
+                            brightness: win.lightMode ? 0.05 : -0.02
+                            saturation: win.lightMode ? 0.35 : 0.2
+                            contrast: 0.08
                             maskEnabled: true
                             maskSource: plainMask
                             maskThresholdMin: 0.5
                             maskSpreadAtMin: 1.0
                         }
 
+                        // Teinte du verre.
                         Rectangle {
                             anchors.fill: parent
                             radius: height / 2
-                            color: win.lightMode ? Qt.rgba(1, 1, 1, 0.34)
-                                : Qt.rgba(0.1, 0.1, 0.12, 0.45)
+                            color: win.lightMode ? Qt.rgba(1, 1, 1, 0.20)
+                                : Qt.rgba(0.1, 0.1, 0.12, 0.34)
+                        }
+
+                        // Franges de couleur au bord (dispersion de la lumière).
+                        Rectangle {
+                            x: -1
+                            y: 0
+                            width: parent.width
+                            height: parent.height
+                            radius: height / 2
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Qt.rgba(0.2, 0.75, 1, win.lightMode ? 0.28 : 0.22)
+                        }
+
+                        Rectangle {
+                            x: 1
+                            y: 0
+                            width: parent.width
+                            height: parent.height
+                            radius: height / 2
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Qt.rgba(1, 0.3, 0.65, win.lightMode ? 0.22 : 0.18)
+                        }
+
+                        // Lumière qui longe le bord intérieur : épaisse en haut,
+                        // fine en bas, comme un verre épais éclairé d'en haut.
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 1
+                            radius: height / 2
+                            color: "transparent"
+                            border.width: 2
+                            border.color: Qt.rgba(1, 1, 1, win.lightMode ? 0.55 : 0.16)
+                            opacity: 0.8
+                        }
+
+                        // Reflet courbe en haut.
+                        Rectangle {
+                            x: parent.height / 2
+                            y: 2
+                            width: parent.width - parent.height
+                            height: parent.height * 0.42
+                            radius: height / 2
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.55 : 0.22) }
+                                GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                            }
                         }
                     }
                 }

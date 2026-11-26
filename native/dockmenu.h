@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QRectF>
 #include <QPointer>
 #include <QString>
 #include <QVariantList>
@@ -49,10 +50,18 @@ public:
      * rim = vrai : liseré blanc lumineux (menus du Dock). rim = faux : pas de
      * liseré blanc, seulement un trait sombre très fin (menus de Spotlight et
      * de Siri IA).
+     *
+     * button (facultatif, menu sans pointe) : rectangle du bouton qui a ouvert
+     * le menu, en coordonnées de la fenêtre. Le menu se pose alors SUR le
+     * bouton (coin du menu = coin du bouton, vers le bas, le haut ou la gauche
+     * selon direction) et s'ouvre en partant de la taille du bouton, comme si
+     * le bouton s'agrandissait en menu. (x, y) est alors le coin du bouton où
+     * le menu s'accroche.
      */
     Q_INVOKABLE bool popup(QWindow *parentWindow, qreal x, qreal y,
                            const QString &direction, const QVariantList &items,
-                           bool bubble = false, bool rim = true);
+                           bool bubble = false, bool rim = true,
+                           const QRectF &button = QRectF());
     Q_INVOKABLE void close();
 
 Q_SIGNALS:

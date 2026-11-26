@@ -35,7 +35,54 @@ ListView {
 
     readonly property real textSize: compact ? 14 : 15
 
-    model: messages
+    // Messages réellement affichés. La liste reçue (messages) est une copie neuve
+    // à chaque enregistrement de la conversation : l'utiliser telle quelle
+    // reconstruisait TOUTES les bulles (texte Markdown, images) à chaque fois et
+    // ramenait le fil au premier message. On ne remplace donc le modèle que si
+    // le contenu a vraiment changé.
+    property var shownMessages: []
+    property string shownSignature: ""
+
+    function messageSignature(list) {
+        var parts = [];
+        for (var i = 0; i < list.length; ++i) {
+            var message = list[i];
+            parts.push(String(message.time) + ":" + String(message.role) + ":"
+                + String(message.text).length + ":" + (message.error === true ? 1 : 0) + ":"
+                + (message.images ? message.images.length : 0) + ":"
+                + (message.sources ? message.sources.length : 0));
+        }
+        return parts.join("|");
+    }
+
+    function syncMessages() {
+        var list = messages || [];
+        var signature = messageSignature(list);
+        if (signature === shownSignature) {
+            return;
+        }
+        var otherConversation = list.length === 0 || shownMessages.length === 0
+            || String(list[0].time) !== String(shownMessages[0].time);
+        var wasAtEnd = otherConversation || stickToEnd || atYEnd || contentHeight <= height + 4;
+        var savedY = contentY;
+        shownSignature = signature;
+        shownMessages = list;
+        if (otherConversation) {
+            stickToEnd = true;
+        }
+        if (wasAtEnd) {
+            scrollTimer.restart();
+        } else {
+            Qt.callLater(function () {
+                view.contentY = savedY;
+            });
+        }
+    }
+
+    onMessagesChanged: syncMessages()
+    Component.onCompleted: syncMessages()
+
+    model: shownMessages
     spacing: compact ? 10 : 14
     clip: true
     boundsBehavior: Flickable.StopAtBounds
@@ -128,7 +175,9 @@ ListView {
 
         function startReveal() {
             var n = rawText.length;
-            if (n < 2) {
+            // Pas d'écriture progressive pour une très longue réponse : refaire la
+            // mise en page du Markdown à chaque étape coûterait trop cher.
+            if (n < 2 || n > 3500) {
                 return;
             }
             // Environ 320 caractères par seconde, entre 0,45 s et 4,5 s au total ;

@@ -80,6 +80,22 @@ QtObject {
             nativeItems(), false, false);
     }
 
+    // Ouvre le menu SUR le bouton qui l'a déclenché : il part de la taille du
+    // bouton et s'agrandit, comme si le bouton devenait le menu. Le menu s'accroche
+    // au coin haut gauche du bouton (rightAligned : haut droit ; direction "up" :
+    // bas gauche, il s'ouvre alors vers le haut).
+    function openFrom(item, rightAligned, direction) {
+        if (!window || !nativeMenu.available || !item) {
+            return;
+        }
+        var origin = item.mapToItem(null, 0, 0);
+        var dir = direction ? direction : (rightAligned ? "left" : "down");
+        var x = dir === "left" ? origin.x + item.width : origin.x;
+        var y = dir === "up" ? origin.y + item.height : origin.y;
+        nativeMenu.popup(window, x, y, dir, nativeItems(), false, false,
+            Qt.rect(origin.x, origin.y, item.width, item.height));
+    }
+
     function close() {
         nativeMenu.close();
     }
