@@ -132,6 +132,13 @@ public:
         return m_side;
     }
 
+    // Liseré blanc lumineux (Dock) ou simple trait sombre très fin.
+    void setRim(bool rim)
+    {
+        m_rim = rim;
+        update();
+    }
+
     // Position de la pointe le long du bord (depuis le coin de la fenêtre).
     void setTailOffset(int offset)
     {
@@ -271,7 +278,11 @@ protected:
         // car KWin ajoute déjà sa propre lumière sur la forme.
         QColor rimColor(255, 255, 255);
         rimColor.setAlphaF(qBound<qreal>(0, m_theme.rimTop * 2.7 * bubbleRimStrength, 1));
-        QPen pen(rimColor, qMax<qreal>(1.0, m_theme.rimWidth));
+        if (!m_rim) {
+            rimColor = QColor(0, 0, 0);
+            rimColor.setAlphaF(0.22);
+        }
+        QPen pen(rimColor, m_rim ? qMax<qreal>(1.0, m_theme.rimWidth) : 1.0);
         pen.setJoinStyle(Qt::RoundJoin);
         pen.setCapStyle(Qt::RoundCap);
         painter.setPen(pen);
@@ -311,6 +322,7 @@ private:
     GlassTheme m_theme;
     int m_tailOffset = 0;
     qreal m_pad = 0;
+    bool m_rim = true;
 };
 }
 
@@ -369,6 +381,7 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
         if (!children.isEmpty()) {
             // Même fond et même liseré que la bulle, sans pointe.
             BubbleMenu *subMenu = new BubbleMenu(BubbleMenu::TailSide::None, menu);
+            subMenu->setRim(m_rim);
             subMenu->setTitle(text);
             subMenu->setIcon(icon);
             menu->addMenu(subMenu);
@@ -411,7 +424,7 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
 
 bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
                      const QString &direction, const QVariantList &items,
-                     bool bubble)
+                     bool bubble, bool rim)
 {
     if (!parentWindow || items.isEmpty() || !available()) {
         return false;
@@ -420,6 +433,7 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     close();
 
     BubbleMenu *bubbleMenu = nullptr;
+    BubbleMenu *shapedMenu = nullptr;
     PositionedMenu *positionedMenu = nullptr;
     QMenu *menu = nullptr;
     if (bubble) {
@@ -429,14 +443,18 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
             : direction == QLatin1String("left") ? BubbleMenu::TailSide::Right
             : BubbleMenu::TailSide::Bottom;
         bubbleMenu = new BubbleMenu(side);
+        shapedMenu = bubbleMenu;
         positionedMenu = bubbleMenu;
         menu = bubbleMenu;
     } else {
         // Menu du Dock : même fond et même liseré que la bulle, sans pointe.
-        positionedMenu = new BubbleMenu(BubbleMenu::TailSide::None);
+        shapedMenu = new BubbleMenu(BubbleMenu::TailSide::None);
+        positionedMenu = shapedMenu;
         menu = positionedMenu;
     }
     menu->setAttribute(Qt::WA_TranslucentBackground);
+    m_rim = rim;
+    shapedMenu->setRim(rim);
     addItems(menu, items);
     m_menu = menu;
 

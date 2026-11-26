@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "effects" as DockEffects
 
 // « Siri IA » : l'application de conversation du Dock, à la manière de
@@ -43,15 +44,16 @@ Window {
     readonly property color glyphColor: lightMode ? Qt.rgba(0, 0, 0, 0.66) : Qt.rgba(1, 1, 1, 0.88)
     readonly property color fillSoft: lightMode ? Qt.rgba(0, 0, 0, 0.07) : Qt.rgba(1, 1, 1, 0.10)
     readonly property color fillHover: lightMode ? Qt.rgba(0, 0, 0, 0.13) : Qt.rgba(1, 1, 1, 0.20)
-    readonly property color cardFill: lightMode ? Qt.rgba(1, 1, 1, 0.66) : Qt.rgba(1, 1, 1, 0.08)
-    readonly property color cardHoverFill: lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.14)
-    readonly property color cardSelectedFill: lightMode ? "#FFFFFF" : Qt.rgba(1, 1, 1, 0.18)
+    readonly property color cardFill: lightMode ? Qt.rgba(1, 1, 1, 0.66) : "#050506"
+    readonly property color cardHoverFill: lightMode ? Qt.rgba(1, 1, 1, 0.85) : "#0F0F11"
+    readonly property color cardSelectedFill: lightMode ? "#FFFFFF" : "#1B1B1E"
     readonly property color rowSelectedFill: lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.16)
     readonly property color rowHoverFill: lightMode ? Qt.rgba(1, 1, 1, 0.5) : Qt.rgba(1, 1, 1, 0.08)
     readonly property color inputFill: lightMode ? Qt.rgba(0, 0, 0, 0.045) : Qt.rgba(1, 1, 1, 0.08)
     readonly property color inputBorder: lightMode ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(1, 1, 1, 0.12)
     readonly property color inputBorderFocus: lightMode ? Qt.rgba(0, 0, 0, 0.26) : Qt.rgba(1, 1, 1, 0.32)
     readonly property color selectionFill: lightMode ? Qt.rgba(0.04, 0.52, 1, 0.3) : Qt.rgba(1, 1, 1, 0.3)
+    readonly property color separatorColor: lightMode ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(1, 1, 1, 0.10)
     readonly property color sendIdle: lightMode ? Qt.rgba(0, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.22)
     readonly property real screenWidth: screen ? screen.width : 1920
     readonly property real screenHeight: screen ? screen.height : 1080
@@ -495,6 +497,7 @@ Window {
         }
         menuKind = 0;
         chat.refreshGeminiModels(false);
+        chat.refreshGroqModels(false);
         var entries = [];
         if (chat.providerReady(0)) {
             var models = chat.geminiModelChoices();
@@ -505,8 +508,20 @@ Window {
                     "checked": chat.activeProvider === 0 && models[i] === currentModel });
             }
         }
+        if (chat.providerReady(3)) {
+            if (entries.length > 0) {
+                entries.push({ "separator": true });
+            }
+            var groqModels = chat.groqModelChoices();
+            var currentGroq = chat.currentGroqModel();
+            for (var g = 0; g < groqModels.length; ++g) {
+                entries.push({ "id": "groq:" + groqModels[g],
+                    "text": "Groq · " + chat.groqLabel(groqModels[g]), "glyph": "sparkle",
+                    "checked": chat.activeProvider === 3 && groqModels[g] === currentGroq });
+            }
+        }
         var others = [];
-        for (var index = 1; index < chat.providerCount; ++index) {
+        for (var index = 1; index < 3; ++index) {
             if (chat.providerReady(index)) {
                 others.push({ "id": "provider" + index, "text": chat.providerName(index),
                     "glyph": "sparkle", "checked": chat.activeProvider === index });
@@ -523,8 +538,8 @@ Window {
         entries.push({ "separator": true });
         entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
         menu.entries = entries;
-        var anchor = providerChip.mapToItem(null, providerChip.width / 2, providerChip.height);
-        menu.openBubble(anchor.x, anchor.y, "down");
+        var anchor = providerChip.mapToItem(null, providerChip.width, providerChip.height + 6);
+        menu.openAt(anchor.x, anchor.y, true);
     }
 
     // --- Dossiers et fichiers donnés à l'IA ---------------------------------------
@@ -548,8 +563,8 @@ Window {
                 "glyph": "trash" });
         }
         menu.entries = entries;
-        var anchor = attachButton.mapToItem(null, attachButton.width / 2, 0);
-        menu.openBubble(anchor.x, anchor.y, "up");
+        var anchor = attachButton.mapToItem(null, 0, -6);
+        menu.openAt(anchor.x, anchor.y, false, "up");
     }
 
     function pickAttachment(kind) {
@@ -665,13 +680,15 @@ Window {
             { "separator": true },
             { "id": "delete", "text": i18n("Delete"), "glyph": "trash" }
         ];
-        menu.openBubble(sceneX, sceneY, "down");
+        menu.openAt(sceneX, sceneY, false);
     }
 
     function handleMenu(id) {
         if (menuKind === 0) {
             if (id.indexOf("gemini:") === 0) {
                 chat.setGeminiModel(id.substring(7));
+            } else if (id.indexOf("groq:") === 0) {
+                chat.setGroqModel(id.substring(5));
             } else if (id.indexOf("provider") === 0) {
                 chat.setActiveProvider(Number(id.substring(8)));
             } else if (id === "settings") {
@@ -1050,44 +1067,12 @@ Window {
                 return columns;
             }
 
-            // Recherche.
-            Rectangle {
-                id: searchBox
+            // Contenu qui défile (liste ou cartes) : il passe derrière la
+            // recherche, qui le floute (verre).
+            Item {
+                id: scrollArea
 
-                x: 14
-                y: 0
-                width: parent.width - 28
-                height: 34
-                radius: 17
-                color: win.fillSoft
-
-                SpotlightGlyph {
-                    x: 11
-                    anchors.verticalCenter: parent.verticalCenter
-                    kind: "search"
-                    size: 15
-                    color: win.inkSoft
-                }
-
-                TextInput {
-                    id: searchField
-
-                    x: 34
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 34 - 12
-                    color: win.ink
-                    selectionColor: win.selectionFill
-                    font.pixelSize: 14
-                    clip: true
-
-                    Text {
-                        visible: searchField.text.length === 0
-                        text: i18n("Search")
-                        font: searchField.font
-                        color: win.inkFaint
-                    }
-                }
-            }
+                anchors.fill: parent
 
             // Mode liste : une ligne par discussion.
             ListView {
@@ -1095,23 +1080,37 @@ Window {
 
                 visible: win.listMode
                 x: 8
-                y: 44
+                y: 0
                 width: parent.width - 16
-                height: parent.height - 44 - 8
+                height: parent.height - 8
+                topMargin: 44
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                spacing: 2
+                spacing: 0
+                Component.onCompleted: contentY = -topMargin
                 model: win.listMode ? sidebar.sortedList : []
 
                 delegate: Item {
                     id: conversationRow
 
                     required property var modelData
+                    required property int index
 
                     readonly property bool selected: !!win.chat && win.chat.currentId === modelData.id
 
                     width: conversationList.width
                     height: 70
+
+                    // Séparateur entre deux discussions.
+                    Rectangle {
+                        visible: conversationRow.index < conversationList.count - 1
+                            && !conversationRow.selected
+                        x: 14
+                        y: parent.height - 1
+                        width: parent.width - 28
+                        height: 1
+                        color: win.separatorColor
+                    }
 
                     Rectangle {
                         anchors.fill: parent
@@ -1197,12 +1196,14 @@ Window {
 
                 visible: !win.listMode
                 x: 0
-                y: 44
+                y: 0
                 width: parent.width
-                height: parent.height - y - 4
+                height: parent.height - 4
+                topMargin: 44
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
+                Component.onCompleted: contentY = -topMargin
                 contentHeight: Math.max(leftColumn.height, rightColumn.height) + 12
 
                 Column {
@@ -1242,6 +1243,120 @@ Window {
                             conversation: modelData
                             width: rightColumn.width
                         }
+                    }
+                }
+            }
+
+            }
+
+            // Recherche en verre liquide : le flou de ce qui défile derrière,
+            // une teinte, un liseré lumineux et un reflet sur le bord haut.
+            Item {
+                id: searchBox
+
+                x: 14
+                y: 0
+                width: parent.width - 28
+                height: 34
+
+                ShaderEffectSource {
+                    id: searchBackdrop
+
+                    anchors.fill: parent
+                    visible: false
+                    sourceItem: scrollArea
+                    sourceRect: Qt.rect(searchBox.x, searchBox.y, searchBox.width, searchBox.height)
+                    live: true
+                }
+
+                Item {
+                    id: searchMask
+
+                    anchors.fill: parent
+                    visible: false
+                    layer.enabled: true
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: "black"
+                    }
+                }
+
+                MultiEffect {
+                    anchors.fill: parent
+                    source: searchBackdrop
+                    blurEnabled: true
+                    blur: 1.0
+                    blurMax: 40
+                    saturation: win.lightMode ? 0.25 : 0.1
+                    brightness: win.lightMode ? 0.04 : -0.05
+                    maskEnabled: true
+                    maskSource: searchMask
+                    maskThresholdMin: 0.5
+                    maskSpreadAtMin: 1.0
+                }
+
+                // Teinte du verre.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: win.lightMode ? Qt.rgba(1, 1, 1, 0.34) : Qt.rgba(0.1, 0.1, 0.12, 0.45)
+                }
+
+                // Reflet : lumière qui vient du haut, perdue vers le bas.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.50 : 0.16) }
+                        GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.0) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.12 : 0.05) }
+                    }
+                }
+
+                // Liseré clair (bord du verre) et ombre fine à l'intérieur.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: height / 2
+                    color: "transparent"
+                    border.width: 1
+                    border.color: win.lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.28)
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    radius: height / 2
+                    color: "transparent"
+                    border.width: 1
+                    border.color: win.lightMode ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(0, 0, 0, 0.35)
+                }
+
+                SpotlightGlyph {
+                    x: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind: "search"
+                    size: 15
+                    color: win.inkSoft
+                }
+
+                TextInput {
+                    id: searchField
+
+                    x: 34
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 34 - 12
+                    color: win.ink
+                    selectionColor: win.selectionFill
+                    font.pixelSize: 14
+                    clip: true
+
+                    Text {
+                        visible: searchField.text.length === 0
+                        text: i18n("Search")
+                        font: searchField.font
+                        color: win.inkFaint
                     }
                 }
             }
@@ -1295,8 +1410,9 @@ Window {
                 messages: win.chat ? win.chat.currentMessages : []
                 busy: win.chat ? win.chat.currentBusy : false
                 providerNames: win.chat
-                    ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2)]
-                    : ["Gemini", "GLM", ""]
+                    ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2),
+                        win.chat.providerName(3)]
+                    : ["Gemini", "GLM", "", "Groq"]
                 onCopyRequested: function (text) {
                     if (win.backend) {
                         win.backend.setClipboardText(text);

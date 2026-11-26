@@ -456,7 +456,7 @@ ListView {
     }
 
     // Nom du fournisseur d'un message (rempli par le parent si besoin).
-    property var providerNames: ["Gemini", "GLM", i18n("Custom AI")]
+    property var providerNames: ["Gemini", "GLM", i18n("Custom AI"), "Groq"]
     function providerNameFor(index) {
         return index >= 0 && index < providerNames.length ? providerNames[index] : "";
     }

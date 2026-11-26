@@ -67,19 +67,9 @@ QtObject {
         if (!window || !nativeMenu.available) {
             return;
         }
+        // Sans le liseré blanc lumineux, réservé aux menus du Dock.
         nativeMenu.popup(window, x, y, direction ? direction : (rightAligned ? "left" : "down"),
-            nativeItems(), false);
-    }
-
-    // Ouvre le menu comme celui d'une icône du Dock : une bulle à pointe en « V »
-    // centrée sur le point (x, y) (coordonnées de la fenêtre), la pointe tournée
-    // vers lui. direction : "down" (menu sous le point), "up" (au-dessus),
-    // "right" ou "left".
-    function openBubble(x, y, direction) {
-        if (!window || !nativeMenu.available) {
-            return;
-        }
-        nativeMenu.popup(window, x, y, direction ? direction : "down", nativeItems(), true);
+            nativeItems(), false, false);
     }
 
     function close() {

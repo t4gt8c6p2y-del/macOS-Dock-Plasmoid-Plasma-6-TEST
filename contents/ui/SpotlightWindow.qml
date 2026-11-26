@@ -1162,8 +1162,21 @@ Window {
                         && models[i] === currentModel });
             }
         }
+        if (chat.providerReady(3)) {
+            if (entries.length > 0) {
+                entries.push({ "separator": true });
+            }
+            var groqModels = chat.groqModelChoices();
+            var currentGroq = chat.currentGroqModel();
+            for (var g = 0; g < groqModels.length; ++g) {
+                entries.push({ "id": "groq:" + groqModels[g],
+                    "text": "Groq · " + chat.groqLabel(groqModels[g]), "glyph": "sparkle",
+                    "checked": chat.activeProvider === 3
+                        && groqModels[g] === currentGroq });
+            }
+        }
         var others = [];
-        for (var index = 1; index < chat.providerCount; ++index) {
+        for (var index = 1; index < 3; ++index) {
             if (chat.providerReady(index)) {
                 others.push({ "id": "provider" + index,
                     "text": chat.providerName(index), "glyph": "sparkle",
@@ -1189,26 +1202,27 @@ Window {
         }
         contextMenu.close();
         chat.refreshGeminiModels(false);
+        chat.refreshGroqModels(false);
         modelMenuShown = true;
         moreMenu.entries = modelEntries();
-        var anchor = modelChip.mapToItem(null, modelChip.width / 2, modelChip.height);
-        moreMenu.openBubble(anchor.x, anchor.y, "down");
+        var anchor = modelChip.mapToItem(null, modelChip.width, modelChip.height + 6);
+        moreMenu.openAt(anchor.x, anchor.y, true);
     }
 
     function openAiMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = aiEntries();
-        var anchor = plusButton.mapToItem(null, plusButton.width / 2, 0);
-        moreMenu.openBubble(anchor.x, anchor.y, "up");
+        var anchor = plusButton.mapToItem(null, 0, -6);
+        moreMenu.openAt(anchor.x, anchor.y, false, "up");
     }
 
     function openMoreMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = moreEntries();
-        var anchor = moreButton.mapToItem(null, moreButton.width / 2, moreButton.height);
-        moreMenu.openBubble(anchor.x, anchor.y, "down");
+        var anchor = moreButton.mapToItem(null, moreButton.width, moreButton.height + 6);
+        moreMenu.openAt(anchor.x, anchor.y, true);
     }
 
     function handleMoreMenu(id) {
@@ -1221,6 +1235,9 @@ Window {
             });
         } else if (id.indexOf("gemini:") === 0 && chat) {
             chat.setGeminiModel(id.substring(7));
+            focusField();
+        } else if (id.indexOf("groq:") === 0 && chat) {
+            chat.setGroqModel(id.substring(5));
             focusField();
         } else if (id.indexOf("provider") === 0 && chat) {
             chat.setActiveProvider(Number(id.substring(8)));
@@ -1269,7 +1286,7 @@ Window {
             entries.push({ "id": "open", "text": i18n("Copy"), "glyph": "copy" });
         }
         contextMenu.entries = entries;
-        contextMenu.openBubble(sceneX, sceneY, "down");
+        contextMenu.openAt(sceneX, sceneY, false);
     }
 
     function handleContextMenu(id) {
@@ -2846,8 +2863,9 @@ Window {
                 messages: win.chat ? win.chat.currentMessages : []
                 busy: win.chat ? win.chat.currentBusy : false
                 providerNames: win.chat
-                    ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2)]
-                    : ["Gemini", "GLM", ""]
+                    ? [win.chat.providerName(0), win.chat.providerName(1), win.chat.providerName(2),
+                        win.chat.providerName(3)]
+                    : ["Gemini", "GLM", "", "Groq"]
                 onCopyRequested: function (text) {
                     if (win.backend) {
                         win.backend.setClipboardText(text);
@@ -3201,6 +3219,12 @@ Window {
         target: win.chat
 
         function onGeminiModelsChanged() {
+            if (moreMenu.opened && win.modelMenuShown) {
+                moreMenu.entries = win.modelEntries();
+            }
+        }
+
+        function onGroqModelsChanged() {
             if (moreMenu.opened && win.modelMenuShown) {
                 moreMenu.entries = win.modelEntries();
             }

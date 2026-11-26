@@ -292,7 +292,7 @@
     <!--
       Identifiants de l'assistant IA. Ils restent dans la configuration locale
       de Plasma (~/.config), jamais dans le dépôt.
-      aiProvider : 0 = Gemini, 1 = GLM (OpenCode), 2 = fournisseur personnalisé.
+      aiProvider : 0 = Gemini, 1 = GLM (OpenCode), 2 = fournisseur personnalisé, 3 = Groq.
       glmBackend : 0 = CLI « opencode » (modèles gratuits), 1 = API avec clé.
     -->
     <entry name="aiProvider" type="Int">
@@ -327,6 +327,12 @@
     </entry>
     <entry name="glmBaseUrl" type="String">
       <default>https://opencode.ai/inference/openai/v1</default>
+    </entry>
+    <entry name="groqApiKey" type="String">
+      <default></default>
+    </entry>
+    <entry name="groqModel" type="String">
+      <default>llama-3.3-70b-versatile</default>
     </entry>
     <entry name="customAiName" type="String">
       <default></default>

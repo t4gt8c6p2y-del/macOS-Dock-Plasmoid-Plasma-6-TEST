@@ -1632,3 +1632,35 @@ msgstr "Modus:"
 #: contents/ui/ConfigGeneral.qml
 msgid "Colors of the Siri AI application window. The Spotlight keeps its own glass look."
 msgstr "Farben des Siri-KI-Anwendungsfensters. Das Spotlight behält sein eigenes Glas-Aussehen."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "No Groq API key. Add it in the Dock settings, tab “Siri AI”."
+msgstr "Kein Groq-API-Schlüssel. Tragen Sie ihn in den Dock-Einstellungen im Tab „Siri KI“ ein."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Key from console.groq.com/keys"
+msgstr "Schlüssel von console.groq.com/keys"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Network error: Groq could not be reached."
+msgstr "Netzwerkfehler: Groq ist nicht erreichbar."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Key accepted."
+msgstr "Schlüssel akzeptiert."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Key accepted, %1 models available. Use the list to choose one."
+msgstr "Schlüssel akzeptiert, %1 Modelle verfügbar. Wählen Sie eines in der Liste."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Key accepted, but model “%1” was not found. Use the list to choose one."
+msgstr "Schlüssel akzeptiert, aber das Modell „%1“ wurde nicht gefunden. Wählen Sie eines in der Liste."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Your models"
+msgstr "Ihre Modelle"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Groq runs open models (Llama, GPT-OSS…) very fast. The free plan has per-minute and per-day limits for each model, with no card required. Every model your key can use also appears in the “…” menu of Spotlight and in Siri AI. Groq does not search the web here."
+msgstr "Groq führt offene Modelle (Llama, GPT-OSS …) sehr schnell aus. Der kostenlose Tarif hat pro Modell Limits pro Minute und pro Tag, ohne Karte. Jedes Modell, das Ihr Schlüssel nutzen kann, erscheint auch im „…“-Menü von Spotlight und in Siri KI. Groq sucht hier nicht im Web."

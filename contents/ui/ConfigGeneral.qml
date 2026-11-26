@@ -118,6 +118,8 @@ KCM.SimpleKCM {
     property alias cfg_geminiModel: geminiModelField.text
     property alias cfg_geminiWebSearch: geminiWebSearchCheckBox.checked
     property alias cfg_glmBackend: glmBackendCombo.currentIndex
+    property alias cfg_groqApiKey: groqKeyField.text
+    property alias cfg_groqModel: groqModelField.text
     property alias cfg_siriTheme: siriThemeCombo.currentIndex
     property alias cfg_glmModel: glmModelField.text
     property alias cfg_glmApiKey: glmKeyField.text
@@ -222,6 +224,8 @@ KCM.SimpleKCM {
     property string cfg_geminiModelDefault: "gemini-3.8-flash"
     property bool cfg_geminiWebSearchDefault: true
     property int cfg_glmBackendDefault: 0
+    property string cfg_groqApiKeyDefault: ""
+    property string cfg_groqModelDefault: "llama-3.3-70b-versatile"
     property int cfg_siriThemeDefault: 1
     property string cfg_glmModelDefault: "glm-5.3-flash-free"
     property string cfg_glmApiKeyDefault: ""
@@ -300,12 +304,12 @@ KCM.SimpleKCM {
         "folderIconImage", "spotlightIconImage", "siriIconImage"
     ]
     // Réglages de l'assistant IA copiés avec le style. Les clés d'API
-    // (geminiApiKey, glmApiKey, customAiKey) n'en font JAMAIS partie.
+    // (geminiApiKey, groqApiKey, glmApiKey, customAiKey) n'en font JAMAIS partie.
     readonly property var styleAiNumberKeys: ({
-        "aiProvider": [0, 2], "glmBackend": [0, 1], "siriTheme": [0, 1]
+        "aiProvider": [0, 3], "glmBackend": [0, 1], "siriTheme": [0, 1]
     })
     readonly property var styleAiBooleanKeys: ["geminiWebSearch"]
-    readonly property var styleAiStringKeys: ["geminiModel", "glmModel",
+    readonly property var styleAiStringKeys: ["geminiModel", "groqModel", "glmModel",
         "glmBaseUrl", "customAiName", "customAiUrl", "customAiModel"]
     // Contenu du Dock (icônes épinglées, groupes, dossiers) : copié et collé
     // avec le style, mais jamais touché par la réinitialisation.
@@ -531,6 +535,63 @@ KCM.SimpleKCM {
     }
 
     // Vérifie la clé Gemini : liste les modèles qu'elle peut utiliser.
+    // Modèles de conversation renvoyés par Groq pour la clé saisie (rempli par
+    // « Tester la clé »).
+    property var groqFetchedModels: []
+    readonly property var groqSuggestedModels: ["llama-3.3-70b-versatile",
+        "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"]
+
+    function testGroq() {
+        var key = String(groqKeyField.text).trim();
+        if (key.length === 0) {
+            groqTestResult.text = i18n("Enter an API key first.");
+            return;
+        }
+        groqTestResult.text = i18n("Testing…");
+        var request = new XMLHttpRequest();
+        request.open("GET", "https://api.groq.com/openai/v1/models");
+        request.setRequestHeader("Authorization", "Bearer " + key);
+        request.onreadystatechange = function () {
+            if (request.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            if (request.status === 0) {
+                groqTestResult.text = i18n("Network error: Groq could not be reached.");
+                return;
+            }
+            if (request.status !== 200) {
+                groqTestResult.text = i18n("Key rejected (HTTP %1).", request.status);
+                return;
+            }
+            var names = [];
+            try {
+                var models = JSON.parse(request.responseText).data || [];
+                for (var i = 0; i < models.length; ++i) {
+                    var id = String(models[i].id || "");
+                    if (id.length > 0 && models[i].active !== false
+                            && !/(whisper|orpheus|playai|tts|guard|embed|distil)/i.test(id)) {
+                        names.push(id);
+                    }
+                }
+            } catch (error) {
+                names = [];
+            }
+            names.sort();
+            configPage.groqFetchedModels = names;
+            var wanted = String(groqModelField.text).trim();
+            if (names.length === 0) {
+                groqTestResult.text = i18n("Key accepted.");
+            } else if (wanted.length === 0 || names.indexOf(wanted) >= 0) {
+                groqTestResult.text = i18n("Key accepted, %1 models available. Use the list to choose one.",
+                    names.length);
+            } else {
+                groqTestResult.text = i18n("Key accepted, but model “%1” was not found. Use the list to choose one.",
+                    wanted);
+            }
+        };
+        request.send();
+    }
+
     function testGemini() {
         var key = String(geminiKeyField.text).trim();
         if (key.length === 0) {
@@ -2116,7 +2177,7 @@ KCM.SimpleKCM {
 
                     Kirigami.FormData.label: i18n("Default assistant:")
                     Layout.fillWidth: true
-                    model: [i18n("Gemini"), i18n("GLM (OpenCode)"), i18n("Custom AI")]
+                    model: [i18n("Gemini"), i18n("GLM (OpenCode)"), i18n("Custom AI"), i18n("Groq")]
                 }
 
                 QQC2.Label {
@@ -2198,6 +2259,68 @@ KCM.SimpleKCM {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: i18n("Create a free key at aistudio.google.com/apikey. The free tier has daily limits, and Google may use free-tier requests to improve its products.")
+                    opacity: 0.78
+                }
+
+                Item {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Groq")
+                }
+
+                SecretField {
+                    id: groqKeyField
+
+                    Kirigami.FormData.label: i18n("API key:")
+                    Layout.fillWidth: true
+                    placeholderText: i18n("Key from console.groq.com/keys")
+                }
+
+                RowLayout {
+                    Kirigami.FormData.label: i18n("Model:")
+                    Layout.fillWidth: true
+
+                    QQC2.TextField {
+                        id: groqModelField
+
+                        Layout.fillWidth: true
+                        placeholderText: "llama-3.3-70b-versatile"
+                        selectByMouse: true
+                    }
+
+                    QQC2.ComboBox {
+                        id: groqSuggestions
+
+                        model: configPage.groqFetchedModels.length > 0
+                            ? configPage.groqFetchedModels : configPage.groqSuggestedModels
+                        currentIndex: -1
+                        displayText: configPage.groqFetchedModels.length > 0
+                            ? i18n("Your models") : i18n("Suggestions")
+                        onActivated: groqModelField.text = currentText
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    QQC2.Button {
+                        icon.name: "dialog-ok-apply"
+                        text: i18n("Test key")
+                        onClicked: configPage.testGroq()
+                    }
+
+                    QQC2.Label {
+                        id: groqTestResult
+
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.85
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Groq runs open models (Llama, GPT-OSS…) very fast. The free plan has per-minute and per-day limits for each model, with no card required. Every model your key can use also appears in the “…” menu of Spotlight and in Siri AI. Groq does not search the web here.")
                     opacity: 0.78
                 }
 

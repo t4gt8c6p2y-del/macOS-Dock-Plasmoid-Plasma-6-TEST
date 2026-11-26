@@ -32,6 +32,9 @@ Item {
     property string glmModel: "glm-5.3-flash-free"
     property string glmKey: ""
     property string glmBaseUrl: "https://opencode.ai/inference/openai/v1"
+    // Groq (API compatible OpenAI, modèles ouverts très rapides).
+    property string groqKey: ""
+    property string groqModel: "llama-3.3-70b-versatile"
     property string customName: ""
     property string customUrl: ""
     property string customKey: ""
@@ -49,6 +52,8 @@ Item {
     // (la propriété geminiModel y reste liée, d'où un signal plutôt qu'une
     // affectation directe).
     signal geminiModelChosen(string model)
+    // Idem pour le modèle Groq.
+    signal groqModelChosen(string model)
     signal answered(string conversationId)
 
     // Les IA utilisables dépendent des clés et du CLI : dès que l'un d'eux
@@ -68,6 +73,11 @@ Item {
         geminiModelsKey = "";
         providerSettingsChanged();
     }
+    onGroqKeyChanged: {
+        groqModels = [];
+        groqModelsKey = "";
+        providerSettingsChanged();
+    }
     onGlmBackendChanged: providerSettingsChanged()
     onGlmKeyChanged: providerSettingsChanged()
     onCustomUrlChanged: providerSettingsChanged()
@@ -84,6 +94,13 @@ Item {
     // Clé pour laquelle la liste a été chargée, et heure du chargement.
     property string geminiModelsKey: ""
     property double geminiModelsTime: 0
+
+    // --- Modèles Groq disponibles pour la clé ----------------------------------------
+    property var groqModels: []
+    property bool groqModelsLoading: false
+    property string groqModelsKey: ""
+    property double groqModelsTime: 0
+    readonly property string groqBaseUrl: "https://api.groq.com/openai/v1"
 
     // --- État ------------------------------------------------------------------
     property var conversations: []
@@ -111,7 +128,7 @@ Item {
     property int processId: -1
     property var activeRequest: null
 
-    readonly property int providerCount: 3
+    readonly property int providerCount: 4
 
     function providerName(index) {
         if (index === 0) {
@@ -119,6 +136,9 @@ Item {
         }
         if (index === 1) {
             return "GLM";
+        }
+        if (index === 3) {
+            return "Groq";
         }
         return String(customName).trim().length > 0 ? String(customName).trim() : i18n("Custom AI");
     }
@@ -145,6 +165,12 @@ Item {
             }
             if (String(glmKey).trim().length === 0) {
                 return i18n("No OpenCode API key. Add it in the Dock settings, tab “Siri AI”.");
+            }
+            return "";
+        }
+        if (index === 3) {
+            if (String(groqKey).trim().length === 0) {
+                return i18n("No Groq API key. Add it in the Dock settings, tab “Siri AI”.");
             }
             return "";
         }
@@ -198,7 +224,94 @@ Item {
 
     // Nom affiché pour un fournisseur : pour Gemini, avec le modèle utilisé.
     function providerLabel(index) {
+        if (index === 3) {
+            return groqLabel(currentGroqModel());
+        }
         return index === 0 ? geminiLabel(currentGeminiModel()) : providerName(index);
+    }
+
+    // --- Modèles Groq ---------------------------------------------------------------
+    function currentGroqModel() {
+        var model = String(groqModel).trim();
+        return model.length > 0 ? model : "llama-3.3-70b-versatile";
+    }
+
+    // « openai/gpt-oss-120b » -> « gpt-oss-120b »
+    function groqLabel(id) {
+        return String(id).replace(/^[^/]+\//, "");
+    }
+
+    // Modèles de conversation de la clé (le modèle réglé est toujours présent).
+    function groqModelChoices() {
+        var list = groqModels.slice();
+        var current = currentGroqModel();
+        if (list.indexOf(current) < 0) {
+            list.unshift(current);
+        }
+        return list;
+    }
+
+    // Garde les modèles de conversation : ni voix (whisper, orpheus, playai),
+    // ni modèles de modération (guard, safeguard), ni modèles désactivés.
+    function filterGroqModels(models) {
+        var ids = [];
+        for (var i = 0; i < models.length; ++i) {
+            var id = String(models[i].id || "");
+            if (id.length === 0 || models[i].active === false
+                    || /(whisper|orpheus|playai|tts|guard|embed|distil)/i.test(id)) {
+                continue;
+            }
+            if (ids.indexOf(id) < 0) {
+                ids.push(id);
+            }
+        }
+        ids.sort();
+        return ids;
+    }
+
+    function refreshGroqModels(force) {
+        var key = String(groqKey).trim();
+        if (key.length === 0) {
+            groqModels = [];
+            groqModelsKey = "";
+            return;
+        }
+        if (groqModelsLoading) {
+            return;
+        }
+        if (!force && groqModelsKey === key && Date.now() - groqModelsTime < 600000) {
+            return;
+        }
+        groqModelsLoading = true;
+        var request = new XMLHttpRequest();
+        request.open("GET", groqBaseUrl + "/models");
+        request.setRequestHeader("Authorization", "Bearer " + key);
+        request.timeout = 15000;
+        request.onreadystatechange = function () {
+            if (request.readyState !== XMLHttpRequest.DONE) {
+                return;
+            }
+            chat.groqModelsLoading = false;
+            if (String(chat.groqKey).trim() !== key || request.status !== 200) {
+                return;
+            }
+            try {
+                var payload = JSON.parse(request.responseText);
+                chat.groqModels = chat.filterGroqModels(payload.data || []);
+                chat.groqModelsKey = key;
+                chat.groqModelsTime = Date.now();
+            } catch (error) {
+                console.warn("macOS Dock: unreadable Groq model list:", error);
+            }
+        };
+        request.send();
+    }
+
+    // Choix d'un modèle Groq dans l'interface : il devient le modèle réglé et
+    // Groq l'IA active.
+    function setGroqModel(id) {
+        groqModelChosen(String(id));
+        setActiveProvider(3);
     }
 
     // Modèles de conversation que la clé peut utiliser (les plus récents
@@ -861,6 +974,8 @@ Item {
             sendOpenCode(messages, finish);
         } else if (provider === 1) {
             sendOpenAi(glmBaseUrl, glmKey, glmModel, "GLM", messages, finish);
+        } else if (provider === 3) {
+            sendOpenAi(groqBaseUrl, groqKey, currentGroqModel(), "Groq", messages, finish);
         } else {
             sendOpenAi(customUrl, customKey, customModel, providerName(2), messages, finish);
         }

@@ -5465,7 +5465,7 @@ PlasmoidItem {
 
         backend: spotlightBackend
         defaultProvider: Math.round(root.boundedNumber(
-            Plasmoid.configuration.aiProvider, 0, 0, 2))
+            Plasmoid.configuration.aiProvider, 0, 0, 3))
         geminiKey: String(Plasmoid.configuration.geminiApiKey || "")
         geminiModel: String(Plasmoid.configuration.geminiModel || "gemini-3.8-flash")
         geminiWebSearch: Plasmoid.configuration.geminiWebSearch === undefined
@@ -5476,6 +5476,8 @@ PlasmoidItem {
         glmKey: String(Plasmoid.configuration.glmApiKey || "")
         glmBaseUrl: String(Plasmoid.configuration.glmBaseUrl
             || "https://opencode.ai/inference/openai/v1")
+        groqKey: String(Plasmoid.configuration.groqApiKey || "")
+        groqModel: String(Plasmoid.configuration.groqModel || "llama-3.3-70b-versatile")
         customName: String(Plasmoid.configuration.customAiName || "")
         customUrl: String(Plasmoid.configuration.customAiUrl || "")
         customKey: String(Plasmoid.configuration.customAiKey || "")
@@ -5488,6 +5490,10 @@ PlasmoidItem {
         // Modèle Gemini choisi dans Siri IA : il est mémorisé dans les réglages.
         onGeminiModelChosen: (model) => {
             Plasmoid.configuration.geminiModel = model;
+        }
+
+        onGroqModelChosen: (model) => {
+            Plasmoid.configuration.groqModel = model;
         }
     }
 

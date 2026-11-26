@@ -45,10 +45,14 @@ public:
      * bubble = faux : menu ordinaire, dont un coin est posé sur le point.
      * bubble = vrai : bulle centrée sur le point, avec une pointe arrondie
      * (en « V ») dirigée vers lui ; le point est alors le bord de l'icône.
+     *
+     * rim = vrai : liseré blanc lumineux (menus du Dock). rim = faux : pas de
+     * liseré blanc, seulement un trait sombre très fin (menus de Spotlight et
+     * de Siri IA).
      */
     Q_INVOKABLE bool popup(QWindow *parentWindow, qreal x, qreal y,
                            const QString &direction, const QVariantList &items,
-                           bool bubble = false);
+                           bool bubble = false, bool rim = true);
     Q_INVOKABLE void close();
 
 Q_SIGNALS:
@@ -63,4 +67,5 @@ private:
 
     QPointer<QMenu> m_menu;
     bool m_visible = false;
+    bool m_rim = true;
 };
