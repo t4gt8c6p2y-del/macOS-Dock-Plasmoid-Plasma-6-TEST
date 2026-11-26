@@ -498,45 +498,7 @@ Window {
         menuKind = 0;
         chat.refreshGeminiModels(false);
         chat.refreshGroqModels(false);
-        var entries = [];
-        if (chat.providerReady(0)) {
-            var models = chat.geminiModelChoices();
-            var currentModel = chat.currentGeminiModel();
-            for (var i = 0; i < models.length; ++i) {
-                entries.push({ "id": "gemini:" + models[i], "text": chat.geminiLabel(models[i]),
-                    "glyph": "sparkle",
-                    "checked": chat.activeProvider === 0 && models[i] === currentModel });
-            }
-        }
-        if (chat.providerReady(3)) {
-            if (entries.length > 0) {
-                entries.push({ "separator": true });
-            }
-            var groqModels = chat.groqModelChoices();
-            var currentGroq = chat.currentGroqModel();
-            for (var g = 0; g < groqModels.length; ++g) {
-                entries.push({ "id": "groq:" + groqModels[g],
-                    "text": "Groq · " + chat.groqLabel(groqModels[g]), "glyph": "sparkle",
-                    "checked": chat.activeProvider === 3 && groqModels[g] === currentGroq });
-            }
-        }
-        var others = [];
-        for (var index = 1; index < 3; ++index) {
-            if (chat.providerReady(index)) {
-                others.push({ "id": "provider" + index, "text": chat.providerName(index),
-                    "glyph": "sparkle", "checked": chat.activeProvider === index });
-            }
-        }
-        if (entries.length > 0 && others.length > 0) {
-            entries.push({ "separator": true });
-        }
-        entries = entries.concat(others);
-        if (entries.length === 0) {
-            entries.push({ "id": "none", "text": i18n("No AI available"), "glyph": "",
-                "enabled": false });
-        }
-        entries.push({ "separator": true });
-        entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
+        var entries = chat.serviceMenuEntries();
         menu.entries = entries;
         var anchor = providerChip.mapToItem(null, providerChip.width, providerChip.height + 6);
         menu.openAt(anchor.x, anchor.y, true);
@@ -1249,88 +1211,182 @@ Window {
 
             }
 
-            // Recherche en verre liquide : le flou de ce qui défile derrière,
-            // une teinte, un liseré lumineux et un reflet sur le bord haut.
+            // Recherche en Liquid Glass : ce qui défile derrière est copié, flouté,
+            // puis déformé sur les bords par le shader de réfraction du Dock
+            // (glassrefract : lentille, franges de couleur, reflet des bords).
+            // Sans ce shader (qsb absent à l'installation), il reste un verre
+            // dépoli teinté.
             Item {
                 id: searchBox
+
+                // Marge autour de la barre lue par la lentille.
+                readonly property real lens: 14
+                readonly property bool refracting: lensFx.status === ShaderEffect.Compiled
 
                 x: 14
                 y: 0
                 width: parent.width - 28
                 height: 34
 
+                // Copie de ce qui défile derrière la barre (mise à jour sur
+                // demande, pas à chaque image : voir searchRefresh).
                 ShaderEffectSource {
                     id: searchBackdrop
 
-                    anchors.fill: parent
+                    x: -searchBox.lens
+                    y: -searchBox.lens
+                    width: searchBox.width + 2 * searchBox.lens
+                    height: searchBox.height + 2 * searchBox.lens
                     visible: false
+                    live: false
                     sourceItem: scrollArea
-                    sourceRect: Qt.rect(searchBox.x, searchBox.y, searchBox.width, searchBox.height)
-                    live: true
+                    sourceRect: Qt.rect(searchBox.x - searchBox.lens, searchBox.y - searchBox.lens,
+                        width, height)
+                    Component.onCompleted: scheduleUpdate()
                 }
 
-                Item {
-                    id: searchMask
+                function refreshBackdrop() {
+                    searchBackdrop.scheduleUpdate();
+                }
 
-                    anchors.fill: parent
-                    visible: false
-                    layer.enabled: true
+                Connections {
+                    target: conversationList
 
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: "black"
+                    function onContentYChanged() {
+                        searchBox.refreshBackdrop();
                     }
                 }
 
+                Connections {
+                    target: cardScroll
+
+                    function onContentYChanged() {
+                        searchBox.refreshBackdrop();
+                    }
+                }
+
+                // Rattrape les changements que le défilement ne signale pas
+                // (image qui finit de charger, carte qui apparaît).
+                Timer {
+                    interval: 400
+                    repeat: true
+                    running: win.visible
+                    onTriggered: searchBox.refreshBackdrop()
+                }
+
+                // Flou de la copie.
                 MultiEffect {
-                    anchors.fill: parent
+                    id: blurFx
+
+                    x: -searchBox.lens
+                    y: -searchBox.lens
+                    width: searchBox.width + 2 * searchBox.lens
+                    height: searchBox.height + 2 * searchBox.lens
                     source: searchBackdrop
+                    autoPaddingEnabled: false
                     blurEnabled: true
-                    blur: 1.0
-                    blurMax: 40
-                    saturation: win.lightMode ? 0.25 : 0.1
-                    brightness: win.lightMode ? 0.04 : -0.05
-                    maskEnabled: true
-                    maskSource: searchMask
-                    maskThresholdMin: 0.5
-                    maskSpreadAtMin: 1.0
+                    blur: 0.55
+                    blurMax: 24
+                    saturation: win.lightMode ? 0.3 : 0.15
+                    layer.enabled: true
+                    visible: false
                 }
 
-                // Teinte du verre.
-                Rectangle {
+                // Le Liquid Glass : la copie floutée, déformée sur les bords.
+                ShaderEffect {
+                    id: lensFx
+
+                    x: -searchBox.lens
+                    y: -searchBox.lens
+                    width: searchBox.width + 2 * searchBox.lens
+                    height: searchBox.height + 2 * searchBox.lens
+                    visible: searchBox.refracting
+
+                    property var source: blurFx
+                    property vector2d regionSize: Qt.vector2d(width, height)
+                    property vector2d dockSize: Qt.vector2d(searchBox.width, searchBox.height)
+                    property real cornerRadius: searchBox.height / 2
+                    property real thickness: 13
+                    property real strength: 0.85
+                    property real dispersion: 0.3
+                    property real profile: 1
+                    property real rim: 1
+                    property real ringWidth: 0
+                    property real ringStrength: 0
+                    property real ringOnly: 0
+                    property vector4d tint: win.lightMode ? Qt.vector4d(1, 1, 1, 0.14)
+                        : Qt.vector4d(0.07, 0.07, 0.09, 0.30)
+
+                    fragmentShader: Qt.resolvedUrl("effects/glassrefract.frag.qsb")
+                }
+
+                // Repli sans shader : le flou seul, dans la forme de la barre.
+                Loader {
                     anchors.fill: parent
-                    radius: height / 2
-                    color: win.lightMode ? Qt.rgba(1, 1, 1, 0.34) : Qt.rgba(0.1, 0.1, 0.12, 0.45)
+                    active: !searchBox.refracting
+
+                    sourceComponent: Item {
+                        ShaderEffectSource {
+                            id: plainBlur
+
+                            anchors.fill: parent
+                            visible: false
+                            live: false
+                            sourceItem: blurFx
+                            sourceRect: Qt.rect(searchBox.lens, searchBox.lens,
+                                searchBox.width, searchBox.height)
+                            Component.onCompleted: scheduleUpdate()
+                        }
+
+                        Item {
+                            id: plainMask
+
+                            anchors.fill: parent
+                            visible: false
+                            layer.enabled: true
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: height / 2
+                                color: "black"
+                            }
+                        }
+
+                        MultiEffect {
+                            anchors.fill: parent
+                            source: plainBlur
+                            maskEnabled: true
+                            maskSource: plainMask
+                            maskThresholdMin: 0.5
+                            maskSpreadAtMin: 1.0
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: win.lightMode ? Qt.rgba(1, 1, 1, 0.34)
+                                : Qt.rgba(0.1, 0.1, 0.12, 0.45)
+                        }
+                    }
                 }
 
-                // Reflet : lumière qui vient du haut, perdue vers le bas.
+                // Reflet de lumière venue du haut et liseré du bord du verre.
                 Rectangle {
                     anchors.fill: parent
                     radius: height / 2
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.50 : 0.16) }
-                        GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.0) }
-                        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.12 : 0.05) }
+                        GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.32 : 0.12) }
+                        GradientStop { position: 0.45; color: Qt.rgba(1, 1, 1, 0.0) }
+                        GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, win.lightMode ? 0.10 : 0.04) }
                     }
                 }
 
-                // Liseré clair (bord du verre) et ombre fine à l'intérieur.
                 Rectangle {
                     anchors.fill: parent
                     radius: height / 2
                     color: "transparent"
                     border.width: 1
-                    border.color: win.lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.28)
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: 1
-                    radius: height / 2
-                    color: "transparent"
-                    border.width: 1
-                    border.color: win.lightMode ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(0, 0, 0, 0.35)
+                    border.color: win.lightMode ? Qt.rgba(1, 1, 1, 0.8) : Qt.rgba(1, 1, 1, 0.26)
                 }
 
                 SpotlightGlyph {

@@ -230,6 +230,48 @@ Item {
         return index === 0 ? geminiLabel(currentGeminiModel()) : providerName(index);
     }
 
+    // Entrées du menu de choix de l'IA (Spotlight, Siri IA) : un service par
+    // ligne. Gemini et Groq ouvrent un sous-menu avec leurs modèles ; GLM et
+    // l'IA personnalisée sont des entrées simples. Seules les IA utilisables
+    // y figurent (clé renseignée, fournisseur configuré).
+    function serviceMenuEntries() {
+        var entries = [];
+        var children = [];
+        var i = 0;
+        if (providerReady(0)) {
+            var models = geminiModelChoices();
+            var currentModel = currentGeminiModel();
+            for (i = 0; i < models.length; ++i) {
+                children.push({ "id": "gemini:" + models[i], "text": geminiLabel(models[i]),
+                    "checked": activeProvider === 0 && models[i] === currentModel });
+            }
+            entries.push({ "text": providerName(0), "glyph": "sparkle", "children": children });
+        }
+        if (providerReady(3)) {
+            var groqList = groqModelChoices();
+            var currentGroq = currentGroqModel();
+            children = [];
+            for (i = 0; i < groqList.length; ++i) {
+                children.push({ "id": "groq:" + groqList[i], "text": groqLabel(groqList[i]),
+                    "checked": activeProvider === 3 && groqList[i] === currentGroq });
+            }
+            entries.push({ "text": providerName(3), "glyph": "sparkle", "children": children });
+        }
+        for (var index = 1; index < 3; ++index) {
+            if (providerReady(index)) {
+                entries.push({ "id": "provider" + index, "text": providerName(index),
+                    "glyph": "sparkle", "checked": activeProvider === index });
+            }
+        }
+        if (entries.length === 0) {
+            entries.push({ "id": "none", "text": i18n("No AI available"), "glyph": "",
+                "enabled": false });
+        }
+        entries.push({ "separator": true });
+        entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
+        return entries;
+    }
+
     // --- Modèles Groq ---------------------------------------------------------------
     function currentGroqModel() {
         var model = String(groqModel).trim();

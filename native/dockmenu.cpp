@@ -8,9 +8,12 @@
 #include <QLinearGradient>
 #include <QMenu>
 #include <QtMath>
+#include <QEasingCurve>
 #include <QPaintEvent>
+#include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
+#include <QPixmap>
 #include <QPoint>
 #include <QRect>
 #include <QPointF>
@@ -22,6 +25,8 @@
 #include <QStyleOptionMenuItem>
 #include <QStylePainter>
 #include <QTimer>
+#include <QTransform>
+#include <QVariantAnimation>
 #include <QVariantMap>
 #include <QWindow>
 
@@ -40,6 +45,16 @@ constexpr qreal bubbleRimStrength = 0.42;
 QPointF mix(const QPointF &a, const QPointF &b, qreal t)
 {
     return a + (b - a) * t;
+}
+
+// Ouverture « goutte » : la courbe dépasse un peu 1 avant de se poser (comme
+// une goutte qui s'étale puis se rétracte).
+qreal dropEase(qreal t)
+{
+    t = qBound<qreal>(0, t, 1);
+    const qreal overshoot = 1.45;
+    const qreal u = t - 1;
+    return 1 + (overshoot + 1) * u * u * u + overshoot * u * u;
 }
 
 // QMenu::popup() recale le menu dans l'écran en prenant les coordonnées du
@@ -139,6 +154,13 @@ public:
         update();
     }
 
+    // Point d'où la goutte s'étend, en fraction du corps du menu (0, 0 = coin
+    // haut gauche), pour les menus sans pointe. Avec une pointe, c'est son bout.
+    void setRevealOrigin(const QPointF &fraction)
+    {
+        m_originFraction = fraction;
+    }
+
     // Position de la pointe le long du bord (depuis le coin de la fenêtre).
     void setTailOffset(int offset)
     {
@@ -223,7 +245,11 @@ public:
         if (!isVisible() || !windowHandle()) {
             return;
         }
-        QRegion region = glassRegionFromPath(bubblePath());
+        QPainterPath shape = bubblePath();
+        if (m_animating) {
+            shape = revealTransform().map(shape);
+        }
+        QRegion region = glassRegionFromPath(shape);
         // KWin arrondit les coins de la zone floutée avec le rayon (grand) des
         // popups, en partant de la boîte englobante de la région : avec notre
         // rayon plus petit, le verre s'arrêtait avant le liseré dans les
@@ -232,7 +258,7 @@ public:
         // invisibles, et la marge transparente (pad) garde les angles du
         // liseré à l'intérieur de la forme arrondie.
         const QRect box = rect();
-        if (box.width() > 2 && box.height() > 2) {
+        if (!m_animating && box.width() > 2 && box.height() > 2) {
             region += QRect(box.left(), box.top(), 1, 1);
             region += QRect(box.right(), box.top(), 1, 1);
             region += QRect(box.left(), box.bottom(), 1, 1);
@@ -249,6 +275,7 @@ protected:
     void showEvent(QShowEvent *event) override
     {
         QMenu::showEvent(event);
+        startReveal();
         applyShape();
         // Kvantum demande lui aussi un flou (sur tout le rectangle), un peu
         // après l'affichage : on redonne la forme exacte de la bulle ensuite.
@@ -265,6 +292,10 @@ protected:
 
     void paintEvent(QPaintEvent *) override
     {
+        if (m_animating && !m_capturing) {
+            paintReveal();
+            return;
+        }
         QStylePainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
 
@@ -318,8 +349,100 @@ protected:
     }
 
 private:
+    // --- Ouverture en goutte ------------------------------------------------------
+    QPointF revealOrigin() const
+    {
+        const QRectF body = QRectF(rect()).marginsRemoved(contentsMargins());
+        switch (m_side) {
+        case TailSide::Top:
+            return {static_cast<qreal>(m_tailOffset), body.top() - bubbleTailHeight};
+        case TailSide::Bottom:
+            return {static_cast<qreal>(m_tailOffset), body.bottom() + bubbleTailHeight};
+        case TailSide::Left:
+            return {body.left() - bubbleTailHeight, static_cast<qreal>(m_tailOffset)};
+        case TailSide::Right:
+            return {body.right() + bubbleTailHeight, static_cast<qreal>(m_tailOffset)};
+        case TailSide::None:
+            break;
+        }
+        return {body.left() + m_originFraction.x() * body.width(),
+                body.top() + m_originFraction.y() * body.height()};
+    }
+
+    // Transformation de la goutte à l'instant de l'animation : elle part d'un
+    // petit point et s'étire un peu plus vite en hauteur qu'en largeur.
+    QTransform revealTransform() const
+    {
+        const qreal sx = qMax<qreal>(0.04, 0.12 + 0.88 * dropEase(m_progress));
+        const qreal sy = qMax<qreal>(0.04, 0.12 + 0.88 * dropEase(qMin<qreal>(1, m_progress * 1.18)));
+        const QPointF origin = revealOrigin();
+        QTransform transform;
+        transform.translate(origin.x(), origin.y());
+        transform.scale(sx, sy);
+        transform.translate(-origin.x(), -origin.y());
+        return transform;
+    }
+
+    void startReveal()
+    {
+        m_snapshot = QPixmap();
+        m_progress = 0;
+        m_animating = true;
+        if (!m_animation) {
+            m_animation = new QVariantAnimation(this);
+            m_animation->setStartValue(0.0);
+            m_animation->setEndValue(1.0);
+            m_animation->setDuration(340);
+            m_animation->setEasingCurve(QEasingCurve::OutSine);
+            connect(m_animation, &QVariantAnimation::valueChanged, this,
+                    [this](const QVariant &value) {
+                        m_progress = value.toReal();
+                        applyShape();
+                        update();
+                    });
+            connect(m_animation, &QVariantAnimation::finished, this, [this]() {
+                m_animating = false;
+                m_snapshot = QPixmap();
+                applyShape();
+                update();
+            });
+        }
+        m_animation->stop();
+        m_animation->start();
+    }
+
+    void captureSnapshot()
+    {
+        m_capturing = true;
+        const qreal ratio = devicePixelRatioF();
+        QPixmap pixmap((QSizeF(size()) * ratio).toSize());
+        pixmap.setDevicePixelRatio(ratio);
+        pixmap.fill(Qt::transparent);
+        render(&pixmap);
+        m_capturing = false;
+        m_snapshot = pixmap;
+    }
+
+    void paintReveal()
+    {
+        if (m_snapshot.isNull()) {
+            captureSnapshot();
+        }
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        painter.setOpacity(qBound<qreal>(0, m_progress * 2.4, 1));
+        painter.setTransform(revealTransform());
+        painter.drawPixmap(QPointF(0, 0), m_snapshot);
+    }
+
     TailSide m_side;
     GlassTheme m_theme;
+    QVariantAnimation *m_animation = nullptr;
+    QPixmap m_snapshot;
+    QPointF m_originFraction{0, 0};
+    qreal m_progress = 1;
+    bool m_animating = false;
+    bool m_capturing = false;
     int m_tailOffset = 0;
     qreal m_pad = 0;
     bool m_rim = true;
@@ -455,6 +578,11 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     menu->setAttribute(Qt::WA_TranslucentBackground);
     m_rim = rim;
     shapedMenu->setRim(rim);
+    if (!bubble) {
+        // La goutte part du point où le menu a été demandé.
+        shapedMenu->setRevealOrigin(direction == QLatin1String("up") ? QPointF(0, 1)
+            : direction == QLatin1String("left") ? QPointF(1, 0) : QPointF(0, 0));
+    }
     addItems(menu, items);
     m_menu = menu;
 

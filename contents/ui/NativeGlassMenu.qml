@@ -36,10 +36,15 @@ QtObject {
         "search": "edit-find"
     })
 
+    // Entrées avec sous-menu : { text, children: [...] } (sans « id »).
     function nativeItems() {
+        return convertEntries(entries);
+    }
+
+    function convertEntries(list) {
         var items = [];
-        for (var i = 0; i < entries.length; ++i) {
-            var entry = entries[i];
+        for (var i = 0; i < list.length; ++i) {
+            var entry = list[i];
             if (entry.separator) {
                 items.push({ "separator": true });
                 continue;
@@ -49,6 +54,9 @@ QtObject {
                     : (entry.id === "open" ? "document-open" : ""));
             var item = { "id": entry.id, "text": entry.text, "icon": icon,
                 "enabled": entry.enabled !== false };
+            if (entry.children && entry.children.length > 0) {
+                item.children = convertEntries(entry.children);
+            }
             if (entry.checked !== undefined) {
                 item.checked = entry.checked === true;
             }

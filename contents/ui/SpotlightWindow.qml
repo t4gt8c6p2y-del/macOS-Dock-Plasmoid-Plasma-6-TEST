@@ -1148,52 +1148,7 @@ Window {
     // Entrées du menu du modèle : seules les IA utilisables y figurent. Pour
     // Gemini, chaque modèle que la clé peut utiliser est une entrée.
     function modelEntries() {
-        var entries = [];
-        if (!chat) {
-            return entries;
-        }
-        if (chat.providerReady(0)) {
-            var models = chat.geminiModelChoices();
-            var currentModel = chat.currentGeminiModel();
-            for (var i = 0; i < models.length; ++i) {
-                entries.push({ "id": "gemini:" + models[i],
-                    "text": chat.geminiLabel(models[i]), "glyph": "sparkle",
-                    "checked": chat.activeProvider === 0
-                        && models[i] === currentModel });
-            }
-        }
-        if (chat.providerReady(3)) {
-            if (entries.length > 0) {
-                entries.push({ "separator": true });
-            }
-            var groqModels = chat.groqModelChoices();
-            var currentGroq = chat.currentGroqModel();
-            for (var g = 0; g < groqModels.length; ++g) {
-                entries.push({ "id": "groq:" + groqModels[g],
-                    "text": "Groq · " + chat.groqLabel(groqModels[g]), "glyph": "sparkle",
-                    "checked": chat.activeProvider === 3
-                        && groqModels[g] === currentGroq });
-            }
-        }
-        var others = [];
-        for (var index = 1; index < 3; ++index) {
-            if (chat.providerReady(index)) {
-                others.push({ "id": "provider" + index,
-                    "text": chat.providerName(index), "glyph": "sparkle",
-                    "checked": chat.activeProvider === index });
-            }
-        }
-        if (entries.length > 0 && others.length > 0) {
-            entries.push({ "separator": true });
-        }
-        entries = entries.concat(others);
-        if (entries.length === 0) {
-            entries.push({ "id": "none", "text": i18n("No AI available"),
-                "glyph": "", "enabled": false });
-        }
-        entries.push({ "separator": true });
-        entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
-        return entries;
+        return chat ? chat.serviceMenuEntries() : [];
     }
 
     function openModelMenu() {
