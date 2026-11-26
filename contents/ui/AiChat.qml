@@ -132,24 +132,24 @@ Item {
     function providerProblem(index) {
         if (index === 0) {
             if (String(geminiKey).trim().length === 0) {
-                return i18n("No Gemini API key. Add it in the Dock settings, tab “Credentials”.");
+                return i18n("No Gemini API key. Add it in the Dock settings, tab “Siri AI”.");
             }
             return "";
         }
         if (index === 1) {
             if (glmBackend === 0) {
                 if (!backend || backend.findExecutable("opencode").length === 0) {
-                    return i18n("The OpenCode command-line tool was not found. Install it from opencode.ai, or switch GLM to “API key” mode in the Dock settings, tab “Credentials”.");
+                    return i18n("The OpenCode command-line tool was not found. Install it from opencode.ai, or switch GLM to “API key” mode in the Dock settings, tab “Siri AI”.");
                 }
                 return "";
             }
             if (String(glmKey).trim().length === 0) {
-                return i18n("No OpenCode API key. Add it in the Dock settings, tab “Credentials”.");
+                return i18n("No OpenCode API key. Add it in the Dock settings, tab “Siri AI”.");
             }
             return "";
         }
         if (String(customUrl).trim().length === 0 || String(customModel).trim().length === 0) {
-            return i18n("The custom AI is not configured. Fill in its address and model in the Dock settings, tab “Credentials”.");
+            return i18n("The custom AI is not configured. Fill in its address and model in the Dock settings, tab “Siri AI”.");
         }
         return "";
     }

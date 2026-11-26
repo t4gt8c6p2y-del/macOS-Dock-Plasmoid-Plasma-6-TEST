@@ -118,6 +118,7 @@ KCM.SimpleKCM {
     property alias cfg_geminiModel: geminiModelField.text
     property alias cfg_geminiWebSearch: geminiWebSearchCheckBox.checked
     property alias cfg_glmBackend: glmBackendCombo.currentIndex
+    property alias cfg_siriTheme: siriThemeCombo.currentIndex
     property alias cfg_glmModel: glmModelField.text
     property alias cfg_glmApiKey: glmKeyField.text
     property alias cfg_glmBaseUrl: glmBaseUrlField.text
@@ -221,6 +222,7 @@ KCM.SimpleKCM {
     property string cfg_geminiModelDefault: "gemini-3.8-flash"
     property bool cfg_geminiWebSearchDefault: true
     property int cfg_glmBackendDefault: 0
+    property int cfg_siriThemeDefault: 1
     property string cfg_glmModelDefault: "glm-5.3-flash-free"
     property string cfg_glmApiKeyDefault: ""
     property string cfg_glmBaseUrlDefault: "https://opencode.ai/inference/openai/v1"
@@ -300,7 +302,7 @@ KCM.SimpleKCM {
     // Réglages de l'assistant IA copiés avec le style. Les clés d'API
     // (geminiApiKey, glmApiKey, customAiKey) n'en font JAMAIS partie.
     readonly property var styleAiNumberKeys: ({
-        "aiProvider": [0, 2], "glmBackend": [0, 1]
+        "aiProvider": [0, 2], "glmBackend": [0, 1], "siriTheme": [0, 1]
     })
     readonly property var styleAiBooleanKeys: ["geminiWebSearch"]
     readonly property var styleAiStringKeys: ["geminiModel", "glmModel",
@@ -697,7 +699,7 @@ KCM.SimpleKCM {
             }
 
             QQC2.TabButton {
-                text: i18n("Prompts")
+                text: i18n("Siri AI")
             }
         }
 
@@ -2080,6 +2082,30 @@ KCM.SimpleKCM {
                     opacity: 0.78
                 }
 
+            }
+
+            // Onglet Siri IA : apparence, assistants (clés) et prompts.
+            Kirigami.FormLayout {
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Appearance")
+                }
+
+                QQC2.ComboBox {
+                    id: siriThemeCombo
+
+                    Kirigami.FormData.label: i18n("Mode:")
+                    Layout.fillWidth: true
+                    model: [i18n("Dark"), i18n("Light")]
+                }
+
+                QQC2.Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: i18n("Colors of the Siri AI application window. The Spotlight keeps its own glass look.")
+                    opacity: 0.78
+                }
+
                 Kirigami.Separator {
                     Kirigami.FormData.isSection: true
                     Kirigami.FormData.label: i18n("Credentials")
@@ -2269,11 +2295,12 @@ KCM.SimpleKCM {
                     text: i18n("Any service compatible with the OpenAI chat API works (OpenRouter, Groq, Mistral, a local Ollama at http://localhost:11434/v1…).")
                     opacity: 0.78
                 }
-            
-            }
 
-            // Onglet Prompts : textes que l'on envoie souvent à Siri IA.
-            Kirigami.FormLayout {
+                Kirigami.Separator {
+                    Kirigami.FormData.isSection: true
+                    Kirigami.FormData.label: i18n("Prompts")
+                }
+
                 QQC2.Label {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap

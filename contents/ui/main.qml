@@ -5542,6 +5542,12 @@ PlasmoidItem {
         backend: spotlightBackend
         chat: aiChat
         prompts: root.aiPrompts
+        lightMode: Math.round(root.boundedNumber(
+            Plasmoid.configuration.siriTheme, 1, 0, 1)) === 1
+        listMode: Plasmoid.configuration.siriListMode === true
+        onListModeRequested: (value) => {
+            Plasmoid.configuration.siriListMode = value;
+        }
 
         onSettingsRequested: Plasmoid.internalAction("configure").trigger()
     }

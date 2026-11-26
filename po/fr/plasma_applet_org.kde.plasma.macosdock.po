@@ -1020,20 +1020,20 @@ msgid "Custom AI"
 msgstr "IA personnalisée"
 
 #: contents/ui/AiChat.qml:85
-msgid "No Gemini API key. Add it in the Dock settings, tab “Credentials”."
-msgstr "Aucune clé API Gemini. Ajoutez-la dans les réglages du Dock, onglet « Identifiants »."
+msgid "No Gemini API key. Add it in the Dock settings, tab “Siri AI”."
+msgstr "Aucune clé API Gemini. Ajoutez-la dans les réglages du Dock, onglet « Siri IA »."
 
 #: contents/ui/AiChat.qml:92
-msgid "The OpenCode command-line tool was not found. Install it from opencode.ai, or switch GLM to “API key” mode in the Dock settings, tab “Credentials”."
-msgstr "La commande OpenCode est introuvable. Installez-la depuis opencode.ai, ou passez GLM en mode « Clé API » dans les réglages du Dock, onglet « Identifiants »."
+msgid "The OpenCode command-line tool was not found. Install it from opencode.ai, or switch GLM to “API key” mode in the Dock settings, tab “Siri AI”."
+msgstr "La commande OpenCode est introuvable. Installez-la depuis opencode.ai, ou passez GLM en mode « Clé API » dans les réglages du Dock, onglet « Siri IA »."
 
 #: contents/ui/AiChat.qml:97
-msgid "No OpenCode API key. Add it in the Dock settings, tab “Credentials”."
-msgstr "Aucune clé API OpenCode. Ajoutez-la dans les réglages du Dock, onglet « Identifiants »."
+msgid "No OpenCode API key. Add it in the Dock settings, tab “Siri AI”."
+msgstr "Aucune clé API OpenCode. Ajoutez-la dans les réglages du Dock, onglet « Siri IA »."
 
 #: contents/ui/AiChat.qml:102
-msgid "The custom AI is not configured. Fill in its address and model in the Dock settings, tab “Credentials”."
-msgstr "L’IA personnalisée n’est pas configurée. Renseignez son adresse et son modèle dans les réglages du Dock, onglet « Identifiants »."
+msgid "The custom AI is not configured. Fill in its address and model in the Dock settings, tab “Siri AI”."
+msgstr "L’IA personnalisée n’est pas configurée. Renseignez son adresse et son modèle dans les réglages du Dock, onglet « Siri IA »."
 
 #: contents/ui/AiChat.qml:390
 msgid "Network error: %1 could not be reached."
@@ -1618,3 +1618,19 @@ msgstr "Aucun prompt pour l’instant."
 #: contents/ui/ConfigGeneral.qml
 msgid "The spacing stays exactly as set here. It is reduced only when the Dock is about to touch the edges of the screen, so the icons never leave it."
 msgstr "L’espacement reste exactement celui réglé ici. Il n’est réduit que lorsque le Dock est sur le point de toucher les bords de l’écran : les icônes ne sortent jamais du Dock."
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Dark"
+msgstr "Sombre"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Light"
+msgstr "Clair"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Mode:"
+msgstr "Mode :"
+
+#: contents/ui/ConfigGeneral.qml
+msgid "Colors of the Siri AI application window. The Spotlight keeps its own glass look."
+msgstr "Couleurs de la fenêtre de l’application Siri IA. Le Spotlight garde son propre aspect verre."

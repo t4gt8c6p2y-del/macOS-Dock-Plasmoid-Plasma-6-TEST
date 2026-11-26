@@ -19,18 +19,40 @@ Window {
 
     property var backend: null
     property var chat: null
-    // Prompts enregistrés (onglet « Prompts » des réglages) : { icon, image,
+    // Prompts enregistrés (onglet « Siri IA » des réglages) : { icon, image,
     // title, text }. Leurs pastilles s'affichent au-dessus de la zone de saisie.
     property var prompts: []
 
     signal settingsRequested()
+    // Le bouton liste / icônes de la barre latérale a été cliqué : la fenêtre
+    // demande l'état voulu, le Dock l'enregistre dans ses réglages.
+    signal listModeRequested(bool listMode)
+
+    // Réglage « Mode » de l'onglet Siri IA : clair (vrai) ou sombre.
+    property bool lightMode: true
+    // Barre latérale : discussions en liste (vrai) ou en cartes (faux).
+    property bool listMode: false
 
     readonly property color accent: "#0A84FF"
-    // Palette claire : barre latérale grise, volet de droite blanc.
-    readonly property color sidebarColor: "#E9E7ED"
-    readonly property color paneColor: "#FFFFFF"
-    // Recherche dans les discussions (bouton filtre).
-    property bool searchOpen: false
+    // --- Palette (sombre ou claire) ---
+    readonly property color sidebarColor: lightMode ? "#D7D3D0" : "#161618"
+    readonly property color paneColor: lightMode ? "#FFFFFF" : "#000000"
+    readonly property color ink: lightMode ? "#1D1D1F" : "#F5F5F7"
+    readonly property color inkSoft: lightMode ? Qt.rgba(0, 0, 0, 0.5) : Qt.rgba(1, 1, 1, 0.55)
+    readonly property color inkFaint: lightMode ? Qt.rgba(0, 0, 0, 0.4) : Qt.rgba(1, 1, 1, 0.45)
+    readonly property color glyphColor: lightMode ? Qt.rgba(0, 0, 0, 0.66) : Qt.rgba(1, 1, 1, 0.88)
+    readonly property color fillSoft: lightMode ? Qt.rgba(0, 0, 0, 0.07) : Qt.rgba(1, 1, 1, 0.10)
+    readonly property color fillHover: lightMode ? Qt.rgba(0, 0, 0, 0.13) : Qt.rgba(1, 1, 1, 0.20)
+    readonly property color cardFill: lightMode ? Qt.rgba(1, 1, 1, 0.66) : Qt.rgba(1, 1, 1, 0.08)
+    readonly property color cardHoverFill: lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.14)
+    readonly property color cardSelectedFill: lightMode ? "#FFFFFF" : Qt.rgba(1, 1, 1, 0.18)
+    readonly property color rowSelectedFill: lightMode ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.16)
+    readonly property color rowHoverFill: lightMode ? Qt.rgba(1, 1, 1, 0.5) : Qt.rgba(1, 1, 1, 0.08)
+    readonly property color inputFill: lightMode ? Qt.rgba(0, 0, 0, 0.045) : Qt.rgba(1, 1, 1, 0.08)
+    readonly property color inputBorder: lightMode ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(1, 1, 1, 0.12)
+    readonly property color inputBorderFocus: lightMode ? Qt.rgba(0, 0, 0, 0.26) : Qt.rgba(1, 1, 1, 0.32)
+    readonly property color selectionFill: lightMode ? Qt.rgba(0.04, 0.52, 1, 0.3) : Qt.rgba(1, 1, 1, 0.3)
+    readonly property color sendIdle: lightMode ? Qt.rgba(0, 0, 0, 0.16) : Qt.rgba(1, 1, 1, 0.22)
     readonly property real screenWidth: screen ? screen.width : 1920
     readonly property real screenHeight: screen ? screen.height : 1080
     // Vrai quand KWin a maximisé la fenêtre (plus de coins arrondis ni de liseré).
@@ -318,15 +340,6 @@ Window {
         input.forceActiveFocus();
     }
 
-    function toggleSearch() {
-        searchOpen = !searchOpen;
-        if (searchOpen) {
-            searchField.forceActiveFocus();
-        } else {
-            searchField.text = "";
-            focusInput();
-        }
-    }
 
     // Première image envoyée dans la conversation (la plus récente), en URL :
     // elle illustre la carte. Chaîne vide s'il n'y en a pas.
@@ -510,8 +523,8 @@ Window {
         entries.push({ "separator": true });
         entries.push({ "id": "settings", "text": i18n("Credentials…"), "glyph": "" });
         menu.entries = entries;
-        var anchor = providerChip.mapToItem(null, providerChip.width, providerChip.height + 6);
-        menu.openAt(anchor.x, anchor.y, true);
+        var anchor = providerChip.mapToItem(null, providerChip.width / 2, providerChip.height);
+        menu.openBubble(anchor.x, anchor.y, "down");
     }
 
     // --- Dossiers et fichiers donnés à l'IA ---------------------------------------
@@ -535,8 +548,8 @@ Window {
                 "glyph": "trash" });
         }
         menu.entries = entries;
-        var anchor = attachButton.mapToItem(null, 0, -6);
-        menu.openAt(anchor.x, anchor.y, false, "up");
+        var anchor = attachButton.mapToItem(null, attachButton.width / 2, 0);
+        menu.openBubble(anchor.x, anchor.y, "up");
     }
 
     function pickAttachment(kind) {
@@ -652,7 +665,7 @@ Window {
             { "separator": true },
             { "id": "delete", "text": i18n("Delete"), "glyph": "trash" }
         ];
-        menu.openAt(sceneX, sceneY, false);
+        menu.openBubble(sceneX, sceneY, "down");
     }
 
     function handleMenu(id) {
@@ -706,7 +719,7 @@ Window {
     // n'est pas maximisée. Aucun contour n'est dessiné ici : le liseré est celui
     // de l'effet Liquid Glass de KWin, tracé le long de la forme indiquée par
     // updateGlass() (donc exactement sur le bord de la fenêtre).
-    // Liseré : un anneau de 1 px, discret (fenêtre claire).
+    // Liseré : un anneau de 1 px (sombre en mode clair, clair en mode sombre).
     Rectangle {
         id: edgeRing
 
@@ -716,9 +729,9 @@ Window {
         anchors.fill: parent
         radius: win.cornerRadius
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.10) }
-            GradientStop { position: 0.3; color: Qt.rgba(0, 0, 0, 0.14) }
-            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.20) }
+            GradientStop { position: 0.0; color: win.lightMode ? Qt.rgba(0, 0, 0, 0.10) : Qt.rgba(1, 1, 1, 0.42) }
+            GradientStop { position: 0.3; color: win.lightMode ? Qt.rgba(0, 0, 0, 0.14) : Qt.rgba(1, 1, 1, 0.16) }
+            GradientStop { position: 1.0; color: win.lightMode ? Qt.rgba(0, 0, 0, 0.20) : Qt.rgba(1, 1, 1, 0.22) }
         }
     }
 
@@ -728,7 +741,7 @@ Window {
         anchors.fill: parent
         anchors.margins: win.ownEdges && !win.maximized ? 1 : 0
         radius: Math.max(0, win.cornerRadius - anchors.margins)
-        // Fond de la barre latérale ; le volet de droite est blanc.
+        // Fond de la barre latérale ; le volet de droite est blanc (clair) ou noir (sombre).
         color: win.sidebarColor
 
         Keys.onEscapePressed: win.closeSiri()
@@ -746,6 +759,16 @@ Window {
                 height: parent.height
                 color: parent.color
             }
+        }
+
+        // Trait de séparation (mode sombre : les deux fonds sont proches).
+        Rectangle {
+            visible: !win.lightMode
+            x: win.sidebarWidth
+            y: win.titleBarHeight
+            width: 1
+            height: parent.height - win.titleBarHeight
+            color: Qt.rgba(1, 1, 1, 0.12)
         }
 
         // ---- Barre du haut : boutons de fenêtre et déplacement ----
@@ -821,44 +844,75 @@ Window {
                 }
             }
 
-            // Filtre : affiche ou masque la recherche dans les discussions.
+            // Bascule de l'affichage des discussions : cartes (icônes) ou liste.
+            // Le bouton montre le logo de l'affichage qu'il va activer.
             Rectangle {
-                id: filterButton
+                id: viewToggle
 
                 x: win.sidebarWidth - 14 - width
                 anchors.verticalCenter: parent.verticalCenter
                 width: 32
                 height: 32
                 radius: 16
-                color: win.searchOpen ? Qt.rgba(0.04, 0.52, 1, 0.2)
-                    : Qt.rgba(0, 0, 0, filterMouse.containsMouse ? 0.13 : 0.07)
+                color: toggleMouse.containsMouse ? win.fillHover : win.fillSoft
 
+                // Logo « liste » (affiché quand les discussions sont en cartes).
                 Column {
+                    visible: !win.listMode
                     anchors.centerIn: parent
                     spacing: 3
 
                     Repeater {
-                        model: [13, 9, 5]
+                        model: 3
+
+                        delegate: Row {
+                            spacing: 2.5
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 3
+                                height: 3
+                                radius: 1.5
+                                color: win.glyphColor
+                            }
+
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 9
+                                height: 2
+                                radius: 1
+                                color: win.glyphColor
+                            }
+                        }
+                    }
+                }
+
+                // Logo « icônes » (affiché quand les discussions sont en liste).
+                Grid {
+                    visible: win.listMode
+                    anchors.centerIn: parent
+                    columns: 2
+                    spacing: 3
+
+                    Repeater {
+                        model: 4
 
                         delegate: Rectangle {
-                            required property int modelData
-
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: modelData
-                            height: 1.8
-                            radius: 1
-                            color: win.searchOpen ? win.accent : Qt.rgba(0, 0, 0, 0.66)
+                            width: 6
+                            height: 6
+                            radius: 1.8
+                            color: win.glyphColor
                         }
                     }
                 }
 
                 MouseArea {
-                    id: filterMouse
+                    id: toggleMouse
 
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: win.toggleSearch()
+                    onClicked: win.listModeRequested(!win.listMode)
                 }
             }
 
@@ -871,13 +925,13 @@ Window {
                 width: 32
                 height: 32
                 radius: 10
-                color: Qt.rgba(0, 0, 0, composeMouse.containsMouse ? 0.13 : 0.07)
+                color: composeMouse.containsMouse ? win.fillHover : win.fillSoft
 
                 SpotlightGlyph {
                     anchors.centerIn: parent
                     kind: "compose"
                     size: 17
-                    color: Qt.rgba(0, 0, 0, 0.7)
+                    color: win.glyphColor
                 }
 
                 MouseArea {
@@ -904,7 +958,7 @@ Window {
                 text: win.chat && win.chat.current ? win.chat.current.title : "Siri IA"
                 font.pixelSize: 14
                 font.weight: Font.DemiBold
-                color: Qt.rgba(0, 0, 0, 0.62)
+                color: win.inkSoft
             }
 
             // Fournisseur utilisé pour la prochaine question.
@@ -917,7 +971,7 @@ Window {
                 height: 30
                 width: chipRow.implicitWidth + 24
                 radius: 15
-                color: Qt.rgba(0, 0, 0, chipMouse.containsMouse || menu.opened ? 0.13 : 0.07)
+                color: chipMouse.containsMouse || menu.opened ? win.fillHover : win.fillSoft
 
                 Row {
                     id: chipRow
@@ -930,7 +984,7 @@ Window {
                         // Pour Gemini : avec le modèle (« Gemini 3.8 Flash »).
                         text: win.chat ? win.chat.providerLabel(win.chat.activeProvider) : ""
                         font.pixelSize: 13
-                        color: Qt.rgba(0, 0, 0, 0.78)
+                        color: win.ink
                     }
 
                     SpotlightGlyph {
@@ -938,7 +992,7 @@ Window {
                         kind: "chevronDown"
                         size: 12
                         lineWidth: 2
-                        color: Qt.rgba(0, 0, 0, 0.5)
+                        color: win.inkSoft
                     }
                 }
 
@@ -959,7 +1013,7 @@ Window {
             }
         }
 
-        // ---- Barre latérale : recherche et cartes des discussions ----
+        // ---- Barre latérale : recherche et discussions (cartes ou liste) ----
         Item {
             id: sidebar
 
@@ -968,16 +1022,25 @@ Window {
             width: win.sidebarWidth
             height: parent.height - win.titleBarHeight
 
-            // Discussions réparties en deux colonnes de cartes (comme les notes
-            // de l'app Siri de macOS 27) : chaque carte va dans la colonne la
-            // moins haute (hauteur estimée).
-            readonly property var cardColumns: {
-                var columns = [[], []];
+            // Discussions filtrées par la recherche, les plus récentes d'abord
+            // (épinglées en tête).
+            readonly property var sortedList: {
                 if (!win.chat) {
-                    return columns;
+                    return [];
                 }
                 void win.chat.conversations;
-                var list = win.chat.sortedConversations(searchField.text);
+                return win.chat.sortedConversations(searchField.text);
+            }
+
+            // Mode cartes : deux colonnes (comme les notes de l'app Siri de
+            // macOS 27) ; chaque carte va dans la colonne la moins haute
+            // (hauteur estimée).
+            readonly property var cardColumns: {
+                var columns = [[], []];
+                if (win.listMode) {
+                    return columns;
+                }
+                var list = sidebar.sortedList;
                 var heights = [0, 0];
                 for (var i = 0; i < list.length; ++i) {
                     var target = heights[0] <= heights[1] ? 0 : 1;
@@ -987,24 +1050,23 @@ Window {
                 return columns;
             }
 
-            // Recherche (affichée par le bouton filtre).
+            // Recherche.
             Rectangle {
                 id: searchBox
 
-                visible: win.searchOpen
                 x: 14
                 y: 0
                 width: parent.width - 28
                 height: 34
                 radius: 17
-                color: Qt.rgba(0, 0, 0, 0.07)
+                color: win.fillSoft
 
                 SpotlightGlyph {
                     x: 11
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "search"
                     size: 15
-                    color: Qt.rgba(0, 0, 0, 0.45)
+                    color: win.inkSoft
                 }
 
                 TextInput {
@@ -1013,21 +1075,119 @@ Window {
                     x: 34
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - 34 - 12
-                    color: "#1D1D1F"
-                    selectionColor: Qt.rgba(0.04, 0.52, 1, 0.3)
+                    color: win.ink
+                    selectionColor: win.selectionFill
                     font.pixelSize: 14
                     clip: true
-                    Keys.onEscapePressed: win.toggleSearch()
 
                     Text {
                         visible: searchField.text.length === 0
                         text: i18n("Search")
                         font: searchField.font
-                        color: Qt.rgba(0, 0, 0, 0.4)
+                        color: win.inkFaint
                     }
                 }
             }
 
+            // Mode liste : une ligne par discussion.
+            ListView {
+                id: conversationList
+
+                visible: win.listMode
+                x: 8
+                y: 44
+                width: parent.width - 16
+                height: parent.height - 44 - 8
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                spacing: 2
+                model: win.listMode ? sidebar.sortedList : []
+
+                delegate: Item {
+                    id: conversationRow
+
+                    required property var modelData
+
+                    readonly property bool selected: !!win.chat && win.chat.currentId === modelData.id
+
+                    width: conversationList.width
+                    height: 70
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 14
+                        color: conversationRow.selected ? win.rowSelectedFill
+                            : (rowMouse.containsMouse ? win.rowHoverFill : "transparent")
+                    }
+
+                    Column {
+                        x: 14
+                        y: 10
+                        width: parent.width - 14 - 12
+                        spacing: 2
+
+                        Row {
+                            width: parent.width
+                            spacing: 6
+
+                            SpotlightGlyph {
+                                visible: Boolean(conversationRow.modelData.pinned)
+                                anchors.verticalCenter: parent.verticalCenter
+                                kind: "pin"
+                                size: 12
+                                color: win.inkSoft
+                            }
+
+                            Text {
+                                width: parent.width - (conversationRow.modelData.pinned ? 18 : 0) - dateText.implicitWidth - 6
+                                elide: Text.ElideRight
+                                text: conversationRow.modelData.title
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                                color: win.ink
+                            }
+
+                            Text {
+                                id: dateText
+
+                                text: win.dateLabel(conversationRow.modelData.updated)
+                                font.pixelSize: 12
+                                color: win.inkSoft
+                            }
+                        }
+
+                        Text {
+                            width: parent.width
+                            height: 30
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                            text: win.lastText(conversationRow.modelData)
+                            font.pixelSize: 13
+                            color: win.inkSoft
+                        }
+                    }
+
+                    MouseArea {
+                        id: rowMouse
+
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: function (mouse) {
+                            if (mouse.button === Qt.RightButton) {
+                                var point = conversationRow.mapToItem(null, mouse.x, mouse.y);
+                                win.openConversationMenu(conversationRow.modelData.id, point.x, point.y);
+                            } else if (win.chat) {
+                                win.chat.select(conversationRow.modelData.id);
+                                win.focusInput();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Mode cartes : deux colonnes.
             Flickable {
                 id: cardScroll
 
@@ -1035,8 +1195,9 @@ Window {
                 readonly property real sideMargin: 12
                 readonly property real columnWidth: (width - 2 * sideMargin - gap) / 2
 
+                visible: !win.listMode
                 x: 0
-                y: win.searchOpen ? 44 : 4
+                y: 44
                 width: parent.width
                 height: parent.height - y - 4
                 clip: true
@@ -1083,19 +1244,19 @@ Window {
                         }
                     }
                 }
+            }
 
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    y: 40
-                    visible: sidebar.cardColumns[0].length + sidebar.cardColumns[1].length === 0
-                    width: parent.width - 40
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                    text: searchField.text.length > 0 ? i18n("No conversations found")
-                        : i18n("Your conversations will appear here")
-                    font.pixelSize: 13
-                    color: Qt.rgba(0, 0, 0, 0.45)
-                }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 90
+                visible: sidebar.sortedList.length === 0
+                width: parent.width - 40
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: searchField.text.length > 0 ? i18n("No conversations found")
+                    : i18n("Your conversations will appear here")
+                font.pixelSize: 13
+                color: win.inkFaint
             }
         }
 
@@ -1108,64 +1269,21 @@ Window {
             width: parent.width - win.sidebarWidth
             height: parent.height - win.titleBarHeight
 
-            // Écran d'accueil : l'orbe de Siri.
-            Item {
+            // Nouvelle conversation : seulement une phrase d'accueil (pas de logo).
+            Text {
                 visible: !!win.chat && win.chat.currentMessages.length === 0 && !win.chat.currentBusy
                 anchors.horizontalCenter: parent.horizontalCenter
-                y: (parent.height - 110 - 130) / 2
-                width: 200
-                height: 130
-
-                Item {
-                    id: orb
-
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 76
-                    height: 76
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: width / 2
-                        gradient: Gradient {
-                            orientation: Gradient.Horizontal
-                            GradientStop { position: 0.0; color: "#7B61FF" }
-                            GradientStop { position: 0.5; color: "#35A7FF" }
-                            GradientStop { position: 1.0; color: "#FF5FA2" }
-                        }
-
-                        RotationAnimation on rotation {
-                            from: 0
-                            to: 360
-                            duration: 9000
-                            loops: Animation.Infinite
-                            running: orb.visible && win.visible
-                        }
-                    }
-
-                    Rectangle {
-                        x: 12
-                        y: 8
-                        width: 38
-                        height: 20
-                        radius: 10
-                        color: Qt.rgba(1, 1, 1, 0.4)
-                    }
-                }
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    y: 90
-                    text: i18n("How can I help?")
-                    font.pixelSize: 20
-                    font.weight: Font.DemiBold
-                    color: "#1D1D1F"
-                }
+                y: (parent.height - 110 - 28) / 2
+                text: i18n("How can I help?")
+                font.pixelSize: 20
+                font.weight: Font.DemiBold
+                color: win.ink
             }
 
             ChatTranscript {
                 id: transcript
 
-                light: true
+                light: win.lightMode
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -1215,8 +1333,8 @@ Window {
                         required property var modelData
                         required property int index
 
-                        light: true
-                        fill: Qt.rgba(0, 0, 0, 0.06)
+                        light: win.lightMode
+                        fill: win.fillSoft
                         path: modelData.path
                         name: modelData.name
                         isDir: modelData.isDir === true
@@ -1246,7 +1364,7 @@ Window {
             PromptBar {
                 id: promptBar
 
-                light: true
+                light: win.lightMode
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: inputBar.top
@@ -1285,9 +1403,9 @@ Window {
                 anchors.bottomMargin: 18
                 height: Math.max(48, Math.min(150, input.contentHeight + 24))
                 radius: Math.min(24, height / 2)
-                color: Qt.rgba(0, 0, 0, 0.045)
+                color: win.inputFill
                 border.width: 1
-                border.color: Qt.rgba(0, 0, 0, input.activeFocus ? 0.26 : 0.1)
+                border.color: input.activeFocus ? win.inputBorderFocus : win.inputBorder
 
                 // Bouton à gauche : forcer la recherche web (Gemini seulement).
                 Row {
@@ -1319,9 +1437,9 @@ Window {
                     width: parent.width - x - 56
                     height: parent.height - 24
                     wrapMode: TextEdit.Wrap
-                    color: "#1D1D1F"
-                    selectionColor: Qt.rgba(0.04, 0.52, 1, 0.3)
-                    selectedTextColor: "#000000"
+                    color: win.ink
+                    selectionColor: win.selectionFill
+                    selectedTextColor: win.lightMode ? "#000000" : "#FFFFFF"
                     font.pixelSize: 15
                     clip: true
 
@@ -1329,7 +1447,7 @@ Window {
                         visible: input.text.length === 0 && input.preeditText.length === 0
                         text: i18n("Ask Siri AI…")
                         font: input.font
-                        color: Qt.rgba(0, 0, 0, 0.4)
+                        color: win.inkFaint
                     }
 
                     Keys.onPressed: function (event) {
@@ -1366,7 +1484,7 @@ Window {
                     height: 30
                     radius: 15
                     color: busy || input.text.trim().length > 0 || (!!win.chat && win.chat.hasFresh)
-                        ? win.accent : Qt.rgba(0, 0, 0, 0.16)
+                        ? win.accent : win.sendIdle
 
                     SpotlightGlyph {
                         visible: !sendButton.busy
@@ -1427,14 +1545,14 @@ Window {
         width: diameter
         height: diameter
         radius: diameter / 2
-        color: active ? win.accent : Qt.rgba(0, 0, 0, toolMouse.containsMouse ? 0.13 : 0.06)
+        color: active ? win.accent : (toolMouse.containsMouse ? win.fillHover : win.fillSoft)
 
         SpotlightGlyph {
             anchors.centerIn: parent
             kind: tool.glyph
             size: Math.round(tool.diameter * 0.57)
             lineWidth: 1.9
-            color: tool.active ? "white" : Qt.rgba(0, 0, 0, 0.66)
+            color: tool.active ? "white" : win.glyphColor
         }
 
         MouseArea {
@@ -1463,8 +1581,8 @@ Window {
         Rectangle {
             anchors.fill: parent
             radius: 24
-            color: card.selected ? "#FFFFFF"
-                : Qt.rgba(1, 1, 1, cardMouse.containsMouse ? 0.85 : 0.66)
+            color: card.selected ? win.cardSelectedFill
+                : (cardMouse.containsMouse ? win.cardHoverFill : win.cardFill)
             border.width: card.selected ? 2 : 0
             border.color: win.accent
         }
@@ -1485,13 +1603,13 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     kind: "pin"
                     size: 11
-                    color: Qt.rgba(0, 0, 0, 0.5)
+                    color: win.inkSoft
                 }
 
                 Text {
                     text: win.dateLabel(card.conversation.updated)
                     font.pixelSize: 11
-                    color: Qt.rgba(0, 0, 0, 0.45)
+                    color: win.inkSoft
                 }
             }
 
@@ -1503,7 +1621,7 @@ Window {
                 text: card.conversation.title
                 font.pixelSize: 15
                 font.weight: Font.Bold
-                color: "#1D1D1F"
+                color: win.ink
             }
 
             Text {
@@ -1514,7 +1632,7 @@ Window {
                 elide: Text.ElideRight
                 text: card.preview
                 font.pixelSize: 13
-                color: Qt.rgba(0, 0, 0, 0.45)
+                color: win.inkSoft
             }
 
             RoundedImage {

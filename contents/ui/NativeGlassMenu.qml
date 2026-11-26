@@ -71,6 +71,17 @@ QtObject {
             nativeItems(), false);
     }
 
+    // Ouvre le menu comme celui d'une icône du Dock : une bulle à pointe en « V »
+    // centrée sur le point (x, y) (coordonnées de la fenêtre), la pointe tournée
+    // vers lui. direction : "down" (menu sous le point), "up" (au-dessus),
+    // "right" ou "left".
+    function openBubble(x, y, direction) {
+        if (!window || !nativeMenu.available) {
+            return;
+        }
+        nativeMenu.popup(window, x, y, direction ? direction : "down", nativeItems(), true);
+    }
+
     function close() {
         nativeMenu.close();
     }

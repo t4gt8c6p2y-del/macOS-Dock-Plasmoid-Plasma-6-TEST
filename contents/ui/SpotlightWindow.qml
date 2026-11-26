@@ -1191,24 +1191,24 @@ Window {
         chat.refreshGeminiModels(false);
         modelMenuShown = true;
         moreMenu.entries = modelEntries();
-        var anchor = modelChip.mapToItem(null, modelChip.width, modelChip.height + 6);
-        moreMenu.openAt(anchor.x, anchor.y, true);
+        var anchor = modelChip.mapToItem(null, modelChip.width / 2, modelChip.height);
+        moreMenu.openBubble(anchor.x, anchor.y, "down");
     }
 
     function openAiMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = aiEntries();
-        var anchor = plusButton.mapToItem(null, 0, -6);
-        moreMenu.openAt(anchor.x, anchor.y, false, "up");
+        var anchor = plusButton.mapToItem(null, plusButton.width / 2, 0);
+        moreMenu.openBubble(anchor.x, anchor.y, "up");
     }
 
     function openMoreMenu() {
         contextMenu.close();
         modelMenuShown = false;
         moreMenu.entries = moreEntries();
-        var anchor = moreButton.mapToItem(null, moreButton.width, moreButton.height + 6);
-        moreMenu.openAt(anchor.x, anchor.y, true);
+        var anchor = moreButton.mapToItem(null, moreButton.width / 2, moreButton.height);
+        moreMenu.openBubble(anchor.x, anchor.y, "down");
     }
 
     function handleMoreMenu(id) {
@@ -1269,7 +1269,7 @@ Window {
             entries.push({ "id": "open", "text": i18n("Copy"), "glyph": "copy" });
         }
         contextMenu.entries = entries;
-        contextMenu.openAt(sceneX, sceneY, false);
+        contextMenu.openBubble(sceneX, sceneY, "down");
     }
 
     function handleContextMenu(id) {
