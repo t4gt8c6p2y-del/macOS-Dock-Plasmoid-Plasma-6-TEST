@@ -2611,17 +2611,60 @@ Window {
                     maskSpreadAtMin: 1.0
                 }
 
-                Rectangle {
-                    width: darkLayer.width + darkLayer.height
-                    height: darkLayer.axisLength
-                    x: (darkLayer.width - width) / 2
-                    y: (darkLayer.height - height) / 2
-                    rotation: -darkLayer.angle
-                    gradient: Gradient {
-                        GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 1) }
-                        GradientStop { position: 0.16; color: Qt.rgba(0, 0, 0, 1) }
-                        GradientStop { position: 0.60; color: Qt.rgba(0, 0, 0, 0) }
+                // Le noir n'est pas plein tout en haut : la barre des boutons
+                // (fermer, agrandir, modèle) laisse voir le verre et devient de
+                // plus en plus noire en descendant, comme sur iOS.
+                Item {
+                    anchors.fill: parent
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        maskEnabled: true
+                        maskSource: darkTopFade
                     }
+
+                    Rectangle {
+                        width: darkLayer.width + darkLayer.height
+                        height: darkLayer.axisLength
+                        x: (darkLayer.width - width) / 2
+                        y: (darkLayer.height - height) / 2
+                        rotation: -darkLayer.angle
+                        gradient: Gradient {
+                            GradientStop { position: 0.00; color: Qt.rgba(0, 0, 0, 1) }
+                            GradientStop { position: 0.16; color: Qt.rgba(0, 0, 0, 1) }
+                            GradientStop { position: 0.60; color: Qt.rgba(0, 0, 0, 0) }
+                        }
+                    }
+                }
+            }
+
+            // Masque du fondu du haut : transparent en haut de la fenêtre, plein à
+            // partir du bas de la barre des boutons.
+            Item {
+                id: darkTopFade
+
+                visible: false
+                layer.enabled: true
+                width: parent.width
+                height: parent.height
+
+                Rectangle {
+                    x: 0
+                    y: 0
+                    width: parent.width
+                    height: 78
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.12) }
+                        GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0.7) }
+                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 1) }
+                    }
+                }
+
+                Rectangle {
+                    x: 0
+                    y: 78
+                    width: parent.width
+                    height: parent.height - 78
+                    color: "black"
                 }
             }
 

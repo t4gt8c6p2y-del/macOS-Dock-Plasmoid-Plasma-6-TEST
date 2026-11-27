@@ -13,6 +13,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
+#include <QFontMetrics>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QPoint>
 #include <QRect>
@@ -28,6 +30,7 @@
 #include <QTimer>
 #include <QTransform>
 #include <QVariantAnimation>
+#include <QWidgetAction>
 #include <QVariantMap>
 #include <QWindow>
 
@@ -96,6 +99,63 @@ private:
 // comme dans un menu ordinaire. Le fond est quasi transparent : c'est le flou
 // de KWin (effet Glass), demandé sur la forme exacte de la bulle, qui le
 // rend visible. Couleurs, liseré et rayon viennent du thème Liquid Glass.
+// En-tête d'un sous-menu : le nom du service en gras et un chevron vers le bas
+// (comme « Notes récentes ⌄ » sur iOS). Un clic referme le sous-menu et laisse
+// le menu parent ouvert.
+class SubMenuHeader : public QWidget
+{
+public:
+    SubMenuHeader(const QString &title, QMenu *menu, QWidget *parent)
+        : QWidget(parent)
+        , m_title(title)
+        , m_menu(menu)
+    {
+        setCursor(Qt::PointingHandCursor);
+        QFont bold = font();
+        bold.setBold(true);
+        setFont(bold);
+    }
+
+    QSize sizeHint() const override
+    {
+        const QFontMetrics metrics(font());
+        return QSize(metrics.horizontalAdvance(m_title) + 2 * 18 + 34, metrics.height() + 22);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        QColor ink = palette().color(QPalette::WindowText);
+        painter.setPen(ink);
+        painter.setFont(font());
+        painter.drawText(QRect(18, 0, width() - 18 - 44, height()),
+                         Qt::AlignVCenter | Qt::AlignLeft,
+                         QFontMetrics(font()).elidedText(m_title, Qt::ElideRight,
+                                                         width() - 18 - 44));
+        // Chevron vers le bas.
+        QPen pen(ink, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(pen);
+        const qreal cx = width() - 26;
+        const qreal cy = height() / 2.0;
+        QPolygonF chevron;
+        chevron << QPointF(cx - 5, cy - 2.5) << QPointF(cx, cy + 2.5) << QPointF(cx + 5, cy - 2.5);
+        painter.drawPolyline(chevron);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton && m_menu) {
+            m_menu->hide();
+        }
+    }
+
+private:
+    QString m_title;
+    QPointer<QMenu> m_menu;
+};
+
 class BubbleMenu : public PositionedMenu
 {
 public:
@@ -155,6 +215,25 @@ public:
         update();
     }
 
+    // Menus ouverts depuis un bouton : angles plus arrondis, et animation.
+    void setCornerRadius(qreal radius)
+    {
+        m_radius = radius;
+        update();
+    }
+
+    void setAnimated(bool animated)
+    {
+        m_animated = animated;
+    }
+
+    // Rectangle de départ de l'animation, en coordonnées du corps du menu.
+    void setRevealStartRect(const QRectF &rect)
+    {
+        m_startRect = rect;
+        m_hasStartRect = rect.isValid();
+    }
+
     // Point d'où la goutte s'étend, en fraction du corps du menu (0, 0 = coin
     // haut gauche), pour les menus sans pointe. Avec une pointe, c'est son bout.
     void setRevealOrigin(const QPointF &fraction)
@@ -181,7 +260,7 @@ public:
     // Rayon des menus du thème : les angles ressemblent à ceux de la sélection.
     qreal bubbleRadius() const
     {
-        return qMax<qreal>(4, m_theme.menuRadius);
+        return m_radius > 0 ? m_radius : qMax<qreal>(4, m_theme.menuRadius);
     }
 
     qreal cornerRadius(const QRectF &edge) const
@@ -384,6 +463,23 @@ private:
     // petit point et s'étire un peu plus vite en hauteur qu'en largeur.
     QTransform revealTransform() const
     {
+        if (m_hasStartRect) {
+            const QRectF full = QRectF(rect()).marginsRemoved(contentsMargins());
+            const QRectF start = m_startRect.translated(full.topLeft());
+            const qreal ex = dropEase(m_progress);
+            const qreal ey = dropEase(qMin<qreal>(1, m_progress * 1.12));
+            const QRectF now(start.x() + (full.x() - start.x()) * ex,
+                             start.y() + (full.y() - start.y()) * ey,
+                             start.width() + (full.width() - start.width()) * ex,
+                             start.height() + (full.height() - start.height()) * ey);
+            const qreal bx = qMax<qreal>(0.04, now.width() / qMax<qreal>(1, full.width()));
+            const qreal by = qMax<qreal>(0.04, now.height() / qMax<qreal>(1, full.height()));
+            QTransform fromRow;
+            fromRow.translate(now.x(), now.y());
+            fromRow.scale(bx, by);
+            fromRow.translate(-full.x(), -full.y());
+            return fromRow;
+        }
         if (m_hasButton) {
             const QRectF full = QRectF(rect()).marginsRemoved(contentsMargins());
             const QSizeF start(qMin(m_buttonSize.width(), full.width()),
@@ -416,6 +512,12 @@ private:
 
     void startReveal()
     {
+        // Seuls les menus ouverts depuis un bouton (et leurs sous-menus)
+        // s'animent : pas le clic droit.
+        if (!m_animated) {
+            m_animating = false;
+            return;
+        }
         m_snapshot = QPixmap();
         m_progress = 0;
         m_animating = true;
@@ -461,7 +563,7 @@ private:
         }
         QPainter painter(this);
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.setOpacity(qBound<qreal>(0, m_progress * (m_hasButton ? 3.2 : 2.4), 1));
+        painter.setOpacity(qBound<qreal>(0, m_progress * ((m_hasButton || m_hasStartRect) ? 3.2 : 2.4), 1));
         painter.setTransform(revealTransform());
         painter.drawPixmap(QPointF(0, 0), m_snapshot);
     }
@@ -472,6 +574,10 @@ private:
     QPixmap m_snapshot;
     QPointF m_originFraction{0, 0};
     QSizeF m_buttonSize;
+    QRectF m_startRect;
+    bool m_hasStartRect = false;
+    bool m_animated = false;
+    qreal m_radius = 0;
     bool m_hasButton = false;
     bool m_buttonRight = false;
     bool m_buttonBottom = false;
@@ -540,6 +646,10 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
             // Même fond et même liseré que la bulle, sans pointe.
             BubbleMenu *subMenu = new BubbleMenu(BubbleMenu::TailSide::None, menu);
             subMenu->setRim(m_rim);
+            subMenu->setAnimated(m_animated);
+            if (m_animated) {
+                subMenu->setCornerRadius(20);
+            }
             subMenu->setTitle(text);
             subMenu->setIcon(icon);
             menu->addMenu(subMenu);
@@ -553,19 +663,27 @@ void DockMenu::addItems(QMenu *menu, const QVariantList &items)
                     subMenu->windowHandle()->setTransientParent(menu->windowHandle());
                     // Les marges transparentes des deux menus s'ajouteraient :
                     // on rapproche le sous-menu (comme avant ces marges).
-                    // Le sous-menu se pose PAR-DESSUS son menu : il part de la
-                    // ligne qui l'ouvre, légèrement en retrait du bord gauche.
+                    // Le sous-menu se pose PAR-DESSUS son menu, à son bord
+                    // gauche et un peu plus bas : le haut du menu parent
+                    // dépasse au-dessus. Il sort de la ligne qui l'ouvre.
                     const int pad = subMenu->pad();
-                    const int inset = 14;
+                    const int drop = 34;
                     const int parentWidth = menu->width();
-                    subMenu->windowHandle()->setProperty(
-                        "_q_waylandPopupOffset", QPoint(inset - parentWidth, -pad));
                     const QRect row = menu->actionGeometry(subMenu->menuAction());
-                    subMenu->setRevealFromButton(
-                        QSizeF(parentWidth - 2 * pad - inset, row.isNull() ? 30 : row.height()),
-                        false, false);
+                    subMenu->setMinimumWidth(parentWidth);
+                    subMenu->windowHandle()->setProperty(
+                        "_q_waylandPopupOffset", QPoint(-parentWidth, drop - row.y()));
+                    subMenu->setRevealStartRect(QRectF(
+                        0, row.y() - drop - pad, parentWidth - 2 * pad,
+                        row.isNull() ? 30 : row.height()));
                 }
             });
+            // En-tête : le nom du service (gras) et un chevron ; un clic referme
+            // le sous-menu.
+            QWidgetAction *header = new QWidgetAction(subMenu);
+            header->setDefaultWidget(new SubMenuHeader(text, subMenu, subMenu));
+            subMenu->addAction(header);
+            subMenu->addSeparator();
             addItems(subMenu, children);
             continue;
         }
@@ -620,7 +738,12 @@ bool DockMenu::popup(QWindow *parentWindow, qreal x, qreal y,
     }
     menu->setAttribute(Qt::WA_TranslucentBackground);
     m_rim = rim;
+    m_animated = button.isValid();
     shapedMenu->setRim(rim);
+    shapedMenu->setAnimated(m_animated);
+    if (m_animated) {
+        shapedMenu->setCornerRadius(20);
+    }
     if (!bubble) {
         // La goutte part du point où le menu a été demandé.
         shapedMenu->setRevealOrigin(direction == QLatin1String("up") ? QPointF(0, 1)

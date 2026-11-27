@@ -77,4 +77,5 @@ private:
     QPointer<QMenu> m_menu;
     bool m_visible = false;
     bool m_rim = true;
+    bool m_animated = false;
 };
